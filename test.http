@@ -1,0 +1,65 @@
+### Create a new task
+POST http://localhost:7071/api/CreateTask
+Content-Type: application/json
+
+{
+  "title": "新しい請求書の作成",
+  "priority": "High",
+  "tags": ["Project", "CS"]
+}
+### Update an existing task
+# IMPORTANT: Replace the ID below with the actual ID you copied from your browser!
+PUT http://localhost:7071/api/UpdateTask/728628ac-b70a-4647-8555-a5df976b73e8
+Content-Type: application/json
+
+{
+  "status": "Inprogress",
+  "title": "【更新済み】新しい請求書の作成"
+}
+### Delete a task
+# IMPORTANT: Replace the ID below with the actual ID of the task!
+DELETE http://localhost:7071/api/DeleteTask/728628ac-b70a-4647-8555-a5df976b73e8
+### Create a new customer
+POST http://localhost:7071/api/CreateCustomer
+Content-Type: application/json
+
+{
+  "name": "株式会社テスト",
+  "property": "テストビル 101号室",
+  "price": 50000000,
+  "担当者": "山田太郎"
+}
+### Update an existing customer
+# {id}を実際の顧客IDに置き換えてください
+PUT http://localhost:7071/api/UpdateCustomer/715d965f-96c0-4a6e-8d5c-fa634f511d97
+Content-Type: application/json
+
+{
+  "property": "テストビル 202号室に更新",
+  "担当者": "鈴木一郎"
+}
+
+### Delete a customer
+# {id}を実際の顧客IDに置き換えてください
+DELETE http://localhost:7071/api/DeleteCustomer/715d965f-96c0-4a6e-8d5c-fa634f511d97
+
+### Create a new invoice
+POST http://localhost:7071/api/CreateInvoice
+Content-Type: application/json
+
+{
+  "customerId": "38b5aeb1-af91-42ad-8cb4-2847042942fd",
+  "amount": 150000,
+  "status": "draft"
+}
+### Update an existing invoice
+PUT http://localhost:7071/api/UpdateInvoice/f39ff2d7-96e9-4b75-9146-7bbc39494e50
+Content-Type: application/json
+
+{
+  "status": "sent",
+  "amount": 165000
+}
+
+### Delete an invoice
+DELETE http://localhost:7071/api/DeleteInvoice/f39ff2d7-96e9-4b75-9146-7bbc39494e50
