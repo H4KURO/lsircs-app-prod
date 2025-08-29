@@ -3,22 +3,27 @@
 import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { TaskDetailModal } from './TaskDetailModal';
-
-// ▼▼▼ MUIコンポーネントをインポート ▼▼▼
-import { Box, TextField, Button, List, ListItem, ListItemText, IconButton, Typography } from '@mui/material';
+import { Box, TextField, Button, List, ListItem, ListItemText, IconButton, Typography, Paper } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import CircleIcon from '@mui/icons-material/Circle';
 
 const API_URL = 'http://localhost:7071/api';
+
+const getStatusColor = (status) => {
+  if (status === 'Done') return 'success.main';
+  if (status === 'Inprogress') return 'warning.main';
+  return 'action.disabled';
+};
 
 export function TaskView() {
   const [tasks, setTasks] = useState([]);
   const [newTitle, setNewTitle] = useState('');
   const [selectedTask, setSelectedTask] = useState(null);
-  
-  // (ソート・フィルターのロジックは変更なし)
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
-  const [filter, setFilter] = useState({ assignee: '', tag: '' });
+  
+  // ▼▼▼ filterのstateにcategoryを追加 ▼▼▼
+  const [filter, setFilter] = useState({ assignee: '', tag: '', category: '' });
 
   useEffect(() => {
     axios.get(`${API_URL}/GetTasks`).then(res => setTasks(res.data));
@@ -28,6 +33,10 @@ export function TaskView() {
     let filteredTasks = [...tasks];
     if (filter.assignee) { filteredTasks = filteredTasks.filter(t => t.assignee && t.assignee.toLowerCase().includes(filter.assignee.toLowerCase())); }
     if (filter.tag) { filteredTasks = filteredTasks.filter(t => t.tags && t.tags.some(tag => tag.toLowerCase().includes(filter.tag.toLowerCase())));}
+    
+    // ▼▼▼ categoryでのフィルタリングロジックを追加 ▼▼▼
+    if (filter.category) { filteredTasks = filteredTasks.filter(t => t.category && t.category.toLowerCase().includes(filter.category.toLowerCase()));}
+
     if (sortConfig.key) { filteredTasks.sort((a, b) => { if (!a[sortConfig.key]) return 1; if (!b[sortConfig.key]) return -1; if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'ascending' ? -1 : 1; if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'ascending' ? 1 : -1; return 0; }); }
     return filteredTasks;
   }, [tasks, sortConfig, filter]);
@@ -40,65 +49,57 @@ export function TaskView() {
   const handleUpdateStatus = (taskToUpdate) => { const statusCycle = { "Started": "Inprogress", "Inprogress": "Done", "Done": "Started" }; const nextStatus = statusCycle[taskToUpdate.status]; handleUpdate({ ...taskToUpdate, status: nextStatus }); };
 
   return (
-    // Boxは多機能なdivのようなもの
-    <Box sx={{ p: 2 }}> 
-      <Typography variant="h4" component="h2" gutterBottom>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <Typography variant="h4" component="h1" gutterBottom>
         タスク管理
       </Typography>
-      
-      {/* 新規作成フォーム */}
-      <Box component="form" onSubmit={handleCreate} sx={{ display: 'flex', gap: 1, mb: 2 }}>
-        <TextField
-          label="新しいタスクを入力..."
-          variant="outlined"
-          size="small"
-          value={newTitle}
-          onChange={e => setNewTitle(e.target.value)}
-          sx={{ flexGrow: 1 }}
-        />
-        <Button type="submit" variant="contained">追加</Button>
-      </Box>
 
-      {/* フィルターとソート */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2, mb: 2 }}>
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <TextField label="担当者で絞り込み..." name="assignee" variant="outlined" size="small" value={filter.assignee} onChange={handleFilterChange} />
-          <TextField label="タグで絞り込み..." name="tag" variant="outlined" size="small" value={filter.tag} onChange={handleFilterChange} />
+      <Paper elevation={2} sx={{ p: 2 }}>
+        <Typography variant="h6" gutterBottom>新規タスク</Typography>
+        <Box component="form" onSubmit={handleCreate} sx={{ display: 'flex', gap: 1, mb: 2 }}>
+          <TextField fullWidth label="新しいタスクを入力..." variant="outlined" size="small" value={newTitle} onChange={e => setNewTitle(e.target.value)} />
+          <Button type="submit" variant="contained">追加</Button>
         </Box>
-        <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button variant="outlined" size="small" onClick={() => requestSort('deadline')}>締め切り日</Button>
-            <Button variant="outlined" size="small" onClick={() => requestSort('status')}>ステータス</Button>
+        
+        <Typography variant="h6" gutterBottom>フィルター & ソート</Typography>
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+          <TextField label="担当者..." name="assignee" variant="outlined" size="small" value={filter.assignee} onChange={handleFilterChange} />
+          <TextField label="タグ..." name="tag" variant="outlined" size="small" value={filter.tag} onChange={handleFilterChange} />
+          {/* ▼▼▼ category用のフィルター入力欄を追加 ▼▼▼ */}
+          <TextField label="カテゴリー..." name="category" variant="outlined" size="small" value={filter.category} onChange={handleFilterChange} />
+          <Button variant="outlined" size="small" onClick={() => requestSort('deadline')}>締め切り日</Button>
+          <Button variant="outlined" size="small" onClick={() => requestSort('status')}>ステータス</Button>
         </Box>
-      </Box>
+      </Paper>
 
-      {/* タスク一覧 */}
-      <List>
-        {processedTasks.map(task => (
-          <ListItem
-            key={task.id}
-            secondaryAction={
-              <>
-                <Button onClick={() => handleUpdateStatus(task)} size="small" sx={{ mr: 1 }}>{task.status}</Button>
-                <IconButton edge="end" aria-label="edit" onClick={() => setSelectedTask(task)}>
-                  <EditIcon />
-                </IconButton>
-                <IconButton edge="end" aria-label="delete" onClick={() => handleDelete(task.id)}>
-                  <DeleteIcon />
-                </IconButton>
-              </>
-            }
-            sx={{ border: '1px solid #444', mb: 1, borderRadius: 1 }}
-          >
-            <ListItemText
-              primary={task.title}
-              secondary={
-                (task.assignee ? `担当: ${task.assignee}` : '') + 
-                (task.deadline ? ` / 締切: ${task.deadline.split('T')[0]}` : '')
+      <Paper elevation={2} sx={{ p: 2 }}>
+        <Typography variant="h6" gutterBottom>タスク一覧</Typography>
+        <List>
+          {processedTasks.map(task => (
+            <ListItem
+              key={task.id}
+              secondaryAction={
+                <Box>
+                  <IconButton edge="end" aria-label="edit" onClick={() => setSelectedTask(task)}><EditIcon /></IconButton>
+                  <IconButton edge="end" aria-label="delete" onClick={() => handleDelete(task.id)}><DeleteIcon /></IconButton>
+                </Box>
               }
-            />
-          </ListItem>
-        ))}
-      </List>
+              sx={{ borderBottom: '1px solid #eee' }}
+            >
+              <CircleIcon sx={{ color: getStatusColor(task.status), mr: 2, fontSize: '1rem' }} />
+              <ListItemText
+                primary={task.title}
+                secondary={
+                  // ▼▼▼ categoryの表示を追加 ▼▼▼
+                  (task.category ? `[${task.category}] ` : '') + 
+                  (task.assignee ? `担当: ${task.assignee}` : '') + 
+                  (task.deadline ? ` | 締切: ${task.deadline.split('T')[0]}` : '')
+                }
+              />
+            </ListItem>
+          ))}
+        </List>
+      </Paper>
 
       {selectedTask && (<TaskDetailModal task={selectedTask} onSave={handleUpdate} onClose={() => setSelectedTask(null)} />)}
     </Box>
