@@ -19,14 +19,20 @@ app.http('CreateTask', {
                 return { status: 400, body: "Task title is required." };
             }
 
-            const newTask = {
-                id: uuidv4(),
-                title: taskData.title,
-                status: "Started",
-                priority: taskData.priority || "Medium",
-                tags: taskData.tags || [],
-                createdAt: new Date().toISOString()
-            };
+            // ... (ファイルの先頭部分は変更なし) ...
+
+// 保存する新しいタスクオブジェクトを作成
+const newTask = {
+    id: uuidv4(),
+    title: taskData.title,
+    status: "Started",
+    priority: taskData.priority || "Medium",
+    tags: taskData.tags || [],
+    category: taskData.category || null, // ★★★ この行を追加 ★★★
+    createdAt: new Date().toISOString()
+};
+
+// ... (ファイルの末尾部分も変更なし) ...
 
             const database = client.database(databaseId);
             const container = database.container(containerId);

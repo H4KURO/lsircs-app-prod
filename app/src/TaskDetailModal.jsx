@@ -1,6 +1,7 @@
 // app/src/TaskDetailModal.jsx
 
 import { useState } from 'react';
+// ▼▼▼ MUIのダイアログ関連コンポーネントをインポート ▼▼▼
 import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button } from '@mui/material';
 
 export function TaskDetailModal({ task, onSave, onClose }) {
@@ -10,9 +11,16 @@ export function TaskDetailModal({ task, onSave, onClose }) {
     const { name, value } = e.target;
     setEditableTask({ ...editableTask, [name]: value });
   };
+  
+  // タグをカンマ区切りの文字列として扱うための処理
+  const handleTagsChange = (e) => {
+    const tagsArray = e.target.value.split(',').map(tag => tag.trim());
+    setEditableTask({ ...editableTask, tags: tagsArray });
+  };
 
   return (
-    <Dialog open={true} onClose={onClose}>
+    // ▼▼▼ JSX全体をMUIのDialogコンポーネントに置き換え ▼▼▼
+    <Dialog open={true} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>タスク詳細の編集</DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, paddingTop: '10px !important' }}>
         <TextField
@@ -22,6 +30,7 @@ export function TaskDetailModal({ task, onSave, onClose }) {
           onChange={handleChange}
           variant="outlined"
           fullWidth
+          margin="dense"
         />
         <TextField
           label="説明"
@@ -32,6 +41,16 @@ export function TaskDetailModal({ task, onSave, onClose }) {
           multiline
           rows={4}
           fullWidth
+          margin="dense"
+        />
+        <TextField
+          label="カテゴリー"
+          name="category"
+          value={editableTask.category || ''}
+          onChange={handleChange}
+          variant="outlined"
+          fullWidth
+          margin="dense"
         />
         <TextField
           label="担当者"
@@ -40,14 +59,16 @@ export function TaskDetailModal({ task, onSave, onClose }) {
           onChange={handleChange}
           variant="outlined"
           fullWidth
+          margin="dense"
         />
         <TextField
           label="タグ (カンマ区切り)"
           name="tags"
           value={editableTask.tags ? editableTask.tags.join(', ') : ''}
-          onChange={(e) => setEditableTask({ ...editableTask, tags: e.target.value.split(',').map(t => t.trim()) })}
+          onChange={handleTagsChange}
           variant="outlined"
           fullWidth
+          margin="dense"
         />
         <TextField
           label="締め切り"
@@ -57,6 +78,7 @@ export function TaskDetailModal({ task, onSave, onClose }) {
           onChange={handleChange}
           InputLabelProps={{ shrink: true }}
           fullWidth
+          margin="dense"
         />
       </DialogContent>
       <DialogActions>
