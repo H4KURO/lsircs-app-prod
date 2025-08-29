@@ -1,0 +1,27 @@
+{
+  "navigationFallback": {
+    "rewrite": "/index.html"
+  },
+  "routes": [
+    {
+      "route": "/api/*",
+      "allowedRoles": ["authenticated"]
+    }
+  ],
+  "auth": {
+    "identityProviders": {
+      "google": {
+        "registration": {}
+      },
+      "azureActiveDirectory": {
+        "registration": {}
+      }
+    }
+  },
+  "responseOverrides": {
+    "401": {
+      "redirect": "/.auth/login/google",
+      "statusCode": 302
+    }
+  }
+}
