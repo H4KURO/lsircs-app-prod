@@ -6,7 +6,7 @@ import { CustomerView } from './CustomerView';
 import { InvoiceView } from './InvoiceView';
 import { DashboardView } from './DashboardView';
 import './App.css';
-import { Box, AppBar, Toolbar, IconButton, Typography, Drawer, List, ListItem, ListItemButton, ListItemText, Divider, Chip, ListItemIcon } from '@mui/L material';
+import { Box, AppBar, Toolbar, IconButton, Typography, Drawer, List, ListItem, ListItemButton, ListItemText, Divider, Chip, ListItemIcon } from '@mui/ material';
 import MenuIcon from '@mui/icons-material/Menu';
 import GoogleIcon from '@mui/icons-material/Google';
 import MicrosoftIcon from '@mui/icons-material/Microsoft';
