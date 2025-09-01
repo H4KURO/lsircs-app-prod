@@ -13,7 +13,10 @@ const N8N_SECRET_KEY = process.env.N8N_SECRET_KEY;
 app.http('CreateTask', {
     methods: ['POST'],
     authLevel: 'anonymous',
-    handler: async (request, context) => {
+    handler: async (request, context) => { // ▼▼▼ この3行を一時的に追加 ▼▼▼
+        return {
+            body: "CreateTask function was definitely reached."
+        };
         let clientPrincipal = { userId: null, userDetails: 'Anonymous' };
 
         // ▼▼▼ ここからが修正部分 ▼▼▼
