@@ -44,15 +44,18 @@ app.http('CreateTask', {
             const taskData = await request.json();
             if (!taskData.title) { return { status: 400, body: "Task title is required." }; }
 
-            const newTask = {
-                id: uuidv4(),
-                title: taskData.title,
-                status: "Started",
-                category: taskData.category || null,
-                createdAt: new Date().toISOString(),
-                createdById: clientPrincipal.userId,
-                createdByName: clientPrincipal.userDetails
-            };
+           const newTask = {
+    id: uuidv4(),
+    title: taskData.title,
+    status: "Started",
+    priority: taskData.priority || "Medium",
+    tags: taskData.tags || [],
+    category: taskData.category || null,
+    importance: taskData.importance || 1, // ★★★ 重要度を追加 (例: 0=低, 1=中, 2=高) ★★★
+    createdAt: new Date().toISOString(),
+    createdById: clientPrincipal.userId,
+    createdByName: clientPrincipal.userDetails
+};
 
             const database = client.database(databaseId);
             const container = database.container(containerId);
