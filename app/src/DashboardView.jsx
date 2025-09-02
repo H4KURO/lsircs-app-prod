@@ -15,25 +15,53 @@ export function DashboardView() {
   const [allTasks, setAllTasks] = useState([]);
   const [selectedTask, setSelectedTask] = useState(null);
 
+  // ▼▼▼ ドロップダウン用の選択肢リストを管理するstate ▼▼▼
+  const [assigneeOptions, setAssigneeOptions] = useState([]);
+  const [categoryOptions, setCategoryOptions] = useState([]);
+  const [tagOptions, setTagOptions] = useState([]);
+
   useEffect(() => {
-    axios.get(`${API_URL}/GetTasks`).then(res => setAllTasks(res.data));
+    axios.get(`${API_URL}/GetTasks`).then(res => {
+      setAllTasks(res.data);
+      // ▼▼▼ タスクデータから選択肢を動的に生成 ▼▼▼
+      const assignees = [...new Set(res.data.map(t => t.assignee).filter(Boolean))];
+      const categories = [...new Set(res.data.map(t => t.category).filter(Boolean))];
+      const tags = [...new Set(res.data.flatMap(t => t.tags || []).filter(Boolean))];
+
+      setAssigneeOptions(assignees);
+      setCategoryOptions(categories);
+      setTagOptions(tags);
+    });
   }, []);
 
   const handleSaveTask = (taskToSave) => {
-    if (taskToSave.id) {
-      axios.put(`${API_URL}/UpdateTask/${taskToSave.id}`, taskToSave).then(res => {
-        setAllTasks(allTasks.map(t => t.id === taskToSave.id ? res.data : t));
-      });
-    } else {
-      axios.post(`${API_URL}/CreateTask`, taskToSave).then(res => {
-        setAllTasks([...allTasks, res.data]);
-      });
-    }
+    const apiCall = taskToSave.id 
+      ? axios.put(`${API_URL}/UpdateTask/${taskToSave.id}`, taskToSave)
+      : axios.post(`${API_URL}/CreateTask`, taskToSave);
+
+    apiCall.then(res => {
+      // データを更新または追加
+      const updatedTasks = taskToSave.id
+        ? allTasks.map(t => t.id === taskToSave.id ? res.data : t)
+        : [...allTasks, res.data];
+      setAllTasks(updatedTasks);
+    });
     setSelectedTask(null);
   };
 
+  // ▼▼▼ 新規作成時に、すべての項目を持つ空のオブジェクトを渡すように修正 ▼▼▼
   const handleOpenNewTaskModal = () => {
-    setSelectedTask({ title: '', status: 'Started' });
+    setSelectedTask({
+      title: '',
+      description: '',
+      status: 'Started',
+      priority: 'Medium',
+      importance: 1,
+      category: null,
+      assignee: null,
+      tags: [],
+      deadline: null,
+    });
   };
 
   const highPriorityTasks = useMemo(() => allTasks.filter(task => task.priority === 'High'), [allTasks]);
@@ -81,12 +109,7 @@ export function DashboardView() {
         </Grid>
       </Grid>
       
-      <Fab 
-        color="primary" 
-        aria-label="add" 
-        sx={{ position: 'fixed', bottom: 32, right: 32 }}
-        onClick={handleOpenNewTaskModal}
-      >
+      <Fab color="primary" aria-label="add" sx={{ position: 'fixed', bottom: 32, right: 32 }} onClick={handleOpenNewTaskModal} >
         <AddIcon />
       </Fab>
 
@@ -94,7 +117,11 @@ export function DashboardView() {
         <TaskDetailModal 
           task={selectedTask} 
           onSave={handleSaveTask} 
-          onClose={() => setSelectedTask(null)} 
+          onClose={() => setSelectedTask(null)}
+          // ▼▼▼ モーダルに選択肢リストを渡す ▼▼▼
+          assigneeOptions={assigneeOptions}
+          categoryOptions={categoryOptions}
+          tagOptions={tagOptions}
         />
       )}
     </Box>
