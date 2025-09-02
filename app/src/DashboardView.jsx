@@ -14,8 +14,6 @@ const API_URL = '/api';
 export function DashboardView() {
   const [allTasks, setAllTasks] = useState([]);
   const [selectedTask, setSelectedTask] = useState(null);
-
-  // ▼▼▼ ドロップダウン用の選択肢リストを管理するstate ▼▼▼
   const [assigneeOptions, setAssigneeOptions] = useState([]);
   const [categoryOptions, setCategoryOptions] = useState([]);
   const [tagOptions, setTagOptions] = useState([]);
@@ -23,11 +21,9 @@ export function DashboardView() {
   useEffect(() => {
     axios.get(`${API_URL}/GetTasks`).then(res => {
       setAllTasks(res.data);
-      // ▼▼▼ タスクデータから選択肢を動的に生成 ▼▼▼
       const assignees = [...new Set(res.data.map(t => t.assignee).filter(Boolean))];
       const categories = [...new Set(res.data.map(t => t.category).filter(Boolean))];
       const tags = [...new Set(res.data.flatMap(t => t.tags || []).filter(Boolean))];
-
       setAssigneeOptions(assignees);
       setCategoryOptions(categories);
       setTagOptions(tags);
@@ -39,37 +35,23 @@ export function DashboardView() {
       ? axios.put(`${API_URL}/UpdateTask/${taskToSave.id}`, taskToSave)
       : axios.post(`${API_URL}/CreateTask`, taskToSave);
 
-    apiCall
-      .then(res => {
-        const updatedTasks = taskToSave.id
-          ? allTasks.map(t => t.id === taskToSave.id ? res.data : t)
-          : [...allTasks, res.data];
-        setAllTasks(updatedTasks);
-      })
-      .catch(error => {
-        // ▼▼▼ エラー処理を追加 ▼▼▼
-        console.error('タスクの保存中にエラーが発生しました！', error);
-        alert('エラーが発生しました。タスクを保存できませんでした。');
-      })
-      .finally(() => {
-        // 成功しても失敗しても、モーダルは必ず閉じる
-        setSelectedTask(null);
-      });
-  };
+    apiCall.then(res => {
+      const updatedTasks = taskToSave.id
+        ? allTasks.map(t => t.id === taskToSave.id ? res.data : t)
+        : [...allTasks, res.data];
+      setAllTasks(updatedTasks);
+    }).catch(error => {
+      console.error('Task save error:', error);
+      alert('タスクの保存に失敗しました。');
+    }).finally(() => {
+      setSelectedTask(null);
+    });
   };
 
-  // ▼▼▼ 新規作成時に、すべての項目を持つ空のオブジェクトを渡すように修正 ▼▼▼
   const handleOpenNewTaskModal = () => {
     setSelectedTask({
-      title: '',
-      description: '',
-      status: 'Started',
-      priority: 'Medium',
-      importance: 1,
-      category: null,
-      assignee: null,
-      tags: [],
-      deadline: null,
+      title: '', description: '', status: 'Started', priority: 'Medium',
+      importance: 1, category: null, assignee: null, tags: [], deadline: null,
     });
   };
 
@@ -118,7 +100,12 @@ export function DashboardView() {
         </Grid>
       </Grid>
       
-      <Fab color="primary" aria-label="add" sx={{ position: 'fixed', bottom: 32, right: 32 }} onClick={handleOpenNewTaskModal} >
+      <Fab 
+        color="primary" 
+        aria-label="add" 
+        sx={{ position: 'fixed', bottom: 32, right: 32 }}
+        onClick={handleOpenNewTaskModal}
+      >
         <AddIcon />
       </Fab>
 
@@ -127,7 +114,6 @@ export function DashboardView() {
           task={selectedTask} 
           onSave={handleSaveTask} 
           onClose={() => setSelectedTask(null)}
-          // ▼▼▼ モーダルに選択肢リストを渡す ▼▼▼
           assigneeOptions={assigneeOptions}
           categoryOptions={categoryOptions}
           tagOptions={tagOptions}
