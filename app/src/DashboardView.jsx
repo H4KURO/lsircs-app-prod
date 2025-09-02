@@ -9,7 +9,7 @@ import { DashboardTaskList } from './DashboardTaskList';
 import { TaskDetailModal } from './TaskDetailModal';
 import { addDays, startOfToday } from 'date-fns';
 
-const API_URL = 'http://localhost:7071/api';
+const API_URL = '/api';
 
 export function DashboardView() {
   const [allTasks, setAllTasks] = useState([]);

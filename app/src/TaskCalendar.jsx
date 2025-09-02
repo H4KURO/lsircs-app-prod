@@ -10,7 +10,7 @@ import getDay from 'date-fns/getDay';
 import ja from 'date-fns/locale/ja'; // 日本語化のためのロケール
 import 'react-big-calendar/lib/css/react-big-calendar.css'; // カレンダーのCSS
 
-const API_URL = 'http://localhost:7071/api';
+const API_URL = '/api';
 
 // 日本語表示のための設定
 const locales = { 'ja': ja };

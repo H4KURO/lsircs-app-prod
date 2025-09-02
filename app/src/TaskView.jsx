@@ -8,7 +8,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CircleIcon from '@mui/icons-material/Circle';
 
-const API_URL = 'http://localhost:7071/api';
+const API_URL = '/api';
 
 const getStatusColor = (status) => {
   if (status === 'Done') return 'success.main';

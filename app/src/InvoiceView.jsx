@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { InvoiceDetailModal } from './InvoiceDetailModal'; // 作成したモーダルをインポート
 
-const API_URL = 'http://localhost:7071/api';
+const API_URL = '/api';
 
 export function InvoiceView() {
   const [invoices, setInvoices] = useState([]);
