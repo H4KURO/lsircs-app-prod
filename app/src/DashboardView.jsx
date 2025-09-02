@@ -14,26 +14,45 @@ const API_URL = '/api';
 export function DashboardView() {
   const [allTasks, setAllTasks] = useState([]);
   const [selectedTask, setSelectedTask] = useState(null);
+  const [assigneeOptions, setAssigneeOptions] = useState([]);
+  const [categoryOptions, setCategoryOptions] = useState([]);
+  const [tagOptions, setTagOptions] = useState([]);
 
   useEffect(() => {
-    axios.get(`${API_URL}/GetTasks`).then(res => setAllTasks(res.data));
+    axios.get(`${API_URL}/GetTasks`).then(res => {
+      setAllTasks(res.data);
+      const assignees = [...new Set(res.data.map(t => t.assignee).filter(Boolean))];
+      const categories = [...new Set(res.data.map(t => t.category).filter(Boolean))];
+      const tags = [...new Set(res.data.flatMap(t => t.tags || []).filter(Boolean))];
+      setAssigneeOptions(assignees);
+      setCategoryOptions(categories);
+      setTagOptions(tags);
+    });
   }, []);
 
   const handleSaveTask = (taskToSave) => {
-    if (taskToSave.id) {
-      axios.put(`${API_URL}/UpdateTask/${taskToSave.id}`, taskToSave).then(res => {
-        setAllTasks(allTasks.map(t => t.id === taskToSave.id ? res.data : t));
-      });
-    } else {
-      axios.post(`${API_URL}/CreateTask`, taskToSave).then(res => {
-        setAllTasks([...allTasks, res.data]);
-      });
-    }
-    setSelectedTask(null);
+    const apiCall = taskToSave.id
+      ? axios.put(`${API_URL}/UpdateTask/${taskToSave.id}`, taskToSave)
+      : axios.post(`${API_URL}/CreateTask`, taskToSave);
+
+    apiCall.then(res => {
+      const updatedTasks = taskToSave.id
+        ? allTasks.map(t => t.id === taskToSave.id ? res.data : t)
+        : [...allTasks, res.data];
+      setAllTasks(updatedTasks);
+    }).catch(error => {
+      console.error('Task save error:', error);
+      alert('タスクの保存に失敗しました。');
+    }).finally(() => {
+      setSelectedTask(null);
+    });
   };
 
   const handleOpenNewTaskModal = () => {
-    setSelectedTask({ title: '', status: 'Started' });
+    setSelectedTask({
+      title: '', description: '', status: 'Started', priority: 'Medium',
+      importance: 1, category: null, assignee: null, tags: [], deadline: null,
+    });
   };
 
   const highPriorityTasks = useMemo(() => allTasks.filter(task => task.priority === 'High'), [allTasks]);
@@ -94,7 +113,10 @@ export function DashboardView() {
         <TaskDetailModal 
           task={selectedTask} 
           onSave={handleSaveTask} 
-          onClose={() => setSelectedTask(null)} 
+          onClose={() => setSelectedTask(null)}
+          assigneeOptions={assigneeOptions}
+          categoryOptions={categoryOptions}
+          tagOptions={tagOptions}
         />
       )}
     </Box>

@@ -1,8 +1,14 @@
 // app/src/TaskDetailModal.jsx
 
 import { useState } from 'react';
-// ▼▼▼ MUIのSelectとAutocompleteをインポート ▼▼▼
-import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button, FormControl, InputLabel, Select, MenuItem, Autocomplete, Chip } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button, Autocomplete, Chip } from '@mui/material';
+
+// 重要度の選択肢
+const importanceOptions = [
+  { label: '高', value: 2 },
+  { label: '中', value: 1 },
+  { label: '低', value: 0 },
+];
 
 export function TaskDetailModal({ task, onSave, onClose, assigneeOptions, categoryOptions, tagOptions }) {
   const [editableTask, setEditableTask] = useState(task);
@@ -14,38 +20,41 @@ export function TaskDetailModal({ task, onSave, onClose, assigneeOptions, catego
   
   return (
     <Dialog open={true} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>タスク詳細の編集</DialogTitle>
-      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, paddingTop: '10px !important' }}>
-        <TextField label="タイトル" name="title" value={editableTask.title || ''} onChange={handleChange} variant="outlined" fullWidth margin="dense" />
-        <TextField label="説明" name="description" value={editableTask.description || ''} onChange={handleChange} variant="outlined" multiline rows={4} fullWidth margin="dense" />
+      <DialogTitle>{task.id ? 'タスク詳細の編集' : '新規タスク作成'}</DialogTitle>
+      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, paddingTop: '10px !important', mt:2 }}>
+        <TextField label="タイトル" name="title" value={editableTask.title || ''} onChange={handleChange} variant="outlined" fullWidth />
+        <TextField label="説明" name="description" value={editableTask.description || ''} onChange={handleChange} variant="outlined" multiline rows={4} fullWidth />
         
-        {/* ▼▼▼ 重要度のドロップダウンを追加 ▼▼▼ */}
-        <FormControl fullWidth margin="dense">
-          <InputLabel>重要度</InputLabel>
-          <Select name="importance" value={editableTask.importance || 1} label="重要度" onChange={handleChange} >
-            <MenuItem value={2}>高</MenuItem>
-            <MenuItem value={1}>中</MenuItem>
-            <MenuItem value={0}>低</MenuItem>
-          </Select>
-        </FormControl>
+        <Autocomplete
+          options={importanceOptions}
+          getOptionLabel={(option) => option.label || ''}
+          value={importanceOptions.find(opt => opt.value === editableTask.importance) || null}
+          onChange={(event, newValue) => {
+            setEditableTask({ ...editableTask, importance: newValue ? newValue.value : 1 });
+          }}
+          renderInput={(params) => <TextField {...params} label="重要度" />}
+        />
 
-        {/* ▼▼▼ カテゴリーをドロップダウンに変更 ▼▼▼ */}
-        <FormControl fullWidth margin="dense">
-          <InputLabel>カテゴリー</InputLabel>
-          <Select name="category" value={editableTask.category || ''} label="カテゴリー" onChange={handleChange} >
-            {categoryOptions.map(option => <MenuItem key={option} value={option}>{option}</MenuItem>)}
-          </Select>
-        </FormControl>
+        <Autocomplete
+          options={categoryOptions}
+          value={editableTask.category || null}
+          onChange={(event, newValue) => {
+            setEditableTask({ ...editableTask, category: newValue });
+          }}
+          freeSolo
+          renderInput={(params) => <TextField {...params} label="カテゴリー" />}
+        />
 
-        {/* ▼▼▼ 担当者をドロップダウンに変更 ▼▼▼ */}
-        <FormControl fullWidth margin="dense">
-          <InputLabel>担当者</InputLabel>
-          <Select name="assignee" value={editableTask.assignee || ''} label="担当者" onChange={handleChange} >
-            {assigneeOptions.map(option => <MenuItem key={option} value={option}>{option}</MenuItem>)}
-          </Select>
-        </FormControl>
+        <Autocomplete
+          options={assigneeOptions}
+          value={editableTask.assignee || null}
+          onChange={(event, newValue) => {
+            setEditableTask({ ...editableTask, assignee: newValue });
+          }}
+          freeSolo
+          renderInput={(params) => <TextField {...params} label="担当者" />}
+        />
 
-        {/* ▼▼▼ タグをAutocomplete（高機能なドロップダウン）に変更 ▼▼▼ */}
         <Autocomplete
           multiple
           freeSolo
@@ -59,12 +68,10 @@ export function TaskDetailModal({ task, onSave, onClose, assigneeOptions, catego
               <Chip variant="outlined" label={option} {...getTagProps({ index })} />
             ))
           }
-          renderInput={(params) => (
-            <TextField {...params} variant="outlined" label="タグ" placeholder="タグを追加..." />
-          )}
+          renderInput={(params) => <TextField {...params} label="タグ" placeholder="タグを追加..." />}
         />
         
-        <TextField label="締め切り" name="deadline" type="date" value={editableTask.deadline ? editableTask.deadline.split('T')[0] : ''} onChange={handleChange} InputLabelProps={{ shrink: true }} fullWidth margin="dense" />
+        <TextField label="締め切り" name="deadline" type="date" value={editableTask.deadline ? editableTask.deadline.split('T')[0] : ''} onChange={handleChange} InputLabelProps={{ shrink: true }} fullWidth />
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>キャンセル</Button>
