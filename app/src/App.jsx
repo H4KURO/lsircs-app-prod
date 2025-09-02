@@ -121,6 +121,8 @@ function App() {
         {user && currentView === 'invoices' && <InvoiceView />}
       </Box>
     </Box>
+
+    // test
   );
 }
 

@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { CustomerDetailModal } from './CustomerDetailModal'; // 作成したモーダルをインポート
 
-const API_URL = 'http://localhost:7071/api';
+const API_URL = '/api';
 
 export function CustomerView() {
   const [customers, setCustomers] = useState([]);
