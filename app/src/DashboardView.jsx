@@ -35,18 +35,27 @@ export function DashboardView() {
   }, []);
 
   const handleSaveTask = (taskToSave) => {
-    const apiCall = taskToSave.id 
+    const apiCall = taskToSave.id
       ? axios.put(`${API_URL}/UpdateTask/${taskToSave.id}`, taskToSave)
       : axios.post(`${API_URL}/CreateTask`, taskToSave);
 
-    apiCall.then(res => {
-      // データを更新または追加
-      const updatedTasks = taskToSave.id
-        ? allTasks.map(t => t.id === taskToSave.id ? res.data : t)
-        : [...allTasks, res.data];
-      setAllTasks(updatedTasks);
-    });
-    setSelectedTask(null);
+    apiCall
+      .then(res => {
+        const updatedTasks = taskToSave.id
+          ? allTasks.map(t => t.id === taskToSave.id ? res.data : t)
+          : [...allTasks, res.data];
+        setAllTasks(updatedTasks);
+      })
+      .catch(error => {
+        // ▼▼▼ エラー処理を追加 ▼▼▼
+        console.error('タスクの保存中にエラーが発生しました！', error);
+        alert('エラーが発生しました。タスクを保存できませんでした。');
+      })
+      .finally(() => {
+        // 成功しても失敗しても、モーダルは必ず閉じる
+        setSelectedTask(null);
+      });
+  };
   };
 
   // ▼▼▼ 新規作成時に、すべての項目を持つ空のオブジェクトを渡すように修正 ▼▼▼
