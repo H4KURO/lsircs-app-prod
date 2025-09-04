@@ -128,3 +128,47 @@ export function DashboardView({ user }) {
             <Paper sx={{ p: 2, height: 'auto' }}>
               <Typography variant="h6">あなたの担当タスク</Typography>
               <DashboardTaskList tasks={myTasks} onTaskClick={setSelectedTask} />
+            </Paper>
+          </Grid>
+        )}
+        
+        {dashboardSettings.showUpcoming && (
+          <Grid item xs={12} md={6}>
+            <Paper sx={{ p: 2, height: 'auto' }}>
+              <Typography variant="h6">7日以内に期日を迎えるタスク</Typography>
+              <DashboardTaskList tasks={upcomingTasks} onTaskClick={setSelectedTask} />
+            </Paper>
+          </Grid>
+        )}
+      </Grid>
+      
+      <Fab 
+        color="primary" 
+        aria-label="add" 
+        sx={{ position: 'fixed', bottom: 32, right: 32 }}
+        onClick={handleOpenNewTaskModal}
+      >
+        <AddIcon />
+      </Fab>
+
+      {selectedTask && (
+        <TaskDetailModal 
+          task={selectedTask} 
+          onSave={handleSaveTask} 
+          onClose={() => setSelectedTask(null)}
+          assigneeOptions={assigneeOptions}
+          categoryOptions={categoryOptions}
+          tagOptions={tagOptions}
+        />
+      )}
+
+      {/* ▼▼▼ 設定モーダルを追加 ▼▼▼ */}
+      <DashboardSettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        settings={dashboardSettings}
+        onSave={handleSaveSettings}
+      />
+    </Box>
+  );
+}
