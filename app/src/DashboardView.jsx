@@ -4,18 +4,19 @@ import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { Box, Grid, Paper, Typography, Fab, IconButton } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
-import SettingsIcon from '@mui/icons-material/Settings'; // 設定アイコンをインポート
+import SettingsIcon from '@mui/icons-material/Settings';
 import TaskIcon from '@mui/icons-material/Task';
+import TaskAltIcon from '@mui/icons-material/TaskAlt'; // アイコンをインポート
+import DonutLargeIcon from '@mui/icons-material/DonutLarge'; // アイコンをインポート
 import { TaskCalendar } from './TaskCalendar';
 import { DashboardTaskList } from './DashboardTaskList';
 import { TaskDetailModal } from './TaskDetailModal';
-import { StatCard } from './StatCard';
-import { DashboardSettingsModal } from './DashboardSettingsModal'; // 設定モーダルをインポート
+import { DashboardSettingsModal } from './DashboardSettingsModal';
+import { StatCard } from './StatCard'; // 作成したStatCardをインポート
 import { addDays, startOfToday } from 'date-fns';
 
 const API_URL = '/api';
 
-// デフォルトの表示設定
 const defaultSettings = {
   showHighPriority: true,
   showMyTasks: true,
@@ -28,9 +29,8 @@ export function DashboardView({ user }) {
   const [assigneeOptions, setAssigneeOptions] = useState([]);
   const [categoryOptions, setCategoryOptions] = useState([]);
   const [tagOptions, setTagOptions] = useState([]);
-  const [settingsOpen, setSettingsOpen] = useState(false); // 設定モーダルの開閉state
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
-  // ▼▼▼ 表示設定をstateで管理 ▼▼▼
   const [dashboardSettings, setDashboardSettings] = useState(() => {
     const savedSettings = localStorage.getItem('dashboardSettings');
     return savedSettings ? JSON.parse(savedSettings) : defaultSettings;
@@ -47,6 +47,14 @@ export function DashboardView({ user }) {
       setTagOptions(tags);
     });
   }, []);
+
+  // ▼▼▼ タスクの統計情報を計算するロジックを追加 ▼▼▼
+  const taskStats = useMemo(() => {
+    const total = allTasks.length;
+    const done = allTasks.filter(t => t.status === 'Done').length;
+    const inProgress = allTasks.filter(t => t.status === 'Inprogress').length;
+    return { total, done, inProgress };
+  }, [allTasks]);
 
   const handleSaveTask = (taskToSave) => {
     const apiCall = taskToSave.id
@@ -73,7 +81,6 @@ export function DashboardView({ user }) {
     });
   };
   
-  // ▼▼▼ 設定が保存されたときの処理を追加 ▼▼▼
   const handleSaveSettings = (newSettings) => {
     localStorage.setItem('dashboardSettings', JSON.stringify(newSettings));
     setDashboardSettings(newSettings);
@@ -96,7 +103,7 @@ export function DashboardView({ user }) {
   }, [allTasks]);
 
   return (
-        <Box>
+    <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
         <Typography variant="h4" component="h1" sx={{ flexGrow: 1 }}>
           ダッシュボード
@@ -120,17 +127,6 @@ export function DashboardView({ user }) {
       </Grid>
       
       <Grid container spacing={3}>
-      {/* ▼▼▼ タイトルの横に設定アイコンを追加 ▼▼▼ */}
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h4" component="h1" sx={{ flexGrow: 1 }}>
-          ダッシュボード
-        </Typography>
-        <IconButton onClick={() => setSettingsOpen(true)}>
-          <SettingsIcon />
-        </IconButton>
-      </Box>
-      
-      <Grid container spacing={3}>
         <Grid item xs={12} md={8}>
           <Paper sx={{ p: 2, height: '60vh', minHeight: 500 }}>
             <Typography variant="h6" gutterBottom>カレンダービュー</Typography>
@@ -138,7 +134,6 @@ export function DashboardView({ user }) {
           </Paper>
         </Grid>
         
-        {/* ▼▼▼ 設定に基づいてカードの表示を切り替え ▼▼▼ */}
         {dashboardSettings.showHighPriority && (
           <Grid item xs={12} md={4}>
             <Paper sx={{ p: 2, height: 'auto', mb: 2 }}>
@@ -187,7 +182,6 @@ export function DashboardView({ user }) {
         />
       )}
 
-      {/* ▼▼▼ 設定モーダルを追加 ▼▼▼ */}
       <DashboardSettingsModal
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
