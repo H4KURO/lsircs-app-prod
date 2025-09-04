@@ -2,89 +2,102 @@
 
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Box, Typography, Paper, List, ListItem, ListItemText, Button } from '@mui/material';
-import { MuiColorInput } from 'mui-color-input'; // 新しいライブラリをインポート
+import { Box, Typography, Paper, List, ListItem, ListItemText, Button, TextField, IconButton } from '@mui/material';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import SaveIcon from '@mui/icons-material/Save';
+import { MuiColorInput } from 'mui-color-input';
 
 const API_URL = '/api';
 
 export function SettingsView() {
   const [categories, setCategories] = useState([]);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [editingCategoryId, setEditingCategoryId] = useState(null); // 編集中のカテゴリID
 
-  useEffect(() => {
-    // カテゴリのデータを取得し、初期色がなければデフォルト色を設定
+  const fetchCategories = () => {
     axios.get(`${API_URL}/GetCategories`).then(res => {
-      const categoriesWithDefaults = res.data.map(cat => ({
-        ...cat,
-        color: cat.color || '#cccccc' // 色が未設定ならグレー
-      }));
-      setCategories(categoriesWithDefaults);
+      setCategories(res.data.map(cat => ({ ...cat, color: cat.color || '#cccccc' })));
     });
-  }, []);
+  };
 
-  const handleColorChange = (id, newColor) => {
+  useEffect(fetchCategories, []);
+
+  const handleValueChange = (id, field, value) => {
     setCategories(categories.map(cat => 
-      cat.id === id ? { ...cat, color: newColor } : cat
+      cat.id === id ? { ...cat, [field]: value } : cat
     ));
   };
-
-  const handleSave = (categoryToSave) => {
-    // データベースに保存する前に、カテゴリが存在するか確認
-    if (!categoryToSave || !categoryToSave.id) {
-      alert('エラー: カテゴリ情報が正しくありません。');
-      return;
-    }
-    axios.put(`/api/UpdateCategory/${categoryToSave.id}`, { color: categoryToSave.color })
-      .then(() => alert(`「${categoryToSave.name}」の色を保存しました！`))
-      .catch(() => alert('エラー：保存に失敗しました。'));
-  };
   
-  // 新しいカテゴリがタスクで作成された際に、この設定画面に自動で追加するロジック
-  const syncCategories = async () => {
-    try {
-      const [tasksRes, categoriesRes] = await Promise.all([
-        axios.get(`${API_URL}/GetTasks`),
-        axios.get(`${API_URL}/GetCategories`)
-      ]);
-      
-      const taskCategories = [...new Set(tasksRes.data.map(t => t.category).filter(Boolean))];
-      const existingCategories = categoriesRes.data.map(c => c.name);
-      
-      const newCategories = taskCategories.filter(tc => !existingCategories.includes(tc));
+  const handleCreate = () => {
+    if (!newCategoryName.trim()) return;
+    axios.post(`${API_URL}/CreateCategory`, { name: newCategoryName }).then(() => {
+      setNewCategoryName('');
+      fetchCategories(); // リストを再取得して更新
+    });
+  };
 
-      if (newCategories.length > 0) {
-        // 新しいカテゴリをデータベースに追加するAPIを呼び出す
-        await axios.post(`${API_URL}/CreateCategories`, { categories: newCategories });
-        // 最新のカテゴリリストを再取得
-        const updatedCategoriesRes = await axios.get(`${API_URL}/GetCategories`);
-        setCategories(updatedCategoriesRes.data.map(cat => ({...cat, color: cat.color || '#cccccc' })));
-        alert('新しいカテゴリを同期しました！');
-      } else {
-        alert('新しいカテゴリはありません。');
-      }
-    } catch (error) {
-      alert('カテゴリの同期中にエラーが発生しました。');
+  const handleUpdate = (categoryToUpdate) => {
+    axios.put(`${API_URL}/UpdateCategory/${categoryToUpdate.id}`, { 
+        name: categoryToUpdate.name, 
+        color: categoryToUpdate.color 
+    }).then(() => {
+      setEditingCategoryId(null); // 編集モードを終了
+      fetchCategories();
+    });
+  };
+
+  const handleDelete = (idToDelete) => {
+    if (window.confirm("このカテゴリを削除しますか？関連するタスクのカテゴリは空になります。")) {
+      axios.delete(`${API_URL}/DeleteCategory/${idToDelete}`).then(() => {
+        fetchCategories();
+      });
     }
   };
 
   return (
     <Box>
-      <Typography variant="h4" component="h1" gutterBottom>
-        設定
-      </Typography>
+      <Typography variant="h4" component="h1" gutterBottom>設定</Typography>
       <Paper sx={{ p: 2 }}>
-        <Box sx={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-            <Typography variant="h6" gutterBottom>カテゴリーの色設定</Typography>
-            <Button onClick={syncCategories}>タスクとカテゴリを同期</Button>
+        <Typography variant="h6" gutterBottom>カテゴリー管理</Typography>
+        
+        {/* 新規作成フォーム */}
+        <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+          <TextField
+            fullWidth
+            label="新しいカテゴリー名"
+            size="small"
+            value={newCategoryName}
+            onChange={(e) => setNewCategoryName(e.target.value)}
+          />
+          <Button variant="contained" onClick={handleCreate}>追加</Button>
         </Box>
+        
+        {/* カテゴリー一覧 */}
         <List>
           {categories.map(category => (
             <ListItem key={category.id} secondaryAction={
-              <Button variant="outlined" size="small" onClick={() => handleSave(category)}>保存</Button>
+              editingCategoryId === category.id ? (
+                <IconButton onClick={() => handleUpdate(category)}><SaveIcon /></IconButton>
+              ) : (
+                <>
+                  <IconButton onClick={() => setEditingCategoryId(category.id)}><EditIcon /></IconButton>
+                  <IconButton onClick={() => handleDelete(category.id)}><DeleteIcon /></IconButton>
+                </>
+              )
             }>
-              <ListItemText primary={category.name} />
+              {editingCategoryId === category.id ? (
+                <TextField 
+                  variant="standard" 
+                  value={category.name} 
+                  onChange={(e) => handleValueChange(category.id, 'name', e.target.value)}
+                />
+              ) : (
+                <ListItemText primary={category.name} />
+              )}
               <MuiColorInput 
                 value={category.color} 
-                onChange={(color) => handleColorChange(category.id, color)} 
+                onChange={(color) => handleValueChange(category.id, 'color', color)} 
                 format="hex"
               />
             </ListItem>
