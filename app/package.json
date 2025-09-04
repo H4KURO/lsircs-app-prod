@@ -16,6 +16,7 @@
     "@mui/material": "^7.3.1",
     "axios": "^1.11.0",
     "date-fns": "^4.1.0",
+    "mui-color-input": "^7.0.0",
     "react": "^19.1.1",
     "react-big-calendar": "^1.19.4",
     "react-dom": "^19.1.1"
