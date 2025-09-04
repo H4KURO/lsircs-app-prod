@@ -5,9 +5,11 @@ import axios from 'axios';
 import { Box, Grid, Paper, Typography, Fab, IconButton } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import SettingsIcon from '@mui/icons-material/Settings'; // 設定アイコンをインポート
+import TaskIcon from '@mui/icons-material/Task';
 import { TaskCalendar } from './TaskCalendar';
 import { DashboardTaskList } from './DashboardTaskList';
 import { TaskDetailModal } from './TaskDetailModal';
+import { StatCard } from './StatCard';
 import { DashboardSettingsModal } from './DashboardSettingsModal'; // 設定モーダルをインポート
 import { addDays, startOfToday } from 'date-fns';
 
@@ -94,7 +96,30 @@ export function DashboardView({ user }) {
   }, [allTasks]);
 
   return (
-    <Box>
+        <Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+        <Typography variant="h4" component="h1" sx={{ flexGrow: 1 }}>
+          ダッシュボード
+        </Typography>
+        <IconButton onClick={() => setSettingsOpen(true)}>
+          <SettingsIcon />
+        </IconButton>
+      </Box>
+      
+      {/* ▼▼▼ 統計カードの表示エリアを追加 ▼▼▼ */}
+      <Grid container spacing={3} sx={{ mb: 3 }}>
+        <Grid item xs={12} sm={4}>
+          <StatCard title="総タスク数" value={taskStats.total} icon={<TaskIcon sx={{ fontSize: 40 }} />} />
+        </Grid>
+        <Grid item xs={12} sm={4}>
+          <StatCard title="完了済み" value={taskStats.done} icon={<TaskAltIcon sx={{ fontSize: 40 }} />} />
+        </Grid>
+        <Grid item xs={12} sm={4}>
+          <StatCard title="進行中" value={taskStats.inProgress} icon={<DonutLargeIcon sx={{ fontSize: 40 }} />} />
+        </Grid>
+      </Grid>
+      
+      <Grid container spacing={3}>
       {/* ▼▼▼ タイトルの横に設定アイコンを追加 ▼▼▼ */}
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
         <Typography variant="h4" component="h1" sx={{ flexGrow: 1 }}>
