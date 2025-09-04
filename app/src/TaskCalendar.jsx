@@ -21,33 +21,59 @@ const localizer = dateFnsLocalizer({
   locales,
 });
 
-// ▼▼▼ onTaskSelectをpropsとして受け取る ▼▼▼
 export function TaskCalendar({ onTaskSelect }) {
   const [events, setEvents] = useState([]);
+  const [categoryColors, setCategoryColors] = useState({}); // カテゴリーの色設定を保存
 
   useEffect(() => {
-    axios.get(`${API_URL}/GetTasks`)
-      .then(res => {
-        const formattedEvents = res.data
-          .filter(task => task.deadline)
-          .map(task => ({
-            title: task.title,
-            start: new Date(task.deadline),
-            end: new Date(task.deadline),
-            allDay: true,
-            resource: task, 
-          }));
-        setEvents(formattedEvents);
-      })
-      .catch(error => console.error("Error fetching tasks for calendar:", error));
+    // APIからタスクとカテゴリーの色設定の両方を取得
+    Promise.all([
+      axios.get(`${API_URL}/GetTasks`),
+      axios.get(`${API_URL}/GetCategories`)
+    ]).then(([tasksRes, categoriesRes]) => {
+      
+      // カテゴリー名と色の対応表を作成
+      const colors = {};
+      categoriesRes.data.forEach(cat => {
+        colors[cat.name] = cat.color;
+      });
+      setCategoryColors(colors);
+
+      const formattedEvents = tasksRes.data
+        .filter(task => task.deadline)
+        .map(task => ({
+          title: task.title,
+          start: new Date(task.deadline),
+          end: new Date(task.deadline),
+          allDay: true,
+          resource: task,
+        }));
+      setEvents(formattedEvents);
+    })
+    .catch(error => console.error("Error fetching data for calendar:", error));
   }, []);
 
-  // ▼▼▼ カレンダー上のイベントがクリックされたときに呼ばれる関数 ▼▼▼
   const handleSelectEvent = (event) => {
-    // event.resourceに元のタスク情報が格納されている
     if (event.resource && onTaskSelect) {
       onTaskSelect(event.resource);
     }
+  };
+  
+  // イベントのスタイルを設定するための関数
+  const eventStyleGetter = (event, start, end, isSelected) => {
+    // 対応表から色を取得。なければデフォルト色
+    const backgroundColor = categoryColors[event.resource.category] || '#9e9e9e';
+    const style = {
+      backgroundColor,
+      borderRadius: '5px',
+      opacity: 0.8,
+      color: 'white',
+      border: '0px',
+      display: 'block'
+    };
+    return {
+      style: style
+    };
   };
 
   return (
@@ -59,8 +85,9 @@ export function TaskCalendar({ onTaskSelect }) {
         endAccessor="end"
         culture='ja'
         messages={{ next: "次", previous: "前", today: "今日", month: "月", week: "週", day: "日", agenda: "リスト" }}
-        // ▼▼▼ onSelectEventプロパティを追加 ▼▼▼
         onSelectEvent={handleSelectEvent}
+        // eventPropGetterプロパティでスタイルを適用
+        eventPropGetter={eventStyleGetter}
       />
     </div>
   );

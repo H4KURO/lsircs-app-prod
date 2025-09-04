@@ -11,6 +11,9 @@ import MenuIcon from '@mui/icons-material/Menu';
 import GoogleIcon from '@mui/icons-material/Google';
 import MicrosoftIcon from '@mui/icons-material/Microsoft';
 import LogoutIcon from '@mui/icons-material/Logout';
+import { SettingsView } from './SettingsView';
+import SettingsIcon from '@mui/icons-material/Settings';
+
 
 function App() {
   const [currentView, setCurrentView] = useState('dashboard');
@@ -39,6 +42,7 @@ function App() {
     { text: 'タスク管理', view: 'tasks' },
     { text: '顧客管理', view: 'customers' },
     { text: '請求書管理', view: 'invoices' }
+    { text: '設定', view: 'settings', icon: <SettingsIcon /> },
   ];
 
   const loginMenu = (
@@ -67,6 +71,7 @@ function App() {
         {menuItems.map((item) => (
           <ListItem key={item.text} disablePadding>
             <ListItemButton onClick={() => { setCurrentView(item.view); setDrawerOpen(false); }}>
+              {item.icon && <ListItemIcon>{item.icon}</ListItemIcon>}
               <ListItemText primary={item.text} />
             </ListItemButton>
           </ListItem>
@@ -112,6 +117,7 @@ function App() {
         {user && currentView === 'tasks' && <TaskView />}
         {user && currentView === 'customers' && <CustomerView />}
         {user && currentView === 'invoices' && <InvoiceView />}
+        {user && currentView === 'settings' && <SettingsView />} 
       </Box>
     </Box>
   );
