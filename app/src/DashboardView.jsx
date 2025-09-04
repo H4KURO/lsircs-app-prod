@@ -109,7 +109,7 @@ export function DashboardView({ user }) {
         <Grid item xs={12} md={8}>
           <Paper sx={{ p: 2, height: '60vh', minHeight: 500 }}>
             <Typography variant="h6" gutterBottom>カレンダービュー</Typography>
-            <TaskCalendar />
+            <TaskCalendar onTaskSelect={setSelectedTask} />
           </Paper>
         </Grid>
         
