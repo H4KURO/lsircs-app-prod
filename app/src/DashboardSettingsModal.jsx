@@ -1,5 +1,6 @@
 // app/src/DashboardSettingsModal.jsx
 
+import { useState } from 'react'; //
 import { Dialog, DialogTitle, DialogContent, FormGroup, FormControlLabel, Checkbox, DialogActions, Button } from '@mui/material';
 
 export function DashboardSettingsModal({ open, onClose, settings, onSave }) {
