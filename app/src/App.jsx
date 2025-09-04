@@ -15,9 +15,8 @@ import LogoutIcon from '@mui/icons-material/Logout';
 function App() {
   const [currentView, setCurrentView] = useState('dashboard');
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [user, setUser] = useState(null); // ログインユーザー情報を管理するstate
+  const [user, setUser] = useState(null);
 
-  // アプリケーション起動時に、ユーザーがログイン済みか確認する
   useEffect(() => {
     async function fetchUser() {
       try {
@@ -31,7 +30,6 @@ function App() {
     fetchUser();
   }, []);
 
-
   const handleDrawerToggle = () => {
     setDrawerOpen(!drawerOpen);
   };
@@ -43,7 +41,6 @@ function App() {
     { text: '請求書管理', view: 'invoices' }
   ];
 
-  // ログインしていない場合に表示するメニュー
   const loginMenu = (
     <Box sx={{ p: 2, textAlign: 'center' }}>
       <Typography variant="subtitle2" sx={{ mb: 2 }}>ログインしてください</Typography>
@@ -55,7 +52,7 @@ function App() {
           </ListItemButton>
         </ListItem>
         <ListItem disablePadding>
-          <ListItemButton component="a" href="/.auth/login/aad"> {/* Microsoftは'aad'と指定 */}
+          <ListItemButton component="a" href="/.auth/login/aad">
             <ListItemIcon><MicrosoftIcon /></ListItemIcon>
             <ListItemText primary="Microsoftでログイン" />
           </ListItemButton>
@@ -64,7 +61,6 @@ function App() {
     </Box>
   );
 
-  // ログイン済みの場合に表示するメニュー
   const userMenu = (
     <Box sx={{ overflow: 'auto' }}>
       <List>
@@ -98,31 +94,26 @@ function App() {
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
             LSIRCS アプリ
           </Typography>
-          {/* ログインしていればユーザー名を表示 */}
           {user && <Chip label={user.userDetails} color="info" />}
         </Toolbar>
       </AppBar>
 
       <Drawer variant="temporary" open={drawerOpen} onClose={handleDrawerToggle} sx={{ '& .MuiDrawer-paper': { boxSizing: 'border-box', width: 240 } }} >
         <Toolbar />
-        {/* ログイン状態に応じて表示するメニューを切り替え */}
         {user ? userMenu : loginMenu}
       </Drawer>
 
       <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
         <Toolbar />
-        {/* ログインしていない場合はメッセージを表示 */}
         {!user && <Typography>ようこそ！メニューからログインしてください。</Typography>}
         
-        {/* ログインしている場合にのみ、各画面を表示 */}
-        {user && currentView === 'dashboard' && <DashboardView />}
+        {/* ▼▼▼ ここでDashboardViewにuser情報を渡します ▼▼▼ */}
+        {user && currentView === 'dashboard' && <DashboardView user={user} />}
         {user && currentView === 'tasks' && <TaskView />}
         {user && currentView === 'customers' && <CustomerView />}
         {user && currentView === 'invoices' && <InvoiceView />}
       </Box>
     </Box>
-
-    // test
   );
 }
 

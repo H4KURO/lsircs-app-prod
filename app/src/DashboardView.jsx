@@ -11,7 +11,8 @@ import { addDays, startOfToday } from 'date-fns';
 
 const API_URL = '/api';
 
-export function DashboardView() {
+// ▼▼▼ userをpropsとして受け取るように変更 ▼▼▼
+export function DashboardView({ user }) {
   const [allTasks, setAllTasks] = useState([]);
   const [selectedTask, setSelectedTask] = useState(null);
   const [assigneeOptions, setAssigneeOptions] = useState([]);
@@ -56,7 +57,13 @@ export function DashboardView() {
   };
 
   const highPriorityTasks = useMemo(() => allTasks.filter(task => task.priority === 'High'), [allTasks]);
-  const myTasks = useMemo(() => allTasks.filter(task => task.assignee === '秋原'), [allTasks]);
+  
+  // ▼▼▼ '秋原'という固定の名前から、ログイン中のユーザー名(user.userDetails)に変更 ▼▼▼
+  const myTasks = useMemo(() => {
+    if (!user) return []; // ユーザー情報がない場合は空にする
+    return allTasks.filter(task => task.assignee === user.userDetails);
+  }, [allTasks, user]); // userの変更も検知するように追加
+
   const upcomingTasks = useMemo(() => {
     const today = startOfToday();
     const sevenDaysLater = addDays(today, 7);
