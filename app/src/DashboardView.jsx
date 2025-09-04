@@ -37,16 +37,22 @@ export function DashboardView({ user }) {
   });
 
   useEffect(() => {
-    axios.get(`${API_URL}/GetTasks`).then(res => {
-      setAllTasks(res.data);
-      const assignees = [...new Set(res.data.map(t => t.assignee).filter(Boolean))];
-      const categories = [...new Set(res.data.map(t => t.category).filter(Boolean))];
-      const tags = [...new Set(res.data.flatMap(t => t.tags || []).filter(Boolean))];
+// 全タスクと全ユーザーのリストを両方取得する
+    Promise.all([
+      axios.get(`${API_URL}/GetTasks`),
+      axios.get(`${API_URL}/GetAllUsers`) // ★★★ 全ユーザー取得APIを呼び出す ★★★
+    ]).then(([tasksRes, usersRes]) => {
+      setTasks(tasksRes.data);
+      
+      // ★★★ 担当者の選択肢を、全ユーザーの表示名リストに更新 ★★★
+      const assignees = usersRes.data.map(user => user.displayName);
       setAssigneeOptions(assignees);
+      
+      const categories = [...new Set(tasksRes.data.map(t => t.category).filter(Boolean))];
+      const tags = [...new Set(tasksRes.data.flatMap(t => t.tags || []).filter(Boolean))];
       setCategoryOptions(categories);
       setTagOptions(tags);
     });
-  }, []);
 
   // ▼▼▼ タスクの統計情報を計算するロジックを追加 ▼▼▼
   const taskStats = useMemo(() => {

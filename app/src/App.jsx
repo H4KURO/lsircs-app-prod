@@ -65,13 +65,13 @@ function App() {
     </Box>
   );
 
+
   const userMenu = (
     <Box sx={{ overflow: 'auto' }}>
       <List>
         {menuItems.map((item) => (
           <ListItem key={item.text} disablePadding>
             <ListItemButton onClick={() => { setCurrentView(item.view); setDrawerOpen(false); }}>
-              {item.icon && <ListItemIcon>{item.icon}</ListItemIcon>}
               <ListItemText primary={item.text} />
             </ListItemButton>
           </ListItem>
@@ -79,6 +79,13 @@ function App() {
       </List>
       <Divider />
       <List>
+        {/* ▼▼▼ プロフィール設定へのリンクを追加 ▼▼▼ */}
+        <ListItem disablePadding>
+          <ListItemButton onClick={() => { setCurrentView('profile'); setDrawerOpen(false); }}>
+            <ListItemIcon><AccountCircleIcon /></ListItemIcon>
+            <ListItemText primary="プロフィール設定" />
+          </ListItemButton>
+        </ListItem>
         <ListItem disablePadding>
           <ListItemButton component="a" href="/.auth/logout">
             <ListItemIcon><LogoutIcon /></ListItemIcon>
@@ -112,12 +119,11 @@ function App() {
         <Toolbar />
         {!user && <Typography>ようこそ！メニューからログインしてください。</Typography>}
         
-        {/* ▼▼▼ ここでDashboardViewにuser情報を渡します ▼▼▼ */}
         {user && currentView === 'dashboard' && <DashboardView user={user} />}
         {user && currentView === 'tasks' && <TaskView />}
         {user && currentView === 'customers' && <CustomerView />}
         {user && currentView === 'invoices' && <InvoiceView />}
-        {user && currentView === 'settings' && <SettingsView />} 
+        {user && currentView === 'profile' && <ProfileView />} {/* ★★★ プロフィール画面の表示を追加 ★★★ */}
       </Box>
     </Box>
   );

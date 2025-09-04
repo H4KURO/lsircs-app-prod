@@ -1,0 +1,19 @@
+// api/src/functions/GetAllUsers.js
+const { app } = require('@azure/functions');
+const { CosmosClient } = require("@azure/cosmos");
+const client = new CosmosClient(process.env.CosmosDbConnectionString);
+const container = client.database("lsircs-database").container("Users");
+
+app.http('GetAllUsers', {
+    methods: ['GET'],
+    authLevel: 'anonymous',
+    handler: async (request, context) => {
+        const { resources: items } = await container.items.readAll().fetchAll();
+        // 必要な情報（表示名とID）だけを返す
+        const userList = items.map(user => ({
+            userId: user.userId,
+            displayName: user.displayName
+        }));
+        return { jsonBody: userList };
+    }
+});

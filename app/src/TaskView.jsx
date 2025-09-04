@@ -23,20 +23,22 @@ export function TaskView() {
   const [tagOptions, setTagOptions] = useState([]);
 
   useEffect(() => {
-    axios.get(`${API_URL}/GetTasks`).then(res => {
-      setTasks(res.data);
+// 全タスクと全ユーザーのリストを両方取得する
+    Promise.all([
+      axios.get(`${API_URL}/GetTasks`),
+      axios.get(`${API_URL}/GetAllUsers`) // ★★★ 全ユーザー取得APIを呼び出す ★★★
+    ]).then(([tasksRes, usersRes]) => {
+      setTasks(tasksRes.data);
       
-      // ▼▼▼ タスクデータから選択肢を動的に生成 ▼▼▼
-      // Setを使って重複を除外する
-      const assignees = [...new Set(res.data.map(t => t.assignee).filter(Boolean))];
-      const categories = [...new Set(res.data.map(t => t.category).filter(Boolean))];
-      const tags = [...new Set(res.data.flatMap(t => t.tags || []).filter(Boolean))];
-
+      // ★★★ 担当者の選択肢を、全ユーザーの表示名リストに更新 ★★★
+      const assignees = usersRes.data.map(user => user.displayName);
       setAssigneeOptions(assignees);
+      
+      const categories = [...new Set(tasksRes.data.map(t => t.category).filter(Boolean))];
+      const tags = [...new Set(tasksRes.data.flatMap(t => t.tags || []).filter(Boolean))];
       setCategoryOptions(categories);
       setTagOptions(tags);
     });
-  }, []);
 
   // ... (processedTasks, requestSort, handleFilterChange, handleCreate, handleDelete, handleUpdate, handleUpdateStatus は変更なし) ...
   // (コードが長くなるため省略。これらの関数は変更不要です)
