@@ -13,6 +13,7 @@ import MicrosoftIcon from '@mui/icons-material/Microsoft';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { SettingsView } from './SettingsView';
 import SettingsIcon from '@mui/icons-material/Settings';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 
 
 function App() {
