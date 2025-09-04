@@ -41,7 +41,7 @@ function App() {
     { text: 'ダッシュボード', view: 'dashboard' },
     { text: 'タスク管理', view: 'tasks' },
     { text: '顧客管理', view: 'customers' },
-    { text: '請求書管理', view: 'invoices' }
+    { text: '請求書管理', view: 'invoices' },
     { text: '設定', view: 'settings', icon: <SettingsIcon /> },
   ];
 
