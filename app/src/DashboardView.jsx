@@ -6,13 +6,13 @@ import { Box, Grid, Paper, Typography, Fab, IconButton } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import SettingsIcon from '@mui/icons-material/Settings';
 import TaskIcon from '@mui/icons-material/Task';
-import TaskAltIcon from '@mui/icons-material/TaskAlt'; // アイコンをインポート
-import DonutLargeIcon from '@mui/icons-material/DonutLarge'; // アイコンをインポート
+import TaskAltIcon from '@mui/icons-material/TaskAlt';
+import DonutLargeIcon from '@mui/icons-material/DonutLarge';
 import { TaskCalendar } from './TaskCalendar';
 import { DashboardTaskList } from './DashboardTaskList';
 import { TaskDetailModal } from './TaskDetailModal';
 import { DashboardSettingsModal } from './DashboardSettingsModal';
-import { StatCard } from './StatCard'; // 作成したStatCardをインポート
+import { StatCard } from './StatCard';
 import { addDays, startOfToday } from 'date-fns';
 
 const API_URL = '/api';
@@ -37,14 +37,14 @@ export function DashboardView({ user }) {
   });
 
   useEffect(() => {
-// 全タスクと全ユーザーのリストを両方取得する
+    // 全タスクと全ユーザーのリストを両方取得する
     Promise.all([
       axios.get(`${API_URL}/GetTasks`),
-      axios.get(`${API_URL}/GetAllUsers`) // ★★★ 全ユーザー取得APIを呼び出す ★★★
+      axios.get(`${API_URL}/GetAllUsers`)
     ]).then(([tasksRes, usersRes]) => {
-      setTasks(tasksRes.data);
+      // ▼▼▼ ここをsetAllTasksに修正 ▼▼▼
+      setAllTasks(tasksRes.data);
       
-      // ★★★ 担当者の選択肢を、全ユーザーの表示名リストに更新 ★★★
       const assignees = usersRes.data.map(user => user.displayName);
       setAssigneeOptions(assignees);
       
@@ -53,8 +53,8 @@ export function DashboardView({ user }) {
       setCategoryOptions(categories);
       setTagOptions(tags);
     });
+  }, []);
 
-  // ▼▼▼ タスクの統計情報を計算するロジックを追加 ▼▼▼
   const taskStats = useMemo(() => {
     const total = allTasks.length;
     const done = allTasks.filter(t => t.status === 'Done').length;
@@ -119,7 +119,6 @@ export function DashboardView({ user }) {
         </IconButton>
       </Box>
       
-      {/* ▼▼▼ 統計カードの表示エリアを追加 ▼▼▼ */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
         <Grid item xs={12} sm={4}>
           <StatCard title="総タスク数" value={taskStats.total} icon={<TaskIcon sx={{ fontSize: 40 }} />} />
