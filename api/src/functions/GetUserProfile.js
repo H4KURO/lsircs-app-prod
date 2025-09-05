@@ -24,7 +24,7 @@ app.http('GetUserProfile', {
                 throw error; // その他のDBエラーをキャッチさせる
             }
         } catch (error) {
-            context.log.error("GetUserProfile Error:", error);
+            context.log("GetUserProfile Error:", error);
             return { status: 500, body: error.message };
         }
     }

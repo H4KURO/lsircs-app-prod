@@ -12,7 +12,7 @@ app.http('GetAllUsers', {
             const userList = items.map(user => ({ userId: user.userId, displayName: user.displayName }));
             return { jsonBody: userList };
         } catch (error) {
-            context.log.error("GetAllUsers Error:", error);
+            context.log("GetAllUsers Error:", error);
             return { status: 500, body: error.message };
         }
     }

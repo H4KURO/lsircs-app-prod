@@ -19,7 +19,7 @@ app.http('UpdateUserProfile', {
             const { resource: replaced } = await container.item(p.userId, p.userId).replace(updatedProfile);
             return { jsonBody: replaced };
         } catch (error) {
-            context.log.error("UpdateUserProfile Error:", error);
+            context.log("UpdateUserProfile Error:", error);
             return { status: 500, body: error.message };
         }
     }
