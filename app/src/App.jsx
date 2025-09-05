@@ -14,6 +14,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import { SettingsView } from './SettingsView';
 import SettingsIcon from '@mui/icons-material/Settings';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import { ProfileView } from './ProfileView';
 
 
 function App() {
