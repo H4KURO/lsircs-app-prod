@@ -4,6 +4,9 @@
   "description": "LSIRCS App API Functions",
   "dependencies": {
     "@azure/cosmos": "^4.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
   }
 }
 
