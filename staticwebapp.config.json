@@ -19,7 +19,7 @@
       ]
     },
     {
-      "route": "/api/CreateUser",
+      "route": "/api/RegisterUser",
       "methods": [
         "POST"
       ],
