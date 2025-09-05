@@ -2,7 +2,7 @@
 const { app } = require('@azure/functions');
 const { CosmosClient } = require("@azure/cosmos");
 const client = new CosmosClient(process.env.CosmosDbConnectionString);
-const container = client.database("lsircs-database").container("Users");
+const container = client.database("lsircs-database").container("User");
 
 app.http('GetAllUsers', {
     methods: ['GET'], authLevel: 'anonymous',
