@@ -5,19 +5,22 @@ const client = new CosmosClient(process.env.CosmosDbConnectionString);
 const container = client.database("lsircs-database").container("Users");
 
 app.http('UpdateUserProfile', {
-    methods: ['PUT'],
-    authLevel: 'anonymous',
+    methods: ['PUT'], authLevel: 'anonymous',
     handler: async (request, context) => {
-        const header = request.headers.get('x-ms-client-principal');
-        if (!header) { return { status: 401, body: "Not logged in" }; }
-        const clientPrincipal = JSON.parse(Buffer.from(header, 'base64').toString('ascii'));
+        try {
+            const header = request.headers.get('x-ms-client-principal');
+            if (!header) { return { status: 401, body: "Not logged in" }; }
+            const p = JSON.parse(Buffer.from(header, 'base64').toString('ascii'));
 
-        const updates = await request.json();
-        const { resource: existing } = await container.item(clientPrincipal.userId, clientPrincipal.userId).read();
-
-        const updatedProfile = { ...existing, ...updates };
-
-        const { resource: replaced } = await container.item(clientPrincipal.userId, clientPrincipal.userId).replace(updatedProfile);
-        return { jsonBody: replaced };
+            const updates = await request.json();
+            const { resource: existing } = await container.item(p.userId, p.userId).read();
+            const updatedProfile = { ...existing, displayName: updates.displayName }; // displayNameのみ更新
+            
+            const { resource: replaced } = await container.item(p.userId, p.userId).replace(updatedProfile);
+            return { jsonBody: replaced };
+        } catch (error) {
+            context.log.error("UpdateUserProfile Error:", error);
+            return { status: 500, body: error.message };
+        }
     }
 });
