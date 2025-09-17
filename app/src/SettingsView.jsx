@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Box, Typography, Paper, List, ListItem, ListItemText, Button } from '@mui/material';
-import { MuiColorInput } from 'mui-color-picker';
+import { MuiColorInput } from 'mui-color-input';
 
 const API_URL = '/api';
 
