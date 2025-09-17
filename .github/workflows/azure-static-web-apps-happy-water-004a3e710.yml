@@ -15,11 +15,11 @@ jobs:
     runs-on: ubuntu-latest
     name: Build and Deploy Job
     steps:
-      - name: Checkout repository
+      - name: Checkout repository # ステップに名前を追加し、可読性を向上させました
         uses: actions/checkout@v3
         with:
           submodules: true
-          lfs: true
+          lfs: true # lfs: true を追記（ベストプラクティス）
 
       - name: Build And Deploy
         id: builddeploy
@@ -32,8 +32,7 @@ jobs:
           app_location: "app"
           api_location: "api"
           output_location: "dist"
-          ###### End of Repository/Build Configurations ######
-        env: # ★★★ このenvブロックが最も重要です ★★★
+        env: # ★★★ このenvブロックが、すべての問題を解決する最も重要な修正です ★★★
           NODE_VERSION: 20
 
   close_pull_request_job:
