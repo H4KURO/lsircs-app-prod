@@ -26,24 +26,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20.x'
-          cache: 'npm' # npmのキャッシュを有効化し、ビルドを高速化
-          cache-dependency-path: |
-            app/package-lock.json
-            api/package-lock.json
+          cache: 'npm'
+          cache-dependency-path: app/package-lock.json
 
       # --- ステップ2: フロントエンドを手動でビルド ---
       - name: Build Frontend
-        working-directory: ./app # 'app'フォルダに移動して
+        working-directory: ./app
         run: |
-          npm install          # 依存関係をインストールし
-          npm run build        # ビルドを実行する
+          npm install
+          npm run build
 
-      # --- ステップ3: APIの依存関係をインストール ---
-      - name: Install API dependencies
-        working-directory: ./api # 'api'フォルダに移動して
-        run: npm install         # 依存関係をインストールする
-
-      # --- ステップ4: 完成品をAzureにアップロード ---
+      # --- ステップ3: 完成品をAzureにアップロード ---
       - name: Deploy to Azure Static Web Apps
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
@@ -53,10 +46,7 @@ jobs:
           action: "upload"
           
           # ─── 設定の変更点 (最重要) ───
-          app_location: "app/dist"  # ★ ビルド済みの完成品フォルダを直接指定します
-          api_location: "api"       # APIのソースコードの場所は変更ありません
-          skip_app_build: true      # ★ Azure側でのアプリビルドを完全にスキップします
-          skip_api_build: true      # ★ APIのビルドもスキップし、ソースと依存関係をそのまま渡します
-
-
-
+          app_location: "app/dist"
+          api_location: "api"
+          skip_app_build: true
+          # ★★★ skip_api_build: true を削除しました ★★★
