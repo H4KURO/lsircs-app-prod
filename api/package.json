@@ -1,19 +1,14 @@
 {
-  "name": "",
+  "name": "api",
   "version": "1.0.0",
-  "description": "",
-  "main": "src/functions/*.js",
-  "scripts": {
-    "start": "func start",
-    "test": "echo \"No tests yet...\""
-  },
+  "description": "LSIRCS App API Functions",
   "dependencies": {
     "@azure/cosmos": "^4.5.0",
-    "@azure/functions": "^4.0.0",
     "axios": "^1.11.0",
     "uuid": "^11.1.0"
   },
-  "devDependencies": {
-    "azure-functions-core-tools": "^4.x"
+  "engines": {
+    "node": ">=20.0.0"
   }
 }
+
