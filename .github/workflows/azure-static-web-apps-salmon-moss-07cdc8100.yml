@@ -15,22 +15,49 @@ jobs:
     runs-on: ubuntu-latest
     name: Build and Deploy Job
     steps:
-      - uses: actions/checkout@v3
+      # ステップ1: ソースコードをチェックアウトする (ほぼ変更なし)
+      - name: Checkout repository
+        uses: actions/checkout@v3
         with:
           submodules: true
-          lfs: false
-      - name: Build And Deploy
+          lfs: true # lfs: true に変更 (ベストプラクティス)
+
+      # ステップ2: ビルド環境全体のNode.jsバージョンを20に強制する (★最重要追加ステップ)
+      - name: Set up Node.js version
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+          cache-dependency-path: |
+            app/package-lock.json
+            api/package-lock.json
+
+      # ステップ3: フロントエンド(app)を手動でビルドする (★新規追加ステップ)
+      - name: Build Frontend
+        working-directory: ./app # 'app'フォルダに移動して
+        run: |
+          npm install          # 依存関係をインストールし
+          npm run build        # ビルドを実行する
+
+      # ステップ4: API(api)の依存関係を手動でインストールする (★新規追加ステップ)
+      - name: Install API dependencies
+        working-directory: ./api # 'api'フォルダに移動して
+        run: npm install         # 依存関係をインストールする
+
+      # ステップ5: 完成品をAzureにアップロードする (★設定変更ステップ)
+      - name: Deploy to Azure Static Web Apps
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_SALMON_MOSS_07CDC8100 }}
-          repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for Github integrations (i.e. PR comments)
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
-          ###### Repository/Build Configurations - These values can be configured to match your app requirements. ######
-          # For more information regarding Static Web App workflow configurations, please visit: https://aka.ms/swaworkflowconfig
-          app_location: "app" # App source code path
-          api_location: "api" # Api source code path - optional
-          output_location: "dist" # Built app content directory - optional
+          
+          ###### Repository/Build Configurations ######
+          app_location: "app/dist"  # ★ビルド済みの完成品フォルダを直接指定
+          api_location: "api"       # ★準備済みのAPIソースコードの場所を指定
+          skip_app_build: true      # ★Azure側でのアプリビルドを完全にスキップ
+          skip_api_build: true      # ★Azure側でのAPIビルドも完全にスキップ
           ###### End of Repository/Build Configurations ######
 
   close_pull_request_job:
