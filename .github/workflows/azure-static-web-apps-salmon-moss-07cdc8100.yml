@@ -15,14 +15,14 @@ jobs:
     runs-on: ubuntu-latest
     name: Build and Deploy Job
     steps:
-      # ステップ1: ソースコードをチェックアウトする (ほぼ変更なし)
+      # ステップ1: ソースコードをチェックアウトする
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
           submodules: true
-          lfs: true # lfs: true に変更 (ベストプラクティス)
+          lfs: true
 
-      # ステップ2: ビルド環境全体のNode.jsバージョンを20に強制する (★最重要追加ステップ)
+      # ステップ2: ビルド環境全体のNode.jsバージョンを20に強制する
       - name: Set up Node.js version
         uses: actions/setup-node@v4
         with:
@@ -32,19 +32,19 @@ jobs:
             app/package-lock.json
             api/package-lock.json
 
-      # ステップ3: フロントエンド(app)を手動でビルドする (★新規追加ステップ)
+      # ステップ3: フロントエンド(app)を手動でビルドする
       - name: Build Frontend
-        working-directory: ./app # 'app'フォルダに移動して
+        working-directory: ./app
         run: |
-          npm install          # 依存関係をインストールし
-          npm run build        # ビルドを実行する
+          npm install
+          npm run build
 
-      # ステップ4: API(api)の依存関係を手動でインストールする (★新規追加ステップ)
+      # ステップ4: API(api)の依存関係を手動でインストールする
       - name: Install API dependencies
-        working-directory: ./api # 'api'フォルダに移動して
-        run: npm install         # 依存関係をインストールする
+        working-directory: ./api
+        run: npm install
 
-      # ステップ5: 完成品をAzureにアップロードする (★設定変更ステップ)
+      # ステップ5: 完成品をAzureにアップロードする
       - name: Deploy to Azure Static Web Apps
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
