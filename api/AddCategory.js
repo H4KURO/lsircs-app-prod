@@ -1,53 +1,40 @@
-const { CosmosClient } = require("@azure/cosmos");
-const { v4: uuidv4 } = require('uuid'); // IDを生成するためにuuidライブラリを使用
+const { app } = require('@azure/functions');
+const { v4: uuidv4 } = require('uuid');
+const { getContainer } = require('./cosmosClient');
 
-const connectionString = process.env.CosmosDBConnectionString;
-const client = new CosmosClient(connectionString);
-const databaseId = "lsircs-database";
-const containerId = "Categories";
+const databaseId = 'lsircs-database';
+const containerId = 'Categories';
 
-module.exports = async function (context, req) {
-    context.log('AddCategory APIが呼び出されました。');
-
-    const { name, color } = req.body; // ★確認ポイント2
-
-    if (!name || !color) {
-        context.res = {
-            status: 400, // Bad Request
-            body: { message: "カテゴリー名と色は必須です。" }
-        };
-        return;
-    }
-
+app.http('AddCategory', {
+  methods: ['POST'],
+  authLevel: 'anonymous',
+  handler: async (request, context) => {
     try {
-        const newCategory = {
-            id: uuidv4(), // 新しい一意のIDを生成
-            name: name,
-            color: color
-        };
+      const payload = await request.json();
+      const name = payload?.name?.trim();
+      const color = payload?.color?.trim();
 
-        const database = client.database(databaseId);
-        const container = database.container(containerId);
-        const { resource: createdItem } = await container.items.create(newCategory);
+      if (!name || !color) {
+        return { status: 400, body: 'Category name and color are required.' };
+      }
 
-        context.res = {
-            status: 201, // Created
-            body: createdItem
-        };
+      const container = getContainer(databaseId, containerId);
+      const newCategory = {
+        id: uuidv4(),
+        name,
+        color,
+        createdAt: new Date().toISOString(),
+      };
 
+      const { resource } = await container.items.create(newCategory);
+      return { status: 201, jsonBody: resource };
     } catch (error) {
-        context.log.error('カテゴリー追加中にエラーが発生しました:', error);
-        context.res = {
-            status: 500,
-            body: { message: "サーバーエラーにより、カテゴリーの追加に失敗しました。" }
-        };
+      const message = error.message || 'Failed to create category.';
+      if (message.includes('connection string')) {
+        return { status: 500, body: message };
+      }
+      context.log.error('AddCategory failed', error);
+      return { status: 500, body: 'Failed to create category.' };
     }
-};
-```
-**構成ファイル (`staticwebapp.config.json`内の該当部分):**
-```json
-{
-  "route": "/api/AddCategory",
-  "methods": ["POST"],
-  "allowedRoles": ["administrator"] // ★管理者のみが追加できるように設定 (必要に応じて変更)
-}
+  },
+});

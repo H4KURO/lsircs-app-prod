@@ -1,19 +1,28 @@
-// api/src/functions/GetAllUsers.js
 const { app } = require('@azure/functions');
-const { CosmosClient } = require("@azure/cosmos");
-const client = new CosmosClient(process.env.CosmosDbConnectionString);
-const container = client.database("lsircs-database").container("User");
+const { getContainer } = require('./cosmosClient');
+
+const databaseId = 'lsircs-database';
+const containerId = 'Users';
 
 app.http('GetAllUsers', {
-    methods: ['GET'], authLevel: 'anonymous',
-    handler: async (request, context) => {
-        try {
-            const { resources: items } = await container.items.readAll().fetchAll();
-            const userList = items.map(user => ({ userId: user.userId, displayName: user.displayName }));
-            return { jsonBody: userList };
-        } catch (error) {
-            context.log("GetAllUsers Error:", error);
-            return { status: 500, body: error.message };
-        }
+  methods: ['GET'],
+  authLevel: 'anonymous',
+  handler: async (request, context) => {
+    try {
+      const container = getContainer(databaseId, containerId);
+      const { resources } = await container.items.readAll().fetchAll();
+      const userList = resources.map((user) => ({
+        userId: user.userId || user.id,
+        displayName: user.displayName || user.userDetails || 'Unknown User',
+      }));
+      return { status: 200, jsonBody: userList };
+    } catch (error) {
+      const message = error.message || 'Error loading users.';
+      if (message.includes('connection string')) {
+        return { status: 500, body: message };
+      }
+      context.log.error('GetAllUsers failed', error);
+      return { status: 500, body: 'Error loading users.' };
     }
+  },
 });

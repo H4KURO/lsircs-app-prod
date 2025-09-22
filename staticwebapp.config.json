@@ -3,104 +3,93 @@
     "apiRuntime": "node:20"
   },
   "routes": [
-    
-    // --- ユーザー関連 API ---
     {
       "route": "/api/GetAllUsers",
-      "allowedRoles": [ "authenticated" ]
+      "allowedRoles": ["authenticated"]
     },
     {
       "route": "/api/GetUserProfile",
-      "allowedRoles": [ "authenticated" ]
+      "allowedRoles": ["authenticated"]
     },
     {
       "route": "/api/UpdateUserProfile",
-      "methods": [ "PUT", "POST" ],
-      "allowedRoles": [ "authenticated" ]
+      "methods": ["PUT"],
+      "allowedRoles": ["authenticated"]
     },
-    {
-      "route": "/api/CreateUser",
-      "methods": [ "POST" ],
-      "allowedRoles": [ "administrator" ]
-    },
-
-    // --- カテゴリー関連 API ---
     {
       "route": "/api/GetCategories",
-      "allowedRoles": [ "authenticated" ]
+      "allowedRoles": ["authenticated"]
     },
     {
       "route": "/api/AddCategory",
-      "methods": [ "POST" ],
-      "allowedRoles": [ "authenticated" ]
+      "methods": ["POST"],
+      "allowedRoles": ["authenticated"]
     },
     {
       "route": "/api/UpdateCategory/{id}",
-      "methods": [ "PUT" ],
-      "allowedRoles": [ "authenticated" ]
+      "methods": ["PUT"],
+      "allowedRoles": ["authenticated"]
     },
-
-    // --- 顧客関連 API ---
     {
       "route": "/api/GetCustomers",
-      "allowedRoles": [ "authenticated" ]
+      "allowedRoles": ["authenticated"]
     },
     {
       "route": "/api/CreateCustomer",
-      "methods": [ "POST" ],
-      "allowedRoles": [ "authenticated" ]
+      "methods": ["POST"],
+      "allowedRoles": ["authenticated"]
     },
     {
       "route": "/api/UpdateCustomer/{id}",
-      "methods": [ "PUT" ],
-      "allowedRoles": [ "authenticated" ]
+      "methods": ["PUT"],
+      "allowedRoles": ["authenticated"]
     },
     {
       "route": "/api/DeleteCustomer/{id}",
-      "methods": [ "DELETE" ],
-      "allowedRoles": [ "authenticated" ]
+      "methods": ["DELETE"],
+      "allowedRoles": ["authenticated"]
     },
-    
-    // --- 請求書関連 API ---
     {
       "route": "/api/GetInvoices",
-      "allowedRoles": [ "authenticated" ]
+      "allowedRoles": ["authenticated"]
     },
     {
       "route": "/api/CreateInvoice",
-      "methods": [ "POST" ],
-      "allowedRoles": [ "authenticated" ]
+      "methods": ["POST"],
+      "allowedRoles": ["authenticated"]
     },
     {
       "route": "/api/UpdateInvoice/{id}",
-      "methods": [ "PUT" ],
-      "allowedRoles": [ "authenticated" ]
+      "methods": ["PUT"],
+      "allowedRoles": ["authenticated"]
     },
     {
       "route": "/api/DeleteInvoice/{id}",
-      "methods": [ "DELETE" ],
-      "allowedRoles": [ "authenticated" ]
+      "methods": ["DELETE"],
+      "allowedRoles": ["authenticated"]
     },
-
-    // --- タスク関連 API ---
     {
       "route": "/api/GetTasks",
-      "allowedRoles": [ "authenticated" ]
+      "allowedRoles": ["authenticated"]
     },
     {
       "route": "/api/CreateTask",
-      "methods": [ "POST" ],
-      "allowedRoles": [ "authenticated" ]
+      "methods": ["POST"],
+      "allowedRoles": ["authenticated"]
     },
     {
       "route": "/api/UpdateTask/{id}",
-      "methods": [ "PUT" ],
-      "allowedRoles": [ "authenticated" ]
+      "methods": ["PUT"],
+      "allowedRoles": ["authenticated"]
     },
     {
       "route": "/api/DeleteTask/{id}",
-      "methods": [ "DELETE" ],
-      "allowedRoles": [ "authenticated" ]
+      "methods": ["DELETE"],
+      "allowedRoles": ["authenticated"]
+    },
+    {
+      "route": "/api/HealthCheck",
+      "allowedRoles": ["anonymous"]
     }
   ],
   "responseOverrides": {

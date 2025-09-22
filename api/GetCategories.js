@@ -2,9 +2,9 @@ const { app } = require('@azure/functions');
 const { getContainer } = require('./cosmosClient');
 
 const databaseId = 'lsircs-database';
-const containerId = 'Customers';
+const containerId = 'Categories';
 
-app.http('GetCustomers', {
+app.http('GetCategories', {
   methods: ['GET'],
   authLevel: 'anonymous',
   handler: async (request, context) => {
@@ -13,12 +13,12 @@ app.http('GetCustomers', {
       const { resources } = await container.items.readAll().fetchAll();
       return { status: 200, jsonBody: resources };
     } catch (error) {
-      const message = error.message || 'Error fetching customers from the database.';
+      const message = error.message || 'Failed to fetch categories.';
       if (message.includes('connection string')) {
         return { status: 500, body: message };
       }
-      context.log.error('GetCustomers failed', error);
-      return { status: 500, body: 'Error fetching customers from the database.' };
+      context.log.error('GetCategories failed', error);
+      return { status: 500, body: 'Failed to fetch categories.' };
     }
   },
 });

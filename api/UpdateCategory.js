@@ -1,62 +1,52 @@
-const { CosmosClient } = require("@azure/cosmos");
+const { app } = require('@azure/functions');
+const { getContainer } = require('./cosmosClient');
 
-const connectionString = process.env.CosmosDBConnectionString;
-const client = new CosmosClient(connectionString);
-const databaseId = "lsircs-database";
-const containerId = "Categories";
+const databaseId = 'lsircs-database';
+const containerId = 'Categories';
 
-module.exports = async function (context, req) {
-    context.log('UpdateCategory APIが呼び出されました。');
-
-    const categoryId = req.params.id; // ★確認ポイント3
-    const { name, color } = req.body;
-
-    if (!name || !color) {
-        context.res = {
-            status: 400,
-            body: { message: "カテゴリー名と色は必須です。" }
-        };
-        return;
-    }
-
+app.http('UpdateCategory', {
+  methods: ['PUT'],
+  authLevel: 'anonymous',
+  route: 'UpdateCategory/{id}',
+  handler: async (request, context) => {
     try {
-        const updatedCategory = {
-            id: categoryId,
-            name: name,
-            color: color
-        };
+      const id = request.params.get('id');
+      if (!id) {
+        return { status: 400, body: 'Category id is required.' };
+      }
 
-        const database = client.database(databaseId);
-        const container = database.container(containerId);
-        const { resource: replacedItem } = await container.item(categoryId, categoryId).replace(updatedCategory);
+      const payload = await request.json();
+      const name = payload?.name?.trim();
+      const color = payload?.color?.trim();
+      if (!name || !color) {
+        return { status: 400, body: 'Category name and color are required.' };
+      }
 
-        context.res = {
-            status: 200, // OK
-            body: replacedItem
-        };
+      const container = getContainer(databaseId, containerId);
+      const { resource: existing } = await container.item(id, id).read();
+      if (!existing) {
+        return { status: 404, body: 'Category not found.' };
+      }
 
+      const updated = {
+        ...existing,
+        name,
+        color,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const { resource } = await container.item(id, id).replace(updated);
+      return { status: 200, jsonBody: resource };
     } catch (error) {
-        // 項目が見つからない場合は404エラー
-        if (error.code === 404) {
-            context.res = {
-                status: 404, // Not Found
-                body: { message: "指定されたカテゴリーが見つかりません。" }
-            };
-        } else {
-            context.log.error('カテゴリー更新中にエラーが発生しました:', error);
-            context.res = {
-                status: 500,
-                body: { message: "サーバーエラーにより、カテゴリーの更新に失敗しました。" }
-            };
-        }
+      if (error?.code === 404) {
+        return { status: 404, body: 'Category not found.' };
+      }
+      const message = error.message || 'Failed to update category.';
+      if (message.includes('connection string')) {
+        return { status: 500, body: message };
+      }
+      context.log.error('UpdateCategory failed', error);
+      return { status: 500, body: 'Failed to update category.' };
     }
-};
-```
-
-**構成ファイル (`staticwebapp.config.json`内の該当部分):**
-```json
-{
-  "route": "/api/UpdateCategory/{id}", // URLにIDを含む
-  "methods": ["PUT"],
-  "allowedRoles": ["administrator"]
-}
+  },
+});

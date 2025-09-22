@@ -1,39 +1,42 @@
 const { app } = require('@azure/functions');
-const { CosmosClient } = require("@azure/cosmos");
+const { getContainer } = require('./cosmosClient');
 
-const connectionString = process.env.CosmosDbConnectionString;
-const client = new CosmosClient(connectionString);
-const databaseId = "lsircs-database";
-const containerId = "Customers";
+const databaseId = 'lsircs-database';
+const containerId = 'Customers';
 
 app.http('UpdateCustomer', {
-    methods: ['PUT'],
-    authLevel: 'anonymous',
-    route: 'UpdateCustomer/{id}', // URLからIDを取得
-    handler: async (request, context) => {
-        try {
-            const id = request.params.id;
-            const updates = await request.json();
+  methods: ['PUT'],
+  authLevel: 'anonymous',
+  route: 'UpdateCustomer/{id}',
+  handler: async (request, context) => {
+    try {
+      const id = request.params.get('id');
+      if (!id) {
+        return { status: 400, body: 'Customer id is required.' };
+      }
 
-            const database = client.database(databaseId);
-            const container = database.container(containerId);
+      const updates = await request.json();
+      const container = getContainer(databaseId, containerId);
 
-            const { resource: existingCustomer } = await container.item(id, id).read();
-            if (!existingCustomer) {
-                return { status: 404, body: "Customer not found." };
-            }
+      const { resource: existingCustomer } = await container.item(id, id).read();
+      if (!existingCustomer) {
+        return { status: 404, body: 'Customer not found.' };
+      }
 
-            const updatedCustomer = { ...existingCustomer, ...updates };
+      const updated = { ...existingCustomer, ...updates, updatedAt: new Date().toISOString() };
+      const { resource } = await container.item(id, id).replace(updated);
 
-            const { resource: replacedItem } = await container.item(id, id).replace(updatedCustomer);
-
-            return { status: 200, jsonBody: replacedItem };
-
-        } catch (error) {
-            if (error.code === 404) {
-                return { status: 404, body: "Customer not found." };
-            }
-            return { status: 500, body: "Error updating customer." };
-        }
+      return { status: 200, jsonBody: resource };
+    } catch (error) {
+      if (error?.code === 404) {
+        return { status: 404, body: 'Customer not found.' };
+      }
+      const message = error.message || 'Error updating customer.';
+      if (message.includes('connection string')) {
+        return { status: 500, body: message };
+      }
+      context.log.error('UpdateCustomer failed', error);
+      return { status: 500, body: 'Error updating customer.' };
     }
+  },
 });

@@ -1,31 +1,34 @@
 const { app } = require('@azure/functions');
-const { CosmosClient } = require("@azure/cosmos");
+const { getContainer } = require('./cosmosClient');
 
-const connectionString = process.env.CosmosDbConnectionString;
-const client = new CosmosClient(connectionString);
-const databaseId = "lsircs-database";
-const containerId = "Customers";
+const databaseId = 'lsircs-database';
+const containerId = 'Customers';
 
 app.http('DeleteCustomer', {
-    methods: ['DELETE'],
-    authLevel: 'anonymous',
-    route: 'DeleteCustomer/{id}', // URLからIDを取得
-    handler: async (request, context) => {
-        try {
-            const id = request.params.id;
+  methods: ['DELETE'],
+  authLevel: 'anonymous',
+  route: 'DeleteCustomer/{id}',
+  handler: async (request, context) => {
+    try {
+      const id = request.params.get('id');
+      if (!id) {
+        return { status: 400, body: 'Customer id is required.' };
+      }
 
-            const database = client.database(databaseId);
-            const container = database.container(containerId);
+      const container = getContainer(databaseId, containerId);
+      await container.item(id, id).delete();
 
-            await container.item(id, id).delete();
-
-            return { status: 204 };
-
-        } catch (error) {
-            if (error.code === 404) {
-                return { status: 404, body: "Customer not found." };
-            }
-            return { status: 500, body: "Error deleting customer." };
-        }
+      return { status: 204 };
+    } catch (error) {
+      if (error?.code === 404) {
+        return { status: 404, body: 'Customer not found.' };
+      }
+      const message = error.message || 'Error deleting customer.';
+      if (message.includes('connection string')) {
+        return { status: 500, body: message };
+      }
+      context.log.error('DeleteCustomer failed', error);
+      return { status: 500, body: 'Error deleting customer.' };
     }
+  },
 });
