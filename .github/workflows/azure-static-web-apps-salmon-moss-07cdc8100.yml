@@ -57,7 +57,7 @@ jobs:
           app_location: "app/dist"  # ★ビルド済みの完成品フォルダを直接指定
           api_location: "api"       # ★準備済みのAPIソースコードの場所を指定
           skip_app_build: true      # ★Azure側でのアプリビルドを完全にスキップ
-          skip_api_build: true      # ★Azure側でのAPIビルドも完全にスキップ
+          skip_api_build: false      # ★Azure側でのAPIビルドも完全にスキップ
           ###### End of Repository/Build Configurations ######
 
   close_pull_request_job:
