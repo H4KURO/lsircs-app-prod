@@ -5,87 +5,87 @@
   "routes": [
     {
       "route": "/api/GetAllUsers",
-      "allowedRoles": ["authenticated"]
+      "allowedRoles": ["anonymous"]
     },
     {
       "route": "/api/GetUserProfile",
-      "allowedRoles": ["authenticated"]
+      "allowedRoles": ["anonymous"]
     },
     {
       "route": "/api/UpdateUserProfile",
       "methods": ["PUT"],
-      "allowedRoles": ["authenticated"]
+      "allowedRoles": ["anonymous"]
     },
     {
       "route": "/api/GetCategories",
-      "allowedRoles": ["authenticated"]
+      "allowedRoles": ["anonymous"]
     },
     {
       "route": "/api/AddCategory",
       "methods": ["POST"],
-      "allowedRoles": ["authenticated"]
+      "allowedRoles": ["anonymous"]
     },
     {
       "route": "/api/UpdateCategory/{id}",
       "methods": ["PUT"],
-      "allowedRoles": ["authenticated"]
+      "allowedRoles": ["anonymous"]
     },
     {
       "route": "/api/GetCustomers",
-      "allowedRoles": ["authenticated"]
+      "allowedRoles": ["anonymous"]
     },
     {
       "route": "/api/CreateCustomer",
       "methods": ["POST"],
-      "allowedRoles": ["authenticated"]
+      "allowedRoles": ["anonymous"]
     },
     {
       "route": "/api/UpdateCustomer/{id}",
       "methods": ["PUT"],
-      "allowedRoles": ["authenticated"]
+      "allowedRoles": ["anonymous"]
     },
     {
       "route": "/api/DeleteCustomer/{id}",
       "methods": ["DELETE"],
-      "allowedRoles": ["authenticated"]
+      "allowedRoles": ["anonymous"]
     },
     {
       "route": "/api/GetInvoices",
-      "allowedRoles": ["authenticated"]
+      "allowedRoles": ["anonymous"]
     },
     {
       "route": "/api/CreateInvoice",
       "methods": ["POST"],
-      "allowedRoles": ["authenticated"]
+      "allowedRoles": ["anonymous"]
     },
     {
       "route": "/api/UpdateInvoice/{id}",
       "methods": ["PUT"],
-      "allowedRoles": ["authenticated"]
+      "allowedRoles": ["anonymous"]
     },
     {
       "route": "/api/DeleteInvoice/{id}",
       "methods": ["DELETE"],
-      "allowedRoles": ["authenticated"]
+      "allowedRoles": ["anonymous"]
     },
     {
       "route": "/api/GetTasks",
-      "allowedRoles": ["authenticated"]
+      "allowedRoles": ["anonymous"]
     },
     {
       "route": "/api/CreateTask",
       "methods": ["POST"],
-      "allowedRoles": ["authenticated"]
+      "allowedRoles": ["anonymous"]
     },
     {
       "route": "/api/UpdateTask/{id}",
       "methods": ["PUT"],
-      "allowedRoles": ["authenticated"]
+      "allowedRoles": ["anonymous"]
     },
     {
       "route": "/api/DeleteTask/{id}",
       "methods": ["DELETE"],
-      "allowedRoles": ["authenticated"]
+      "allowedRoles": ["anonymous"]
     },
     {
       "route": "/api/HealthCheck",
