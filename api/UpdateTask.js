@@ -27,7 +27,7 @@ app.http('UpdateTask', {
     }
 
     try {
-      const id = request.params.get('id');
+      const id = request.params?.id;
       if (!id) {
         return { status: 400, body: 'Task id is required.' };
       }

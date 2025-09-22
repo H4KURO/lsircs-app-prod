@@ -10,7 +10,7 @@ app.http('DeleteTask', {
   route: 'DeleteTask/{id}',
   handler: async (request, context) => {
     try {
-      const id = request.params.get('id');
+      const id = request.params?.id;
       if (!id) {
         return { status: 400, body: 'Task id is required.' };
       }

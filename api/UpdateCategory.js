@@ -10,7 +10,7 @@ app.http('UpdateCategory', {
   route: 'UpdateCategory/{id}',
   handler: async (request, context) => {
     try {
-      const id = request.params.get('id');
+      const id = request.params?.id;
       if (!id) {
         return { status: 400, body: 'Category id is required.' };
       }

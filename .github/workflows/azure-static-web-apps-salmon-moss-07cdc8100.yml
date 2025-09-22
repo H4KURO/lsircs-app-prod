@@ -58,6 +58,7 @@ jobs:
           api_location: "api"       # ★準備済みのAPIソースコードの場所を指定
           skip_app_build: true      # ★Azure側でのアプリビルドを完全にスキップ
           skip_api_build: false      # ★Azure側でのAPIビルドも完全にスキップ
+          config_file_location: "."     # staticwebapp.config.json の配置先
           ###### End of Repository/Build Configurations ######
 
   close_pull_request_job:
