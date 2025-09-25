@@ -18,8 +18,8 @@ app.http('GetAllUsers', {
       return { status: 200, jsonBody: userList };
     } catch (error) {
       const message = error.message || 'Error loading users.';
-      if (message.includes('Resource NotFound')) {
-        context.log('Users container not found, returning empty list.');
+      if (error?.code === 404 || error?.code === 'NotFound' || message.includes('Resource NotFound')) {
+        context.log('Users container not found, returning empty list.', message);
         return { status: 200, jsonBody: [] };
       }
       if (message.includes('connection string')) {
@@ -30,4 +30,6 @@ app.http('GetAllUsers', {
     }
   },
 });
+
+
 

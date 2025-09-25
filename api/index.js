@@ -9,4 +9,3 @@ fs.readdirSync(functionsDirectory)
   .forEach(file => {
     require(path.join(functionsDirectory, file));
   });
-
