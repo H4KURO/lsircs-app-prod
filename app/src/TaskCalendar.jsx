@@ -60,7 +60,7 @@ export function TaskCalendar({ onTaskSelect }) {
   };
   
   // イベントのスタイルを設定するための関数
-  const eventStyleGetter = (event, start, end, isSelected) => {
+  const eventStyleGetter = (event) => {
     // 対応表から色を取得。なければデフォルト色
     const backgroundColor = categoryColors[event.resource.category] || '#9e9e9e';
     const style = {
@@ -92,3 +92,4 @@ export function TaskCalendar({ onTaskSelect }) {
     </div>
   );
 }
+

@@ -34,6 +34,7 @@ export function ProfileView() {
         alert('プロフィールを更新しました。');
       })
       .catch(err => {
+        console.error('Failed to update profile', err);
         alert('エラー：更新に失敗しました。');
       });
   };

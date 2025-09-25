@@ -29,7 +29,7 @@ function App() {
         const data = await res.json();
         setUser(data.clientPrincipal);
       } catch (error) {
-        console.error('No user logged in');
+        console.error('No user logged in', error);
       }
     }
     fetchUser();
