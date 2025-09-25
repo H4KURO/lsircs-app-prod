@@ -15,14 +15,15 @@ app.http('GetCustomers', {
     } catch (error) {
       const message = error.message || 'Error fetching customers from the database.';
       if (message.includes('Resource NotFound')) {
-        context.log.warn('Customers container not found, returning empty list.');
+        context.log('Customers container not found, returning empty list.');
         return { status: 200, jsonBody: [] };
       }
       if (message.includes('connection string')) {
         return { status: 500, body: message };
       }
-      context.log.error('GetCustomers failed', error);
+      context.log('GetCustomers failed', error);
       return { status: 500, body: 'Error fetching customers from the database.' };
     }
   },
 });
+

@@ -49,8 +49,9 @@ app.http('UpdateUserProfile', {
       if (message.includes('connection string')) {
         return { status: 500, body: message };
       }
-      context.log.error('UpdateUserProfile failed', error);
+      context.log('UpdateUserProfile failed', error);
       return { status: 500, body: 'Error updating user profile.' };
     }
   },
 });
+

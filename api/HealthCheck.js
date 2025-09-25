@@ -5,3 +5,4 @@ app.http('HealthCheck', {
   authLevel: 'anonymous',
   handler: async () => ({ status: 200, body: 'API is alive!' }),
 });
+

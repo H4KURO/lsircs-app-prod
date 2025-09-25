@@ -33,8 +33,9 @@ app.http('AddCategory', {
       if (message.includes('connection string')) {
         return { status: 500, body: message };
       }
-      context.log.error('AddCategory failed', error);
+      context.log('AddCategory failed', error);
       return { status: 500, body: 'Failed to create category.' };
     }
   },
 });
+

@@ -33,8 +33,9 @@ app.http('CreateInvoice', {
       if (message.includes('connection string')) {
         return { status: 500, body: message };
       }
-      context.log.error('CreateInvoice failed', error);
+      context.log('CreateInvoice failed', error);
       return { status: 500, body: 'Error creating invoice.' };
     }
   },
 });
+

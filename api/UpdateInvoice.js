@@ -40,8 +40,9 @@ app.http('UpdateInvoice', {
       if (message.includes('connection string')) {
         return { status: 500, body: message };
       }
-      context.log.error('UpdateInvoice failed', error);
+      context.log('UpdateInvoice failed', error);
       return { status: 500, body: 'Error updating invoice.' };
     }
   },
 });
+

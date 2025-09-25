@@ -35,8 +35,9 @@ app.http('UpdateCustomer', {
       if (message.includes('connection string')) {
         return { status: 500, body: message };
       }
-      context.log.error('UpdateCustomer failed', error);
+      context.log('UpdateCustomer failed', error);
       return { status: 500, body: 'Error updating customer.' };
     }
   },
 });
+

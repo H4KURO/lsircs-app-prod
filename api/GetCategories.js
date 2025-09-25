@@ -15,14 +15,15 @@ app.http('GetCategories', {
     } catch (error) {
       const message = error.message || 'Failed to fetch categories.';
       if (message.includes('Resource NotFound')) {
-        context.log.warn('Categories container not found, returning empty list.');
+        context.log('Categories container not found, returning empty list.');
         return { status: 200, jsonBody: [] };
       }
       if (message.includes('connection string')) {
         return { status: 500, body: message };
       }
-      context.log.error('GetCategories failed', error);
+      context.log('GetCategories failed', error);
       return { status: 500, body: 'Failed to fetch categories.' };
     }
   },
 });
+

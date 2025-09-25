@@ -45,8 +45,9 @@ app.http('UpdateCategory', {
       if (message.includes('connection string')) {
         return { status: 500, body: message };
       }
-      context.log.error('UpdateCategory failed', error);
+      context.log('UpdateCategory failed', error);
       return { status: 500, body: 'Failed to update category.' };
     }
   },
 });
+

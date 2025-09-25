@@ -15,14 +15,15 @@ app.http('GetInvoices', {
     } catch (error) {
       const message = error.message || 'Error fetching invoices from the database.';
       if (message.includes('Resource NotFound')) {
-        context.log.warn('Invoices container not found, returning empty list.');
+        context.log('Invoices container not found, returning empty list.');
         return { status: 200, jsonBody: [] };
       }
       if (message.includes('connection string')) {
         return { status: 500, body: message };
       }
-      context.log.error('GetInvoices failed', error);
+      context.log('GetInvoices failed', error);
       return { status: 500, body: 'Error fetching invoices from the database.' };
     }
   },
 });
+

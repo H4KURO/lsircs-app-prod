@@ -68,11 +68,12 @@ app.http('CreateTask', {
         return { status: 500, body: message };
       }
       if (message.includes('Resource NotFound')) {
-        context.log.warn('Tasks container not found, returning conflict.');
+        context.log('Tasks container not found, returning conflict.');
         return { status: 404, body: 'Task container not found in Cosmos DB.' };
       }
-      context.log.error('CreateTask failed', error);
+      context.log('CreateTask failed', error);
       return { status: 500, body: 'Error creating task.' };
     }
   },
 });
+

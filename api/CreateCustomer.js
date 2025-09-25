@@ -35,11 +35,12 @@ app.http('CreateCustomer', {
         return { status: 500, body: message }; 
       }
       if (message.includes('Resource NotFound')) {
-        context.log.warn('Customers container not found, returning conflict.');
+        context.log('Customers container not found, returning conflict.');
         return { status: 404, body: 'Customer container not found in Cosmos DB.' };
       }
-      context.log.error('CreateCustomer failed', error);
+      context.log('CreateCustomer failed', error);
       return { status: 500, body: 'Error creating customer.' };
     }
   },
 });
+

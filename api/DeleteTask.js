@@ -26,8 +26,9 @@ app.http('DeleteTask', {
       if (message.includes('connection string')) {
         return { status: 500, body: message };
       }
-      context.log.error('DeleteTask failed', error);
+      context.log('DeleteTask failed', error);
       return { status: 500, body: 'Error deleting task.' };
     }
   },
 });
+

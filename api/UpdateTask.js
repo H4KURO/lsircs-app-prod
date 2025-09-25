@@ -70,8 +70,9 @@ app.http('UpdateTask', {
       if (message.includes('connection string')) {
         return { status: 500, body: message };
       }
-      context.log.error('UpdateTask failed', error);
+      context.log('UpdateTask failed', error);
       return { status: 500, body: 'Error updating task.' };
     }
   },
 });
+

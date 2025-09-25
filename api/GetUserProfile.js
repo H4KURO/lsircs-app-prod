@@ -50,8 +50,9 @@ app.http('GetUserProfile', {
       if (message.includes('connection string')) {
         return { status: 500, body: message };
       }
-      context.log.error('GetUserProfile failed', error);
+      context.log('GetUserProfile failed', error);
       return { status: 500, body: 'Error retrieving user profile.' };
     }
   },
 });
+

@@ -36,8 +36,9 @@ app.http('DeleteInvoice', {
       if (message.includes('connection string')) {
         return { status: 500, body: message };
       }
-      context.log.error('DeleteInvoice failed', error);
+      context.log('DeleteInvoice failed', error);
       return { status: 500, body: 'Error deleting invoice.' };
     }
   },
 });
+

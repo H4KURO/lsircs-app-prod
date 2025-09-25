@@ -19,14 +19,15 @@ app.http('GetAllUsers', {
     } catch (error) {
       const message = error.message || 'Error loading users.';
       if (message.includes('Resource NotFound')) {
-        context.log.warn('Users container not found, returning empty list.');
+        context.log('Users container not found, returning empty list.');
         return { status: 200, jsonBody: [] };
       }
       if (message.includes('connection string')) {
         return { status: 500, body: message };
       }
-      context.log.error('GetAllUsers failed', error);
+      context.log('GetAllUsers failed', error);
       return { status: 500, body: 'Error loading users.' };
     }
   },
 });
+

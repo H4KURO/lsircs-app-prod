@@ -15,14 +15,15 @@ app.http('GetTasks', {
     } catch (error) {
       const message = error.message || 'Error fetching tasks from the database.';
       if (message.includes('Resource NotFound')) {
-        context.log.warn('Tasks container not found, returning empty list.');
+        context.log('Tasks container not found, returning empty list.');
         return { status: 200, jsonBody: [] };
       }
       if (message.includes('connection string')) {
         return { status: 500, body: message };
       }
-      context.log.error('GetTasks failed', error);
+      context.log('GetTasks failed', error);
       return { status: 500, body: 'Error fetching tasks from the database.' };
     }
   },
 });
+

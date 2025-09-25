@@ -27,8 +27,9 @@ app.http('DeleteCustomer', {
       if (message.includes('connection string')) {
         return { status: 500, body: message };
       }
-      context.log.error('DeleteCustomer failed', error);
+      context.log('DeleteCustomer failed', error);
       return { status: 500, body: 'Error deleting customer.' };
     }
   },
 });
+
