@@ -1,10 +1,10 @@
 const { app } = require('@azure/functions');
 const { v4: uuidv4 } = require('uuid');
-const { getContainer } = require('./cosmosClient');
+const { getNamedContainer } = require('./cosmosClient');
 
-const databaseId = 'lsircs-database';
-const containerId = 'Customers';
-const ownerKey = '�S����';
+const ownerKey = '担当者';
+const customersContainer = () =>
+  getNamedContainer('Customers', ['COSMOS_CUSTOMERS_CONTAINER', 'CosmosCustomersContainer']);
 
 app.http('CreateCustomer', {
   methods: ['POST'],
@@ -17,7 +17,7 @@ app.http('CreateCustomer', {
         return { status: 400, body: 'Customer name is required.' };
       }
 
-      const container = getContainer(databaseId, containerId);
+      const container = customersContainer();
       const newCustomer = {
         id: uuidv4(),
         name,
@@ -32,7 +32,11 @@ app.http('CreateCustomer', {
     } catch (error) {
       const message = error.message || 'Error creating customer.';
       if (message.includes('connection string')) {
-        return { status: 500, body: message };
+        return { status: 500, body: message }; 
+      }
+      if (message.includes('Resource NotFound')) {
+        context.log.warn('Customers container not found, returning conflict.');
+        return { status: 404, body: 'Customer container not found in Cosmos DB.' };
       }
       context.log.error('CreateCustomer failed', error);
       return { status: 500, body: 'Error creating customer.' };

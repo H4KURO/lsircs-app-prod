@@ -1,15 +1,15 @@
 const { app } = require('@azure/functions');
-const { getContainer } = require('./cosmosClient');
+const { getNamedContainer } = require('./cosmosClient');
 
-const databaseId = 'lsircs-database';
-const containerId = 'Users';
+const usersContainer = () =>
+  getNamedContainer('Users', ['COSMOS_USERS_CONTAINER', 'COSMOS_USER_CONTAINER', 'CosmosUsersContainer']);
 
 app.http('GetAllUsers', {
   methods: ['GET'],
   authLevel: 'anonymous',
   handler: async (request, context) => {
     try {
-      const container = getContainer(databaseId, containerId);
+      const container = usersContainer();
       const { resources } = await container.items.readAll().fetchAll();
       const userList = resources.map((user) => ({
         userId: user.userId || user.id,
@@ -18,6 +18,10 @@ app.http('GetAllUsers', {
       return { status: 200, jsonBody: userList };
     } catch (error) {
       const message = error.message || 'Error loading users.';
+      if (message.includes('Resource NotFound')) {
+        context.log.warn('Users container not found, returning empty list.');
+        return { status: 200, jsonBody: [] };
+      }
       if (message.includes('connection string')) {
         return { status: 500, body: message };
       }

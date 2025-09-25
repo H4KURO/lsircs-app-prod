@@ -2,12 +2,20 @@ const { CosmosClient } = require('@azure/cosmos');
 
 let cachedClient;
 
+function resolveSetting(keys, fallback) {
+  for (const key of keys) {
+    const value = process.env[key];
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  return fallback;
+}
+
 function resolveConnectionString() {
-  return (
-    process.env.CosmosDbConnectionString ||
-    process.env.CosmosDBConnectionString ||
-    process.env.COSMOS_DB_CONNECTION_STRING ||
-    null
+  return resolveSetting(
+    ['CosmosDbConnectionString', 'CosmosDBConnectionString', 'COSMOS_DB_CONNECTION_STRING', 'COSMOSDBCONNECTIONSTRING'],
+    null,
   );
 }
 
@@ -24,11 +32,54 @@ function getCosmosClient() {
   return cachedClient;
 }
 
+function getConfigValue(possibleKeys, fallback) {
+  return resolveSetting(possibleKeys, fallback);
+}
+
+const DEFAULT_DATABASE_ID = 'lsircs-database';
+
+function getDatabaseId() {
+  return getConfigValue(
+    [
+      'COSMOS_DATABASE_ID',
+      'COSMOS_DB_DATABASE',
+      'COSMOS_DB_NAME',
+      'CosmosDatabaseId',
+      'CosmosDbDatabaseId',
+    ],
+    DEFAULT_DATABASE_ID,
+  );
+}
+
+function normaliseKeyFragment(value) {
+  return value.replace(/[^A-Za-z0-9]/g, '_').toUpperCase();
+}
+
+function getContainerId(defaultId, overrideKeys = []) {
+  const keyFragment = normaliseKeyFragment(defaultId);
+  const fallbacks = [
+    `COSMOS_${keyFragment}_CONTAINER`,
+    `COSMOS_DB_${keyFragment}_CONTAINER`,
+    `Cosmos${defaultId}Container`,
+    `Cosmos${defaultId}Collection`,
+  ];
+  return getConfigValue([...overrideKeys, ...fallbacks], defaultId);
+}
+
 function getContainer(databaseId, containerId) {
   return getCosmosClient().database(databaseId).container(containerId);
+}
+
+function getNamedContainer(defaultId, overrideKeys = []) {
+  const databaseId = getDatabaseId();
+  const containerId = getContainerId(defaultId, overrideKeys);
+  return getContainer(databaseId, containerId);
 }
 
 module.exports = {
   getCosmosClient,
   getContainer,
+  getNamedContainer,
+  getDatabaseId,
+  getContainerId,
 };

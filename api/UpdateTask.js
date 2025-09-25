@@ -1,8 +1,8 @@
 const { app } = require('@azure/functions');
-const { getContainer } = require('./cosmosClient');
+const { getNamedContainer } = require('./cosmosClient');
 
-const databaseId = 'lsircs-database';
-const containerId = 'Tasks';
+const tasksContainer = () =>
+  getNamedContainer('Tasks', ['COSMOS_TASKS_CONTAINER', 'CosmosTasksContainer']);
 
 function parseClientPrincipal(request) {
   const header = request.headers.get('x-ms-client-principal');
@@ -33,7 +33,7 @@ app.http('UpdateTask', {
       }
 
       const updates = await request.json();
-      const container = getContainer(databaseId, containerId);
+      const container = tasksContainer();
 
       const { resource: existingTask } = await container.item(id, id).read();
       if (!existingTask) {

@@ -1,8 +1,8 @@
 const { app } = require('@azure/functions');
-const { getContainer } = require('./cosmosClient');
+const { getNamedContainer } = require('./cosmosClient');
 
-const databaseId = 'lsircs-database';
-const containerId = 'Customers';
+const customersContainer = () =>
+  getNamedContainer('Customers', ['COSMOS_CUSTOMERS_CONTAINER', 'CosmosCustomersContainer']);
 
 app.http('UpdateCustomer', {
   methods: ['PUT'],
@@ -16,7 +16,7 @@ app.http('UpdateCustomer', {
       }
 
       const updates = await request.json();
-      const container = getContainer(databaseId, containerId);
+      const container = customersContainer();
 
       const { resource: existingCustomer } = await container.item(id, id).read();
       if (!existingCustomer) {

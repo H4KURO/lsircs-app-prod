@@ -1,8 +1,8 @@
 const { app } = require('@azure/functions');
-const { getContainer } = require('./cosmosClient');
+const { getNamedContainer } = require('./cosmosClient');
 
-const databaseId = 'lsircs-database';
-const containerId = 'Users';
+const usersContainer = () =>
+  getNamedContainer('Users', ['COSMOS_USERS_CONTAINER', 'COSMOS_USER_CONTAINER', 'CosmosUsersContainer']);
 
 function parseClientPrincipal(request) {
   const header = request.headers.get('x-ms-client-principal');
@@ -32,7 +32,7 @@ app.http('UpdateUserProfile', {
         return { status: 400, body: 'Display name is required.' };
       }
 
-      const container = getContainer(databaseId, containerId);
+      const container = usersContainer();
       const { resource: existing } = await container.item(principal.userId, principal.userId).read();
       if (!existing) {
         return { status: 404, body: 'User profile not found.' };

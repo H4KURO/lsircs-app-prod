@@ -1,9 +1,9 @@
 const { app } = require('@azure/functions');
 const { v4: uuidv4 } = require('uuid');
-const { getContainer } = require('./cosmosClient');
+const { getNamedContainer } = require('./cosmosClient');
 
-const databaseId = 'lsircs-database';
-const containerId = 'Tasks';
+const tasksContainer = () =>
+  getNamedContainer('Tasks', ['COSMOS_TASKS_CONTAINER', 'CosmosTasksContainer']);
 const n8nSecretKey = process.env.N8N_SECRET_KEY;
 
 function parseClientPrincipal(request) {
@@ -42,7 +42,7 @@ app.http('CreateTask', {
         return { status: 400, body: 'Task title is required.' };
       }
 
-      const container = getContainer(databaseId, containerId);
+      const container = tasksContainer();
       const now = new Date().toISOString();
       const newTask = {
         id: uuidv4(),
@@ -66,6 +66,10 @@ app.http('CreateTask', {
       const message = error.message || 'Error creating task.';
       if (message.includes('connection string')) {
         return { status: 500, body: message };
+      }
+      if (message.includes('Resource NotFound')) {
+        context.log.warn('Tasks container not found, returning conflict.');
+        return { status: 404, body: 'Task container not found in Cosmos DB.' };
       }
       context.log.error('CreateTask failed', error);
       return { status: 500, body: 'Error creating task.' };

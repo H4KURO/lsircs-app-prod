@@ -1,8 +1,8 @@
 const { app } = require('@azure/functions');
-const { getContainer } = require('./cosmosClient');
+const { getNamedContainer } = require('./cosmosClient');
 
-const databaseId = 'lsircs-database';
-const containerId = 'Invoices';
+const invoicesContainer = () =>
+  getNamedContainer('Invoices', ['COSMOS_INVOICES_CONTAINER', 'CosmosInvoicesContainer']);
 
 app.http('DeleteInvoice', {
   methods: ['DELETE'],
@@ -15,7 +15,7 @@ app.http('DeleteInvoice', {
         return { status: 400, body: 'Invoice id is required.' };
       }
 
-      const container = getContainer(databaseId, containerId);
+      const container = invoicesContainer();
       const query = {
         query: 'SELECT * FROM c WHERE c.id = @id',
         parameters: [{ name: '@id', value: id }],
@@ -37,7 +37,7 @@ app.http('DeleteInvoice', {
         return { status: 500, body: message };
       }
       context.log.error('DeleteInvoice failed', error);
-      return { status: 500, body: `Error deleting invoice.` };
+      return { status: 500, body: 'Error deleting invoice.' };
     }
   },
 });

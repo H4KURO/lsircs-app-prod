@@ -1,8 +1,8 @@
 const { app } = require('@azure/functions');
-const { getContainer } = require('./cosmosClient');
+const { getNamedContainer } = require('./cosmosClient');
 
-const databaseId = 'lsircs-database';
-const containerId = 'Customers';
+const customersContainer = () =>
+  getNamedContainer('Customers', ['COSMOS_CUSTOMERS_CONTAINER', 'CosmosCustomersContainer']);
 
 app.http('DeleteCustomer', {
   methods: ['DELETE'],
@@ -15,7 +15,7 @@ app.http('DeleteCustomer', {
         return { status: 400, body: 'Customer id is required.' };
       }
 
-      const container = getContainer(databaseId, containerId);
+      const container = customersContainer();
       await container.item(id, id).delete();
 
       return { status: 204 };

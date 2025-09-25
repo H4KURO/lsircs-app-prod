@@ -1,8 +1,8 @@
 const { app } = require('@azure/functions');
-const { getContainer } = require('./cosmosClient');
+const { getNamedContainer } = require('./cosmosClient');
 
-const databaseId = 'lsircs-database';
-const containerId = 'Categories';
+const categoriesContainer = () =>
+  getNamedContainer('Categories', ['COSMOS_CATEGORIES_CONTAINER', 'CosmosCategoriesContainer']);
 
 app.http('UpdateCategory', {
   methods: ['PUT'],
@@ -22,7 +22,7 @@ app.http('UpdateCategory', {
         return { status: 400, body: 'Category name and color are required.' };
       }
 
-      const container = getContainer(databaseId, containerId);
+      const container = categoriesContainer();
       const { resource: existing } = await container.item(id, id).read();
       if (!existing) {
         return { status: 404, body: 'Category not found.' };

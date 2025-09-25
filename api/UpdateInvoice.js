@@ -1,8 +1,8 @@
 const { app } = require('@azure/functions');
-const { getContainer } = require('./cosmosClient');
+const { getNamedContainer } = require('./cosmosClient');
 
-const databaseId = 'lsircs-database';
-const containerId = 'Invoices';
+const invoicesContainer = () =>
+  getNamedContainer('Invoices', ['COSMOS_INVOICES_CONTAINER', 'CosmosInvoicesContainer']);
 
 app.http('UpdateInvoice', {
   methods: ['PUT'],
@@ -16,7 +16,7 @@ app.http('UpdateInvoice', {
       }
 
       const updates = await request.json();
-      const container = getContainer(databaseId, containerId);
+      const container = invoicesContainer();
 
       const query = {
         query: 'SELECT * FROM c WHERE c.id = @id',

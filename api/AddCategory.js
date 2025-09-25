@@ -1,9 +1,9 @@
 const { app } = require('@azure/functions');
 const { v4: uuidv4 } = require('uuid');
-const { getContainer } = require('./cosmosClient');
+const { getNamedContainer } = require('./cosmosClient');
 
-const databaseId = 'lsircs-database';
-const containerId = 'Categories';
+const categoriesContainer = () =>
+  getNamedContainer('Categories', ['COSMOS_CATEGORIES_CONTAINER', 'CosmosCategoriesContainer']);
 
 app.http('AddCategory', {
   methods: ['POST'],
@@ -18,7 +18,7 @@ app.http('AddCategory', {
         return { status: 400, body: 'Category name and color are required.' };
       }
 
-      const container = getContainer(databaseId, containerId);
+      const container = categoriesContainer();
       const newCategory = {
         id: uuidv4(),
         name,

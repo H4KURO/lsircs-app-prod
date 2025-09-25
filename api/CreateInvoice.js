@@ -1,9 +1,9 @@
 const { app } = require('@azure/functions');
 const { v4: uuidv4 } = require('uuid');
-const { getContainer } = require('./cosmosClient');
+const { getNamedContainer } = require('./cosmosClient');
 
-const databaseId = 'lsircs-database';
-const containerId = 'Invoices';
+const invoicesContainer = () =>
+  getNamedContainer('Invoices', ['COSMOS_INVOICES_CONTAINER', 'CosmosInvoicesContainer']);
 
 app.http('CreateInvoice', {
   methods: ['POST'],
@@ -15,7 +15,7 @@ app.http('CreateInvoice', {
         return { status: 400, body: 'Customer ID and amount are required.' };
       }
 
-      const container = getContainer(databaseId, containerId);
+      const container = invoicesContainer();
       const newInvoice = {
         id: uuidv4(),
         customerId: payload.customerId,
