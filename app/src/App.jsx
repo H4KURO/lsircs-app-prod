@@ -126,9 +126,11 @@ function App() {
         {user && currentView === 'customers' && <CustomerView />}
         {user && currentView === 'invoices' && <InvoiceView />}
         {user && currentView === 'profile' && <ProfileView />} {/* ★★★ プロフィール画面の表示を追加 ★★★ */}
+        {user && currentView === 'settings' && <SettingsView />}
       </Box>
     </Box>
   );
 }
 
 export default App;
+
