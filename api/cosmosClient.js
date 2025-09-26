@@ -76,22 +76,28 @@ function getNamedContainer(defaultId, overrideKeys = []) {
   return getContainer(databaseId, containerId);
 }
 
-module.exports = {
-  getCosmosClient,
-  getContainer,
-  getNamedContainer,
-  getDatabaseId,
-  getContainerId,
-  ensureNamedContainer,
-};
-
 async function ensureNamedContainer(defaultId, { overrideKeys = [], partitionKey = '/id', throughput } = {}) {
   const databaseId = getDatabaseId();
   const containerId = getContainerId(defaultId, overrideKeys);
   const client = getCosmosClient();
   const database = client.database(databaseId);
+  const containerRef = database.container(containerId);
 
-  const containerDefinition = {
+  try {
+    const { resource } = await containerRef.read();
+    const currentPartitionPath = resource?.partitionKey?.paths?.[0];
+    if (currentPartitionPath && currentPartitionPath !== partitionKey) {
+      // Existing container with a different partition key. Reuse it as-is.
+      return containerRef;
+    }
+    return containerRef;
+  } catch (error) {
+    if (error?.code !== 404 && error?.code !== 'NotFound') {
+      throw error;
+    }
+  }
+
+  const definition = {
     id: containerId,
     partitionKey: {
       paths: [partitionKey],
@@ -100,6 +106,15 @@ async function ensureNamedContainer(defaultId, { overrideKeys = [], partitionKey
   };
 
   const options = throughput ? { throughput } : undefined;
-  await database.containers.createIfNotExists(containerDefinition, options);
+  await database.containers.create(definition, options);
   return database.container(containerId);
 }
+
+module.exports = {
+  getCosmosClient,
+  getContainer,
+  getNamedContainer,
+  getDatabaseId,
+  getContainerId,
+  ensureNamedContainer,
+};

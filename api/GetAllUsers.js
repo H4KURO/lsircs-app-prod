@@ -2,9 +2,13 @@ const { app } = require('@azure/functions');
 const { ensureNamedContainer } = require('./cosmosClient');
 
 const USER_CONTAINER_KEYS = ['COSMOS_USERS_CONTAINER', 'COSMOS_USER_CONTAINER', 'CosmosUsersContainer'];
+const USER_PARTITION_KEY = '/userId';
 
 async function usersContainer() {
-  return ensureNamedContainer('Users', { overrideKeys: USER_CONTAINER_KEYS });
+  return ensureNamedContainer('Users', {
+    overrideKeys: USER_CONTAINER_KEYS,
+    partitionKey: USER_PARTITION_KEY,
+  });
 }
 
 app.http('GetAllUsers', {

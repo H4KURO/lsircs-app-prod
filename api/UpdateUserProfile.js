@@ -2,9 +2,13 @@ const { app } = require('@azure/functions');
 const { ensureNamedContainer } = require('./cosmosClient');
 
 const USER_CONTAINER_KEYS = ['COSMOS_USERS_CONTAINER', 'COSMOS_USER_CONTAINER', 'CosmosUsersContainer'];
+const USER_PARTITION_KEY = '/userId';
 
 async function usersContainer() {
-  return ensureNamedContainer('Users', { overrideKeys: USER_CONTAINER_KEYS });
+  return ensureNamedContainer('Users', {
+    overrideKeys: USER_CONTAINER_KEYS,
+    partitionKey: USER_PARTITION_KEY,
+  });
 }
 
 function parseClientPrincipal(request) {
@@ -43,7 +47,9 @@ app.http('UpdateUserProfile', {
 
       const now = new Date().toISOString();
       const updatedProfile = { ...existing, displayName, updatedAt: now };
-      const { resource } = await container.item(principal.userId, principal.userId).replace(updatedProfile);
+      const { resource } = await container
+        .item(principal.userId, principal.userId)
+        .replace(updatedProfile, { disableAutomaticIdGeneration: true });
       return { status: 200, jsonBody: resource };
     } catch (error) {
       if (error?.code === 404 || error?.code === 'NotFound') {

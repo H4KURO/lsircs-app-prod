@@ -2,9 +2,13 @@ const { app } = require('@azure/functions');
 const { ensureNamedContainer } = require('./cosmosClient');
 
 const USER_CONTAINER_KEYS = ['COSMOS_USERS_CONTAINER', 'COSMOS_USER_CONTAINER', 'CosmosUsersContainer'];
+const USER_PARTITION_KEY = '/userId';
 
 async function usersContainer() {
-  return ensureNamedContainer('Users', { overrideKeys: USER_CONTAINER_KEYS });
+  return ensureNamedContainer('Users', {
+    overrideKeys: USER_CONTAINER_KEYS,
+    partitionKey: USER_PARTITION_KEY,
+  });
 }
 
 function parseClientPrincipal(request) {
@@ -45,8 +49,11 @@ app.http('GetUserProfile', {
             createdAt: now,
             updatedAt: now,
           };
-          const { resource: created, statusCode } = await container.items.upsert(newUserProfile);
-          return { status: statusCode || 201, jsonBody: created };
+          context.log('Provisioning new user profile', newUserProfile);
+          const { resource: created } = await container.items.create(newUserProfile, {
+            disableAutomaticIdGeneration: true,
+          });
+          return { status: 201, jsonBody: created };
         }
         throw error;
       }
@@ -54,10 +61,6 @@ app.http('GetUserProfile', {
       const message = error.message || 'Error retrieving user profile.';
       if (message.includes('connection string')) {
         return { status: 500, body: message };
-      }
-      if (message.includes('Resource NotFound')) {
-        context.log('Users container missing when getting profile.', message);
-        return { status: 404, body: 'Users container not found.' };
       }
       context.log('GetUserProfile failed', error);
       return { status: 500, body: 'Error retrieving user profile.' };
