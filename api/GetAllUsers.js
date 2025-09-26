@@ -1,15 +1,18 @@
 const { app } = require('@azure/functions');
-const { getNamedContainer } = require('./cosmosClient');
+const { ensureNamedContainer } = require('./cosmosClient');
 
-const usersContainer = () =>
-  getNamedContainer('Users', ['COSMOS_USERS_CONTAINER', 'COSMOS_USER_CONTAINER', 'CosmosUsersContainer']);
+const USER_CONTAINER_KEYS = ['COSMOS_USERS_CONTAINER', 'COSMOS_USER_CONTAINER', 'CosmosUsersContainer'];
+
+async function usersContainer() {
+  return ensureNamedContainer('Users', { overrideKeys: USER_CONTAINER_KEYS });
+}
 
 app.http('GetAllUsers', {
   methods: ['GET'],
   authLevel: 'anonymous',
   handler: async (request, context) => {
     try {
-      const container = usersContainer();
+      const container = await usersContainer();
       const { resources } = await container.items.readAll().fetchAll();
       const userList = resources.map((user) => ({
         userId: user.userId || user.id,
@@ -30,6 +33,3 @@ app.http('GetAllUsers', {
     }
   },
 });
-
-
-

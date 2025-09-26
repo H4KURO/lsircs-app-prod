@@ -1,8 +1,11 @@
 const { app } = require('@azure/functions');
-const { getNamedContainer } = require('./cosmosClient');
+const { ensureNamedContainer } = require('./cosmosClient');
 
-const usersContainer = () =>
-  getNamedContainer('Users', ['COSMOS_USERS_CONTAINER', 'COSMOS_USER_CONTAINER', 'CosmosUsersContainer']);
+const USER_CONTAINER_KEYS = ['COSMOS_USERS_CONTAINER', 'COSMOS_USER_CONTAINER', 'CosmosUsersContainer'];
+
+async function usersContainer() {
+  return ensureNamedContainer('Users', { overrideKeys: USER_CONTAINER_KEYS });
+}
 
 function parseClientPrincipal(request) {
   const header = request.headers.get('x-ms-client-principal');
@@ -32,17 +35,18 @@ app.http('UpdateUserProfile', {
         return { status: 400, body: 'Display name is required.' };
       }
 
-      const container = usersContainer();
+      const container = await usersContainer();
       const { resource: existing } = await container.item(principal.userId, principal.userId).read();
       if (!existing) {
         return { status: 404, body: 'User profile not found.' };
       }
 
-      const updatedProfile = { ...existing, displayName, updatedAt: new Date().toISOString() };
+      const now = new Date().toISOString();
+      const updatedProfile = { ...existing, displayName, updatedAt: now };
       const { resource } = await container.item(principal.userId, principal.userId).replace(updatedProfile);
       return { status: 200, jsonBody: resource };
     } catch (error) {
-      if (error?.code === 404) {
+      if (error?.code === 404 || error?.code === 'NotFound') {
         return { status: 404, body: 'User profile not found.' };
       }
       const message = error.message || 'Error updating user profile.';
@@ -54,4 +58,3 @@ app.http('UpdateUserProfile', {
     }
   },
 });
-

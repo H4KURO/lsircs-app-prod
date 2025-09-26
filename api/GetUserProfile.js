@@ -1,8 +1,11 @@
 const { app } = require('@azure/functions');
-const { getNamedContainer } = require('./cosmosClient');
+const { ensureNamedContainer } = require('./cosmosClient');
 
-const usersContainer = () =>
-  getNamedContainer('Users', ['COSMOS_USERS_CONTAINER', 'COSMOS_USER_CONTAINER', 'CosmosUsersContainer']);
+const USER_CONTAINER_KEYS = ['COSMOS_USERS_CONTAINER', 'COSMOS_USER_CONTAINER', 'CosmosUsersContainer'];
+
+async function usersContainer() {
+  return ensureNamedContainer('Users', { overrideKeys: USER_CONTAINER_KEYS });
+}
 
 function parseClientPrincipal(request) {
   const header = request.headers.get('x-ms-client-principal');
@@ -26,22 +29,24 @@ app.http('GetUserProfile', {
     }
 
     try {
-      const container = usersContainer();
+      const container = await usersContainer();
       try {
         const { resource } = await container.item(principal.userId, principal.userId).read();
         return { status: 200, jsonBody: resource };
       } catch (error) {
-        if (error?.code === 404) {
+        if (error?.code === 404 || error?.code === 'NotFound') {
+          const now = new Date().toISOString();
           const newUserProfile = {
             id: principal.userId,
             userId: principal.userId,
             identityProvider: principal.identityProvider,
             userDetails: principal.userDetails,
             displayName: principal.userDetails,
-            createdAt: new Date().toISOString(),
+            createdAt: now,
+            updatedAt: now,
           };
-          const { resource: created } = await container.items.create(newUserProfile);
-          return { status: 201, jsonBody: created };
+          const { resource: created, statusCode } = await container.items.upsert(newUserProfile);
+          return { status: statusCode || 201, jsonBody: created };
         }
         throw error;
       }
@@ -50,9 +55,12 @@ app.http('GetUserProfile', {
       if (message.includes('connection string')) {
         return { status: 500, body: message };
       }
+      if (message.includes('Resource NotFound')) {
+        context.log('Users container missing when getting profile.', message);
+        return { status: 404, body: 'Users container not found.' };
+      }
       context.log('GetUserProfile failed', error);
       return { status: 500, body: 'Error retrieving user profile.' };
     }
   },
 });
-

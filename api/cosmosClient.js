@@ -82,5 +82,24 @@ module.exports = {
   getNamedContainer,
   getDatabaseId,
   getContainerId,
+  ensureNamedContainer,
 };
 
+async function ensureNamedContainer(defaultId, { overrideKeys = [], partitionKey = '/id', throughput } = {}) {
+  const databaseId = getDatabaseId();
+  const containerId = getContainerId(defaultId, overrideKeys);
+  const client = getCosmosClient();
+  const database = client.database(databaseId);
+
+  const containerDefinition = {
+    id: containerId,
+    partitionKey: {
+      paths: [partitionKey],
+      kind: 'Hash',
+    },
+  };
+
+  const options = throughput ? { throughput } : undefined;
+  await database.containers.createIfNotExists(containerDefinition, options);
+  return database.container(containerId);
+}
