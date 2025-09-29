@@ -2,7 +2,7 @@ const { app } = require('@azure/functions');
 const { ensureNamedContainer } = require('./cosmosClient');
 
 const USER_CONTAINER_KEYS = ['COSMOS_USERS_CONTAINER', 'COSMOS_USER_CONTAINER', 'CosmosUsersContainer'];
-const USER_PARTITION_KEY = '/userId';
+const USER_PARTITION_KEY = '/id';
 
 async function usersContainer() {
   return ensureNamedContainer('Users', {

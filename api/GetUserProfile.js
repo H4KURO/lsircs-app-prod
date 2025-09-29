@@ -2,7 +2,7 @@ const { app } = require('@azure/functions');
 const { ensureNamedContainer } = require('./cosmosClient');
 
 const USER_CONTAINER_KEYS = ['COSMOS_USERS_CONTAINER', 'COSMOS_USER_CONTAINER', 'CosmosUsersContainer'];
-const USER_PARTITION_KEY = '/userId';
+const USER_PARTITION_KEY = '/id';
 
 async function usersContainer() {
   return ensureNamedContainer('Users', {
@@ -32,38 +32,50 @@ app.http('GetUserProfile', {
       return { status: 401, body: 'Not logged in' };
     }
 
+    const userId = principal.userId;
+    if (!userId) {
+      context.log('Client principal is missing userId', principal);
+      return { status: 400, body: 'Client principal did not include a userId.' };
+    }
+
     try {
       const container = await usersContainer();
+
       try {
-        const { resource } = await container.item(principal.userId, principal.userId).read();
-        return { status: 200, jsonBody: resource };
-      } catch (error) {
-        if (error?.code === 404 || error?.code === 'NotFound') {
-          const now = new Date().toISOString();
-          const newUserProfile = {
-            id: principal.userId,
-            userId: principal.userId,
-            identityProvider: principal.identityProvider,
-            userDetails: principal.userDetails,
-            displayName: principal.userDetails,
-            createdAt: now,
-            updatedAt: now,
-          };
-          context.log('Provisioning new user profile', newUserProfile);
-          const { resource: created } = await container.items.create(newUserProfile, {
-            disableAutomaticIdGeneration: true,
-          });
-          return { status: 201, jsonBody: created };
+        const { resource } = await container.item(userId, userId).read();
+        if (resource) {
+          return { status: 200, jsonBody: resource };
         }
-        throw error;
+        context.log.warn('User profile read returned empty resource', userId);
+      } catch (readError) {
+        if (readError?.code !== 404 && readError?.code !== 'NotFound') {
+          throw readError;
+        }
+        context.log('User profile not found, provisioning new profile', userId);
       }
+
+      const now = new Date().toISOString();
+      const newUserProfile = {
+        id: userId,
+        userId,
+        identityProvider: principal.identityProvider,
+        userDetails: principal.userDetails,
+        displayName: principal.userDetails,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      const { resource: created } = await container.items.create(newUserProfile, {
+        disableAutomaticIdGeneration: true,
+      });
+      return { status: 201, jsonBody: created };
     } catch (error) {
       const message = error.message || 'Error retrieving user profile.';
       if (message.includes('connection string')) {
         return { status: 500, body: message };
       }
       context.log('GetUserProfile failed', error);
-      return { status: 500, body: 'Error retrieving user profile.' };
+      return { status: 500, body: `Error retrieving user profile: ${message}` };
     }
   },
 });

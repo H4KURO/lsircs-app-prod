@@ -2,7 +2,7 @@ const { app } = require('@azure/functions');
 const { ensureNamedContainer } = require('./cosmosClient');
 
 const USER_CONTAINER_KEYS = ['COSMOS_USERS_CONTAINER', 'COSMOS_USER_CONTAINER', 'CosmosUsersContainer'];
-const USER_PARTITION_KEY = '/userId';
+const USER_PARTITION_KEY = '/id';
 
 async function usersContainer() {
   return ensureNamedContainer('Users', {
@@ -32,6 +32,11 @@ app.http('UpdateUserProfile', {
       return { status: 401, body: 'Not logged in' };
     }
 
+    const userId = principal.userId;
+    if (!userId) {
+      return { status: 400, body: 'Client principal did not include a userId.' };
+    }
+
     try {
       const updates = await request.json();
       const displayName = updates?.displayName?.trim();
@@ -40,7 +45,7 @@ app.http('UpdateUserProfile', {
       }
 
       const container = await usersContainer();
-      const { resource: existing } = await container.item(principal.userId, principal.userId).read();
+      const { resource: existing } = await container.item(userId, userId).read();
       if (!existing) {
         return { status: 404, body: 'User profile not found.' };
       }
@@ -48,7 +53,7 @@ app.http('UpdateUserProfile', {
       const now = new Date().toISOString();
       const updatedProfile = { ...existing, displayName, updatedAt: now };
       const { resource } = await container
-        .item(principal.userId, principal.userId)
+        .item(userId, userId)
         .replace(updatedProfile, { disableAutomaticIdGeneration: true });
       return { status: 200, jsonBody: resource };
     } catch (error) {
@@ -60,7 +65,7 @@ app.http('UpdateUserProfile', {
         return { status: 500, body: message };
       }
       context.log('UpdateUserProfile failed', error);
-      return { status: 500, body: 'Error updating user profile.' };
+      return { status: 500, body: `Error updating user profile: ${message}` };
     }
   },
 });
