@@ -46,7 +46,7 @@ app.http('GetUserProfile', {
         if (resource) {
           return { status: 200, jsonBody: resource };
         }
-        context.log.warn('User profile read returned empty resource', userId);
+        context.log('User profile read returned empty resource', userId);
       } catch (readError) {
         if (readError?.code !== 404 && readError?.code !== 'NotFound') {
           throw readError;
