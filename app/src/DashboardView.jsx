@@ -1,5 +1,3 @@
-// app/src/DashboardView.jsx
-
 import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { Box, Grid, Paper, Typography, Fab, IconButton } from '@mui/material';
@@ -14,6 +12,7 @@ import { TaskDetailModal } from './TaskDetailModal';
 import { DashboardSettingsModal } from './DashboardSettingsModal';
 import { StatCard } from './StatCard';
 import { addDays, startOfToday } from 'date-fns';
+import { normalizeTask, normalizeTasks } from './taskUtils';
 
 const API_URL = '/api';
 
@@ -37,19 +36,18 @@ export function DashboardView({ user }) {
   });
 
   useEffect(() => {
-    // 全タスクと全ユーザーのリストを両方取得する
     Promise.all([
       axios.get(`${API_URL}/GetTasks`),
       axios.get(`${API_URL}/GetAllUsers`)
     ]).then(([tasksRes, usersRes]) => {
-      // ▼▼▼ ここをsetAllTasksに修正 ▼▼▼
-      setAllTasks(tasksRes.data);
-      
-      const assignees = usersRes.data.map(user => user.displayName);
+      const normalized = normalizeTasks(tasksRes.data);
+      setAllTasks(normalized);
+
+      const assignees = usersRes.data.map(u => u.displayName);
       setAssigneeOptions(assignees);
-      
-      const categories = [...new Set(tasksRes.data.map(t => t.category).filter(Boolean))];
-      const tags = [...new Set(tasksRes.data.flatMap(t => t.tags || []).filter(Boolean))];
+
+      const categories = [...new Set(normalized.map(t => t.category).filter(Boolean))];
+      const tags = [...new Set(normalized.flatMap(t => t.tags || []).filter(Boolean))];
       setCategoryOptions(categories);
       setTagOptions(tags);
     });
@@ -68,9 +66,10 @@ export function DashboardView({ user }) {
       : axios.post(`${API_URL}/CreateTask`, taskToSave);
 
     apiCall.then(res => {
+      const savedTask = normalizeTask(res.data);
       const updatedTasks = taskToSave.id
-        ? allTasks.map(t => t.id === taskToSave.id ? res.data : t)
-        : [...allTasks, res.data];
+        ? allTasks.map(t => t.id === savedTask.id ? savedTask : t)
+        : [...allTasks, savedTask];
       setAllTasks(updatedTasks);
     }).catch(error => {
       console.error('Task save error:', error);
@@ -82,22 +81,35 @@ export function DashboardView({ user }) {
 
   const handleOpenNewTaskModal = () => {
     setSelectedTask({
-      title: '', description: '', status: 'Started', priority: 'Medium',
-      importance: 1, category: null, assignee: null, tags: [], deadline: null,
+      title: '',
+      description: '',
+      status: 'Started',
+      priority: 'Medium',
+      importance: 1,
+      category: null,
+      assignees: [],
+      assignee: null,
+      tags: [],
+      deadline: null,
     });
   };
-  
+
   const handleSaveSettings = (newSettings) => {
     localStorage.setItem('dashboardSettings', JSON.stringify(newSettings));
     setDashboardSettings(newSettings);
     setSettingsOpen(false);
   };
 
-  const highPriorityTasks = useMemo(() => allTasks.filter(task => task.priority === 'High'), [allTasks]);
+  const highPriorityTasks = useMemo(
+    () => allTasks.filter(task => task.priority === 'High'),
+    [allTasks]
+  );
+
   const myTasks = useMemo(() => {
-    if (!user) return [];
-    return allTasks.filter(task => task.assignee === user.userDetails);
+    if (!user || !user.userDetails) return [];
+    return allTasks.filter(task => Array.isArray(task.assignees) && task.assignees.includes(user.userDetails));
   }, [allTasks, user]);
+
   const upcomingTasks = useMemo(() => {
     const today = startOfToday();
     const sevenDaysLater = addDays(today, 7);
@@ -118,58 +130,58 @@ export function DashboardView({ user }) {
           <SettingsIcon />
         </IconButton>
       </Box>
-      
+
       <Grid container spacing={3} sx={{ mb: 3 }}>
         <Grid item xs={12} sm={4}>
           <StatCard title="総タスク数" value={taskStats.total} icon={<TaskIcon sx={{ fontSize: 40 }} />} />
         </Grid>
         <Grid item xs={12} sm={4}>
-          <StatCard title="完了済み" value={taskStats.done} icon={<TaskAltIcon sx={{ fontSize: 40 }} />} />
+          <StatCard title="完了済" value={taskStats.done} icon={<TaskAltIcon sx={{ fontSize: 40 }} />} />
         </Grid>
         <Grid item xs={12} sm={4}>
           <StatCard title="進行中" value={taskStats.inProgress} icon={<DonutLargeIcon sx={{ fontSize: 40 }} />} />
         </Grid>
       </Grid>
-      
+
       <Grid container spacing={3}>
         <Grid item xs={12} md={8}>
           <Paper sx={{ p: 2, height: '60vh', minHeight: 500 }}>
             <Typography variant="h6" gutterBottom>カレンダービュー</Typography>
-            <TaskCalendar onTaskSelect={setSelectedTask} />
+            <TaskCalendar onTaskSelect={(task) => setSelectedTask(normalizeTask(task))} />
           </Paper>
         </Grid>
-        
+
         {dashboardSettings.showHighPriority && (
           <Grid item xs={12} md={4}>
             <Paper sx={{ p: 2, height: 'auto', mb: 2 }}>
               <Typography variant="h6" gutterBottom>重要度の高いタスク</Typography>
-              <DashboardTaskList tasks={highPriorityTasks} onTaskClick={setSelectedTask} />
+              <DashboardTaskList tasks={highPriorityTasks} onTaskClick={(task) => setSelectedTask(normalizeTask(task))} />
             </Paper>
           </Grid>
         )}
-        
+
         {dashboardSettings.showMyTasks && (
           <Grid item xs={12} md={6}>
             <Paper sx={{ p: 2, height: 'auto' }}>
               <Typography variant="h6">あなたの担当タスク</Typography>
-              <DashboardTaskList tasks={myTasks} onTaskClick={setSelectedTask} />
+              <DashboardTaskList tasks={myTasks} onTaskClick={(task) => setSelectedTask(normalizeTask(task))} />
             </Paper>
           </Grid>
         )}
-        
+
         {dashboardSettings.showUpcoming && (
           <Grid item xs={12} md={6}>
             <Paper sx={{ p: 2, height: 'auto' }}>
-              <Typography variant="h6">7日以内に期日を迎えるタスク</Typography>
-              <DashboardTaskList tasks={upcomingTasks} onTaskClick={setSelectedTask} />
+              <Typography variant="h6">7日以内に期限を迎えるタスク</Typography>
+              <DashboardTaskList tasks={upcomingTasks} onTaskClick={(task) => setSelectedTask(normalizeTask(task))} />
             </Paper>
           </Grid>
         )}
       </Grid>
-      
-      <Fab 
-        color="primary" 
-        aria-label="add" 
+
+      <Fab
+        color="primary"
+        aria-label="add"
         sx={{ position: 'fixed', bottom: 32, right: 32 }}
         onClick={handleOpenNewTaskModal}
       >
@@ -177,9 +189,9 @@ export function DashboardView({ user }) {
       </Fab>
 
       {selectedTask && (
-        <TaskDetailModal 
-          task={selectedTask} 
-          onSave={handleSaveTask} 
+        <TaskDetailModal
+          task={normalizeTask(selectedTask)}
+          onSave={handleSaveTask}
           onClose={() => setSelectedTask(null)}
           assigneeOptions={assigneeOptions}
           categoryOptions={categoryOptions}

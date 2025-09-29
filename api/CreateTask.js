@@ -1,6 +1,7 @@
 const { app } = require('@azure/functions');
 const { v4: uuidv4 } = require('uuid');
 const { getNamedContainer } = require('./cosmosClient');
+const { normalizeAssigneesPayload, ensureAssigneesOnTask } = require('./assigneeUtils');
 
 const tasksContainer = () =>
   getNamedContainer('Tasks', ['COSMOS_TASKS_CONTAINER', 'CosmosTasksContainer']);
@@ -44,7 +45,9 @@ app.http('CreateTask', {
 
       const container = tasksContainer();
       const now = new Date().toISOString();
-      const newTask = {
+      const assignees = normalizeAssigneesPayload(payload);
+
+      const baseTask = {
         id: uuidv4(),
         title,
         description: payload?.description ?? '',
@@ -53,15 +56,16 @@ app.http('CreateTask', {
         tags: Array.isArray(payload?.tags) ? payload.tags : [],
         category: payload?.category ?? null,
         importance: payload?.importance ?? 1,
-        assignee: payload?.assignee ?? null,
+        assignees,
         deadline: payload?.deadline ?? null,
         createdAt: now,
         createdById: clientPrincipal.userId,
         createdByName: clientPrincipal.userDetails,
       };
 
-      const { resource } = await container.items.create(newTask);
-      return { status: 201, jsonBody: resource };
+      const taskToCreate = ensureAssigneesOnTask(baseTask);
+      const { resource } = await container.items.create(taskToCreate);
+      return { status: 201, jsonBody: ensureAssigneesOnTask(resource) };
     } catch (error) {
       const message = error.message || 'Error creating task.';
       if (message.includes('connection string')) {
@@ -76,4 +80,3 @@ app.http('CreateTask', {
     }
   },
 });
-

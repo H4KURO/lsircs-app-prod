@@ -1,9 +1,7 @@
-// app/src/TaskDetailModal.jsx
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button, Autocomplete, Chip } from '@mui/material';
+import { normalizeTask } from './taskUtils';
 
-// 重要度の選択肢
 const importanceOptions = [
   { label: '高', value: 2 },
   { label: '中', value: 1 },
@@ -11,20 +9,24 @@ const importanceOptions = [
 ];
 
 export function TaskDetailModal({ task, onSave, onClose, assigneeOptions, categoryOptions, tagOptions }) {
-  const [editableTask, setEditableTask] = useState(task);
+  const [editableTask, setEditableTask] = useState(() => normalizeTask(task));
+
+  useEffect(() => {
+    setEditableTask(normalizeTask(task));
+  }, [task]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setEditableTask({ ...editableTask, [name]: value });
   };
-  
+
   return (
     <Dialog open={true} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>{task.id ? 'タスク詳細の編集' : '新規タスク作成'}</DialogTitle>
-      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, paddingTop: '10px !important', mt:2 }}>
+      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, paddingTop: '10px !important', mt: 2 }}>
         <TextField label="タイトル" name="title" value={editableTask.title || ''} onChange={handleChange} variant="outlined" fullWidth />
         <TextField label="説明" name="description" value={editableTask.description || ''} onChange={handleChange} variant="outlined" multiline rows={4} fullWidth />
-        
+
         <Autocomplete
           options={importanceOptions}
           getOptionLabel={(option) => option.label || ''}
@@ -46,13 +48,27 @@ export function TaskDetailModal({ task, onSave, onClose, assigneeOptions, catego
         />
 
         <Autocomplete
-          options={assigneeOptions}
-          value={editableTask.assignee || null}
-          onChange={(event, newValue) => {
-            setEditableTask({ ...editableTask, assignee: newValue });
-          }}
+          multiple
           freeSolo
-          renderInput={(params) => <TextField {...params} label="担当者" />}
+          options={assigneeOptions}
+          value={editableTask.assignees || []}
+          onChange={(event, newValue) => {
+            const sanitized = (newValue || [])
+              .map(option => typeof option === 'string' ? option : option?.label ?? '')
+              .map(name => name.trim())
+              .filter(Boolean);
+            setEditableTask({
+              ...editableTask,
+              assignees: sanitized,
+              assignee: sanitized.length > 0 ? sanitized[0] : null,
+            });
+          }}
+          renderTags={(value, getTagProps) =>
+            value.map((option, index) => (
+              <Chip variant="outlined" label={option} {...getTagProps({ index })} />
+            ))
+          }
+          renderInput={(params) => <TextField {...params} label="担当者" placeholder="担当者を選択または入力..." />}
         />
 
         <Autocomplete
@@ -61,7 +77,11 @@ export function TaskDetailModal({ task, onSave, onClose, assigneeOptions, catego
           options={tagOptions}
           value={editableTask.tags || []}
           onChange={(event, newValue) => {
-            setEditableTask({ ...editableTask, tags: newValue });
+            const sanitized = (newValue || [])
+              .map(option => typeof option === 'string' ? option : option?.label ?? '')
+              .map(tag => tag.trim())
+              .filter(Boolean);
+            setEditableTask({ ...editableTask, tags: sanitized });
           }}
           renderTags={(value, getTagProps) =>
             value.map((option, index) => (
@@ -70,8 +90,8 @@ export function TaskDetailModal({ task, onSave, onClose, assigneeOptions, catego
           }
           renderInput={(params) => <TextField {...params} label="タグ" placeholder="タグを追加..." />}
         />
-        
-        <TextField label="締め切り" name="deadline" type="date" value={editableTask.deadline ? editableTask.deadline.split('T')[0] : ''} onChange={handleChange} InputLabelProps={{ shrink: true }} fullWidth />
+
+        <TextField label="期限" name="deadline" type="date" value={editableTask.deadline ? editableTask.deadline.split('T')[0] : ''} onChange={handleChange} InputLabelProps={{ shrink: true }} fullWidth />
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>キャンセル</Button>

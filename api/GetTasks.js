@@ -1,5 +1,6 @@
 const { app } = require('@azure/functions');
 const { getNamedContainer } = require('./cosmosClient');
+const { ensureAssigneesOnTask } = require('./assigneeUtils');
 
 const tasksContainer = () =>
   getNamedContainer('Tasks', ['COSMOS_TASKS_CONTAINER', 'CosmosTasksContainer']);
@@ -11,7 +12,8 @@ app.http('GetTasks', {
     try {
       const container = tasksContainer();
       const { resources } = await container.items.readAll().fetchAll();
-      return { status: 200, jsonBody: resources };
+      const normalizedTasks = resources.map((task) => ensureAssigneesOnTask(task));
+      return { status: 200, jsonBody: normalizedTasks };
     } catch (error) {
       const message = error.message || 'Error fetching tasks from the database.';
       if (message.includes('Resource NotFound')) {
@@ -26,4 +28,3 @@ app.http('GetTasks', {
     }
   },
 });
-

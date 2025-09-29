@@ -1,5 +1,6 @@
 const { app } = require('@azure/functions');
 const { getNamedContainer } = require('./cosmosClient');
+const { normalizeAssigneesPayload, ensureAssigneesOnTask } = require('./assigneeUtils');
 
 const tasksContainer = () =>
   getNamedContainer('Tasks', ['COSMOS_TASKS_CONTAINER', 'CosmosTasksContainer']);
@@ -32,36 +33,51 @@ app.http('UpdateTask', {
         return { status: 400, body: 'Task id is required.' };
       }
 
-      const updates = await request.json();
-      const container = tasksContainer();
+      const updatesPayload = await request.json();
+      const sanitizedUpdates =
+        updatesPayload && typeof updatesPayload === 'object' ? { ...updatesPayload } : {};
 
+      const hasAssigneeUpdate = Object.prototype.hasOwnProperty.call(sanitizedUpdates, 'assignees') ||
+        Object.prototype.hasOwnProperty.call(sanitizedUpdates, 'assignee');
+
+      if (hasAssigneeUpdate) {
+        const normalizedAssignees = normalizeAssigneesPayload(sanitizedUpdates);
+        sanitizedUpdates.assignees = normalizedAssignees;
+        sanitizedUpdates.assignee = normalizedAssignees.length > 0 ? normalizedAssignees[0] : null;
+      }
+
+      const container = tasksContainer();
       const { resource: existingTask } = await container.item(id, id).read();
       if (!existingTask) {
         return { status: 404, body: 'Task not found.' };
       }
 
       const lastUpdatedAt = new Date().toISOString();
-      const updatedTask = {
+      const baseTask = {
         ...existingTask,
-        ...updates,
+        ...sanitizedUpdates,
         lastUpdatedAt,
         lastUpdatedById: clientPrincipal.userId,
         lastUpdatedByName: clientPrincipal.userDetails,
       };
 
-      if (updates?.status && updates.status !== existingTask.status) {
-        const history = Array.isArray(existingTask.statusHistory) ? existingTask.statusHistory : [];
+      if (Object.prototype.hasOwnProperty.call(sanitizedUpdates, 'status') &&
+        sanitizedUpdates.status !== existingTask.status) {
+        const history = Array.isArray(existingTask.statusHistory)
+          ? [...existingTask.statusHistory]
+          : [];
         history.push({
-          status: updates.status,
+          status: sanitizedUpdates.status,
           changedAt: lastUpdatedAt,
           changedById: clientPrincipal.userId,
           changedByName: clientPrincipal.userDetails,
         });
-        updatedTask.statusHistory = history;
+        baseTask.statusHistory = history;
       }
 
+      const updatedTask = ensureAssigneesOnTask(baseTask);
       const { resource } = await container.item(id, id).replace(updatedTask);
-      return { status: 200, jsonBody: resource };
+      return { status: 200, jsonBody: ensureAssigneesOnTask(resource) };
     } catch (error) {
       if (error?.code === 404) {
         return { status: 404, body: 'Task not found.' };
@@ -75,4 +91,3 @@ app.http('UpdateTask', {
     }
   },
 });
-
