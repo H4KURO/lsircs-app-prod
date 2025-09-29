@@ -1,29 +1,94 @@
 import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { TaskDetailModal } from './TaskDetailModal';
-import { Box, TextField, Button, List, ListItem, ListItemText, IconButton, Typography, Paper } from '@mui/material';
+import {
+  Box,
+  Button,
+  Typography,
+  Paper,
+  IconButton,
+  Autocomplete,
+  TextField,
+  Chip,
+  Stack,
+  Divider,
+  Tooltip,
+} from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CircleIcon from '@mui/icons-material/Circle';
-import { normalizeTask, normalizeTasks } from './taskUtils';
+import { TaskDetailModal } from './TaskDetailModal';
+import {
+  normalizeTask,
+  normalizeTasks,
+  extractCategoryList,
+  extractTagList,
+  groupTasksByCategoryAndTag,
+  DEFAULT_CATEGORY_LABEL,
+  DEFAULT_TAG_LABEL,
+} from './taskUtils';
 
 const API_URL = '/api';
+const STORAGE_KEY_SELECTED_CATEGORIES = 'taskViewSelectedCategories';
 
-const getStatusColor = (status) => {
-  if (status === 'Done') return 'success.main';
-  if (status === 'Inprogress') return 'warning.main';
-  return 'action.disabled';
+const statusColorMap = {
+  Done: 'success.main',
+  Inprogress: 'warning.main',
+  Started: 'info.main',
 };
+
+const getStatusColor = (status) => statusColorMap[status] || 'action.disabled';
+
+const getDeadlineLabel = (deadline) => {
+  if (!deadline) return null;
+  try {
+    return new Date(deadline).toISOString().split('T')[0];
+  } catch {
+    return deadline;
+  }
+};
+
+const loadSelectedCategories = () => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_SELECTED_CATEGORIES);
+    return stored ? JSON.parse(stored) : [];
+  } catch (error) {
+    console.warn('Failed to load task category preferences', error);
+    return [];
+  }
+};
+
+const persistSelectedCategories = (categories) => {
+  try {
+    localStorage.setItem(STORAGE_KEY_SELECTED_CATEGORIES, JSON.stringify(categories));
+  } catch (error) {
+    console.warn('Failed to persist task category preferences', error);
+  }
+};
+
+function sortByName(a, b) {
+  return a.localeCompare(b, 'ja');
+}
+
+function normalizeSelection(selection = [], options = []) {
+  const optionSet = new Set(options);
+  return selection.filter((item) => optionSet.has(item));
+}
+
+function areArraysEqual(a = [], b = []) {
+  if (a.length !== b.length) {
+    return false;
+  }
+  return a.every((value, index) => value === b[index]);
+}
 
 export function TaskView() {
   const [tasks, setTasks] = useState([]);
-  const [newTitle, setNewTitle] = useState('');
-  const [selectedTask, setSelectedTask] = useState(null);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
-  const [filter, setFilter] = useState({ assignee: '', tag: '', category: '' });
   const [assigneeOptions, setAssigneeOptions] = useState([]);
   const [categoryOptions, setCategoryOptions] = useState([]);
   const [tagOptions, setTagOptions] = useState([]);
+  const [selectedCategories, setSelectedCategories] = useState(() => loadSelectedCategories());
+  const [selectedTask, setSelectedTask] = useState(null);
 
   useEffect(() => {
     Promise.all([
@@ -35,156 +100,257 @@ export function TaskView() {
 
       const assignees = usersRes.data.map(user => user.displayName);
       setAssigneeOptions(assignees);
-
-      const categories = [...new Set(normalizedTasks.map(t => t.category).filter(Boolean))];
-      const tags = [...new Set(normalizedTasks.flatMap(t => t.tags || []).filter(Boolean))];
-      setCategoryOptions(categories);
-      setTagOptions(tags);
     });
   }, []);
 
-  const processedTasks = useMemo(() => {
-    let filteredTasks = [...tasks];
+  const derivedCategories = useMemo(() => extractCategoryList(tasks).sort(sortByName), [tasks]);
+  const derivedTags = useMemo(() => extractTagList(tasks).sort(sortByName), [tasks]);
 
-    if (filter.assignee) {
-      const keyword = filter.assignee.toLowerCase();
-      filteredTasks = filteredTasks.filter(t =>
-        Array.isArray(t.assignees) && t.assignees.some(name => name.toLowerCase().includes(keyword))
-      );
+  useEffect(() => {
+    if (!areArraysEqual(categoryOptions, derivedCategories)) {
+      setCategoryOptions(derivedCategories);
     }
-    if (filter.tag) {
-      const keyword = filter.tag.toLowerCase();
-      filteredTasks = filteredTasks.filter(t =>
-        Array.isArray(t.tags) && t.tags.some(tag => tag.toLowerCase().includes(keyword))
-      );
+  }, [derivedCategories, categoryOptions]);
+
+  useEffect(() => {
+    if (!areArraysEqual(tagOptions, derivedTags)) {
+      setTagOptions(derivedTags);
     }
-    if (filter.category) {
-      const keyword = filter.category.toLowerCase();
-      filteredTasks = filteredTasks.filter(t => t.category && t.category.toLowerCase().includes(keyword));
+  }, [derivedTags, tagOptions]);
+
+  useEffect(() => {
+    if (derivedCategories.length === 0) {
+      if (selectedCategories.length !== 0) {
+        setSelectedCategories([]);
+      }
+      return;
     }
 
-    if (sortConfig.key) {
-      filteredTasks.sort((a, b) => {
-        if (!a[sortConfig.key]) return 1;
-        if (!b[sortConfig.key]) return -1;
-        if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'ascending' ? -1 : 1;
-        if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'ascending' ? 1 : -1;
-        return 0;
+    if (selectedCategories.length === 0) {
+      setSelectedCategories(derivedCategories);
+      return;
+    }
+
+    const normalized = normalizeSelection(selectedCategories, derivedCategories);
+    if (normalized.length === 0) {
+      setSelectedCategories(derivedCategories);
+    } else if (!areArraysEqual(normalized, selectedCategories)) {
+      setSelectedCategories(normalized);
+    }
+  }, [derivedCategories, selectedCategories]);
+
+  useEffect(() => {
+    if (selectedCategories.length > 0) {
+      persistSelectedCategories(selectedCategories);
+    }
+  }, [selectedCategories]);
+
+  const categoryToTagsMap = useMemo(() => {
+    if (selectedCategories.length === 0) {
+      return {};
+    }
+
+    const grouped = groupTasksByCategoryAndTag(tasks);
+    const result = {};
+
+    selectedCategories.forEach((category) => {
+      result[category] = grouped[category] || { [DEFAULT_TAG_LABEL]: [] };
+    });
+
+    return result;
+  }, [tasks, selectedCategories]);
+
+  const handleOpenCreateModal = () => {
+    setSelectedTask({
+      title: '',
+      description: '',
+      status: 'Started',
+      priority: 'Medium',
+      importance: 1,
+      category: selectedCategories[0] && selectedCategories[0] !== DEFAULT_CATEGORY_LABEL
+        ? selectedCategories[0]
+        : null,
+      assignees: [],
+      assignee: null,
+      tags: [],
+      deadline: null,
+    });
+  };
+
+  const handleSaveTask = (taskToSave) => {
+    const apiCall = taskToSave.id
+      ? axios.put(`${API_URL}/UpdateTask/${taskToSave.id}`, taskToSave)
+      : axios.post(`${API_URL}/CreateTask`, taskToSave);
+
+    apiCall
+      .then((res) => {
+        const savedTask = normalizeTask(res.data);
+        setTasks((prev) => {
+          const exists = prev.some((task) => task.id === savedTask.id);
+          if (exists) {
+            return prev.map((task) => (task.id === savedTask.id ? savedTask : task));
+          }
+          return [...prev, savedTask];
+        });
+      })
+      .catch((error) => {
+        console.error('Task save error:', error);
+        alert('タスクの保存に失敗しました。');
+      })
+      .finally(() => {
+        setSelectedTask(null);
       });
+  };
+
+  const handleDeleteTask = (taskId) => {
+    axios.delete(`${API_URL}/DeleteTask/${taskId}`).then(() => {
+      setTasks((prev) => prev.filter((task) => task.id !== taskId));
+    });
+  };
+
+  const handleEditTask = (task) => {
+    setSelectedTask(normalizeTask(task));
+  };
+
+  const handleCategorySelectionChange = (event, newValue) => {
+    if (!newValue || newValue.length === 0) {
+      setSelectedCategories(categoryOptions);
+      return;
     }
-
-    return filteredTasks;
-  }, [tasks, sortConfig, filter]);
-
-  const requestSort = (key) => {
-    let direction = 'ascending';
-    if (sortConfig.key === key && sortConfig.direction === 'ascending') {
-      direction = 'descending';
-    }
-    setSortConfig({ key, direction });
+    setSelectedCategories(newValue);
   };
 
-  const handleFilterChange = (e) => {
-    const { name, value } = e.target;
-    setFilter(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleCreate = (e) => {
-    e.preventDefault();
-    if (!newTitle.trim()) return;
-    axios.post(`${API_URL}/CreateTask`, { title: newTitle }).then(res => {
-      setTasks([...tasks, normalizeTask(res.data)]);
-      setNewTitle('');
-    });
-  };
-
-  const handleDelete = (idToDelete) => {
-    axios.delete(`${API_URL}/DeleteTask/${idToDelete}`).then(() => {
-      setTasks(tasks.filter(t => t.id !== idToDelete));
-    });
-  };
-
-  const handleUpdate = (taskToUpdate) => {
-    axios.put(`${API_URL}/UpdateTask/${taskToUpdate.id}`, taskToUpdate).then(res => {
-      const normalized = normalizeTask(res.data);
-      setTasks(tasks.map(t => t.id === taskToUpdate.id ? normalized : t));
-      setSelectedTask(null);
-    });
+  const handleResetSelection = () => {
+    setSelectedCategories(categoryOptions);
   };
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        タスク管理
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+        <Typography variant="h4" component="h1" sx={{ flexGrow: 1 }}>
+          タスク管理
+        </Typography>
+        <Button
+          startIcon={<AddIcon />}
+          variant="contained"
+          onClick={handleOpenCreateModal}
+        >
+          タスクを追加
+        </Button>
+      </Box>
 
-      <Paper elevation={2} sx={{ p: 2 }}>
-        <Typography variant="h6" gutterBottom>新規タスク</Typography>
-        <Box component="form" onSubmit={handleCreate} sx={{ display: 'flex', gap: 1, mb: 2 }}>
-          <TextField
-            fullWidth
-            label="新しいタスク名を入力..."
-            variant="outlined"
-            size="small"
-            value={newTitle}
-            onChange={e => setNewTitle(e.target.value)}
-          />
-          <Button type="submit" variant="contained">追加</Button>
-        </Box>
-
-        <Typography variant="h6" gutterBottom>フィルター & ソート</Typography>
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-          <TextField label="担当者..." name="assignee" variant="outlined" size="small" value={filter.assignee} onChange={handleFilterChange} />
-          <TextField label="タグ..." name="tag" variant="outlined" size="small" value={filter.tag} onChange={handleFilterChange} />
-          <TextField label="カテゴリー..." name="category" variant="outlined" size="small" value={filter.category} onChange={handleFilterChange} />
-          <Button variant="outlined" size="small" onClick={() => requestSort('deadline')}>期限順</Button>
-          <Button variant="outlined" size="small" onClick={() => requestSort('status')}>ステータス</Button>
-        </Box>
+      <Paper elevation={1} sx={{ p: 2, display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
+        <Typography variant="subtitle1">表示するカテゴリ</Typography>
+        <Autocomplete
+          sx={{ minWidth: 280, flexGrow: 1, maxWidth: 480 }}
+          multiple
+          options={categoryOptions}
+          value={selectedCategories}
+          onChange={handleCategorySelectionChange}
+          renderInput={(params) => <TextField {...params} label="カテゴリを選択" placeholder="カテゴリ名" />}
+        />
+        <Button variant="outlined" size="small" onClick={handleResetSelection}>
+          全て表示
+        </Button>
       </Paper>
 
-      <Paper elevation={2} sx={{ p: 2 }}>
-        <Typography variant="h6" gutterBottom>タスク一覧</Typography>
-        <List>
-          {processedTasks.map(task => {
-            const secondaryParts = [];
-            if (task.category) secondaryParts.push(`[${task.category}]`);
-            if (Array.isArray(task.assignees) && task.assignees.length > 0) {
-              secondaryParts.push(`担当: ${task.assignees.join(', ')}`);
-            }
-            if (task.deadline) {
-              const formattedDeadline = task.deadline.split('T')[0];
-              secondaryParts.push(`期限: ${formattedDeadline}`);
-            }
+      <Box sx={{ display: 'flex', gap: 3, overflowX: 'auto', pb: 2 }}>
+        {selectedCategories.length === 0 ? (
+          <Paper sx={{ p: 4, minWidth: 320 }}>
+            <Typography color="text.secondary">
+              表示するカテゴリがありません。カテゴリを選択してください。
+            </Typography>
+          </Paper>
+        ) : (
+          selectedCategories.map((category) => {
+            const tagsInCategory = categoryToTagsMap[category] || {};
+            const sortedTags = Object.keys(tagsInCategory).sort(sortByName);
 
             return (
-              <ListItem
-                key={task.id}
-                secondaryAction={
-                  <Box>
-                    <IconButton edge="end" aria-label="edit" onClick={() => setSelectedTask(normalizeTask(task))}><EditIcon /></IconButton>
-                    <IconButton edge="end" aria-label="delete" onClick={() => handleDelete(task.id)}><DeleteIcon /></IconButton>
-                  </Box>
-                }
-                sx={{ borderBottom: '1px solid #eee' }}
-              >
-                <CircleIcon sx={{ color: getStatusColor(task.status), mr: 2, fontSize: '1rem' }} />
-                <ListItemText
-                  primary={task.title}
-                  secondary={secondaryParts.join(' | ')}
-                />
-              </ListItem>
+              <Paper key={category} sx={{ p: 2, minWidth: 360, flex: '0 0 auto' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                  <Typography variant="h6">{category === DEFAULT_CATEGORY_LABEL ? 'カテゴリ未設定' : category}</Typography>
+                  <Chip label={`${Object.values(tagsInCategory).reduce((count, tasks) => count + tasks.length, 0)} 件`} size="small" />
+                </Box>
+                <Divider sx={{ mb: 2 }} />
+
+                <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', overflowX: 'auto', pb: 1 }}>
+                  {sortedTags.map((tag) => {
+                    const tasksForTag = tagsInCategory[tag] || [];
+                    return (
+                      <Box key={`${category}-${tag}`} sx={{ minWidth: 260, flex: '0 0 auto' }}>
+                        <Typography variant="subtitle1" sx={{ mb: 1 }}>
+                          {tag === DEFAULT_TAG_LABEL ? 'タグ未設定' : tag}
+                          <Chip
+                            label={`${tasksForTag.length} 件`}
+                            size="small"
+                            sx={{ ml: 1 }}
+                          />
+                        </Typography>
+                        <Stack spacing={1.5}>
+                          {tasksForTag.map((task) => (
+                            <Paper key={task.id} variant="outlined" sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                                <CircleIcon sx={{ color: getStatusColor(task.status), fontSize: '1rem', mt: 0.5 }} />
+                                <Box sx={{ flexGrow: 1 }}>
+                                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                                    {task.title || 'タイトル未設定'}
+                                  </Typography>
+                                  {task.description && (
+                                    <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
+                                      {task.description}
+                                    </Typography>
+                                  )}
+                                  <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
+                                    {Array.isArray(task.assignees) && task.assignees.length > 0 && (
+                                      <Chip label={`担当: ${task.assignees.join(', ')}`} size="small" />
+                                    )}
+                                    {task.deadline && (
+                                      <Chip label={`期限: ${getDeadlineLabel(task.deadline)}`} size="small" />
+                                    )}
+                                  </Stack>
+                                </Box>
+                              </Box>
+                              <Stack direction="row" spacing={1} justifyContent="flex-end">
+                                <Tooltip title="編集">
+                                  <IconButton size="small" onClick={() => handleEditTask(task)}>
+                                    <EditIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="削除">
+                                  <IconButton size="small" onClick={() => handleDeleteTask(task.id)}>
+                                    <DeleteIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              </Stack>
+                            </Paper>
+                          ))}
+                          {tasksForTag.length === 0 && (
+                            <Paper variant="outlined" sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
+                              タスクはありません
+                            </Paper>
+                          )}
+                        </Stack>
+                      </Box>
+                    );
+                  })}
+                  {sortedTags.length === 0 && (
+                    <Typography color="text.secondary">タグに紐づいたタスクがありません。</Typography>
+                  )}
+                </Box>
+              </Paper>
             );
-          })}
-        </List>
-      </Paper>
+          })
+        )}
+      </Box>
 
       {selectedTask && (
         <TaskDetailModal
           task={selectedTask}
-          onSave={handleUpdate}
+          onSave={handleSaveTask}
           onClose={() => setSelectedTask(null)}
           assigneeOptions={assigneeOptions}
-          categoryOptions={categoryOptions}
+          categoryOptions={categoryOptions.map((category) => (category === DEFAULT_CATEGORY_LABEL ? '' : category))}
           tagOptions={tagOptions}
         />
       )}
