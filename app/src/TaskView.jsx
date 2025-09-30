@@ -254,9 +254,16 @@ export function TaskView() {
         </Button>
       </Paper>
 
-      <Box sx={{ display: 'flex', gap: 3, overflowX: 'auto', pb: 2 }}>
+      <Box
+        sx={{
+          display: 'grid',
+          gap: 3,
+          gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+          alignItems: 'start',
+        }}
+      >
         {selectedCategories.length === 0 ? (
-          <Paper sx={{ p: 4, minWidth: 320 }}>
+          <Paper sx={{ p: 4, gridColumn: '1 / -1' }}>
             <Typography color="text.secondary">
               表示するカテゴリがありません。カテゴリを選択してください。
             </Typography>
@@ -267,32 +274,66 @@ export function TaskView() {
             const sortedTags = Object.keys(tagsInCategory).sort(sortByName);
 
             return (
-              <Paper key={category} sx={{ p: 2, minWidth: 360, flex: '0 0 auto' }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+              <Paper
+                key={category}
+                sx={{
+                  p: 2,
+                  minWidth: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 2,
+                }}
+              >
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Typography variant="h6">{category === DEFAULT_CATEGORY_LABEL ? 'カテゴリ未設定' : category}</Typography>
-                  <Chip label={`${Object.values(tagsInCategory).reduce((count, tasks) => count + tasks.length, 0)} 件`} size="small" />
+                  <Chip label={`${Object.values(tagsInCategory).reduce((count, items) => count + items.length, 0)} 件`} size="small" />
                 </Box>
-                <Divider sx={{ mb: 2 }} />
+                <Divider />
 
-                <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', overflowX: 'auto', pb: 1 }}>
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gap: 2,
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                    alignItems: 'start',
+                  }}
+                >
                   {sortedTags.map((tag) => {
                     const tasksForTag = tagsInCategory[tag] || [];
                     return (
-                      <Box key={`${category}-${tag}`} sx={{ minWidth: 260, flex: '0 0 auto' }}>
-                        <Typography variant="subtitle1" sx={{ mb: 1 }}>
-                          {tag === DEFAULT_TAG_LABEL ? 'タグ未設定' : tag}
-                          <Chip
-                            label={`${tasksForTag.length} 件`}
-                            size="small"
-                            sx={{ ml: 1 }}
-                          />
-                        </Typography>
+                      <Paper
+                        key={`${category}-${tag}`}
+                        variant="outlined"
+                        sx={{
+                          p: 1.5,
+                          minWidth: 0,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 1.5,
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <Typography variant="subtitle1">
+                            {tag === DEFAULT_TAG_LABEL ? 'タグ未設定' : tag}
+                          </Typography>
+                          <Chip label={`${tasksForTag.length} 件`} size="small" />
+                        </Box>
                         <Stack spacing={1.5}>
                           {tasksForTag.map((task) => (
-                            <Paper key={task.id} variant="outlined" sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                            <Paper
+                              key={task.id}
+                              variant="outlined"
+                              sx={{
+                                p: 1.5,
+                                minWidth: 0,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 1,
+                              }}
+                            >
                               <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
                                 <CircleIcon sx={{ color: getStatusColor(task.status), fontSize: '1rem', mt: 0.5 }} />
-                                <Box sx={{ flexGrow: 1 }}>
+                                <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                                   <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                                     {task.title || 'タイトル未設定'}
                                   </Typography>
@@ -331,11 +372,13 @@ export function TaskView() {
                             </Paper>
                           )}
                         </Stack>
-                      </Box>
+                      </Paper>
                     );
                   })}
                   {sortedTags.length === 0 && (
-                    <Typography color="text.secondary">タグに紐づいたタスクがありません。</Typography>
+                    <Paper variant="outlined" sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
+                      タグに紐づいたタスクがありません。
+                    </Paper>
                   )}
                 </Box>
               </Paper>
