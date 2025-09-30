@@ -16,7 +16,13 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import StarBorderIcon from '@mui/icons-material/StarBorder';
+import StarIcon from '@mui/icons-material/Star';
+import RestoreIcon from '@mui/icons-material/Restore';
 import CircleIcon from '@mui/icons-material/Circle';
+import { Responsive as ResponsiveGrid, WidthProvider } from 'react-grid-layout';
+import 'react-grid-layout/css/styles.css';
+import 'react-resizable/css/styles.css';
 import { TaskDetailModal } from './TaskDetailModal';
 import {
   normalizeTask,
@@ -28,14 +34,24 @@ import {
   DEFAULT_TAG_LABEL,
 } from './taskUtils';
 
+const ResponsiveGridLayout = WidthProvider(ResponsiveGrid);
+
 const API_URL = '/api';
 const STORAGE_KEY_SELECTED_CATEGORIES = 'taskViewSelectedCategories';
+const STORAGE_KEY_LAYOUTS = 'taskViewLayouts';
+const STORAGE_KEY_FAVORITE_LAYOUT = 'taskViewFavoriteLayout';
 
 const statusColorMap = {
   Done: 'success.main',
   Inprogress: 'warning.main',
   Started: 'info.main',
 };
+
+const GRID_COLS = { lg: 12, md: 10, sm: 8, xs: 6, xxs: 2 };
+const GRID_ROW_HEIGHT = 36;
+const GRID_MARGIN = [16, 16];
+const GRID_BREAKPOINTS = Object.keys(GRID_COLS);
+const DEFAULT_HEIGHT_UNITS = 14;
 
 const getStatusColor = (status) => statusColorMap[status] || 'action.disabled';
 
@@ -66,21 +82,117 @@ const persistSelectedCategories = (categories) => {
   }
 };
 
-function sortByName(a, b) {
-  return a.localeCompare(b, 'ja');
-}
+const loadLayouts = () => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_LAYOUTS);
+    return stored ? JSON.parse(stored) : null;
+  } catch (error) {
+    console.warn('Failed to load saved layouts', error);
+    return null;
+  }
+};
 
-function normalizeSelection(selection = [], options = []) {
+const persistLayouts = (layouts) => {
+  try {
+    localStorage.setItem(STORAGE_KEY_LAYOUTS, JSON.stringify(layouts));
+  } catch (error) {
+    console.warn('Failed to persist layouts', error);
+  }
+};
+
+const loadFavoriteLayout = () => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_FAVORITE_LAYOUT);
+    return stored ? JSON.parse(stored) : null;
+  } catch (error) {
+    console.warn('Failed to load favorite layout', error);
+    return null;
+  }
+};
+
+const persistFavoriteLayout = (payload) => {
+  try {
+    if (!payload) {
+      localStorage.removeItem(STORAGE_KEY_FAVORITE_LAYOUT);
+      return;
+    }
+    localStorage.setItem(STORAGE_KEY_FAVORITE_LAYOUT, JSON.stringify(payload));
+  } catch (error) {
+    console.warn('Failed to persist favorite layout', error);
+  }
+};
+
+const sortByName = (a, b) => a.localeCompare(b, 'ja');
+
+const normalizeSelection = (selection = [], options = []) => {
   const optionSet = new Set(options);
   return selection.filter((item) => optionSet.has(item));
-}
+};
 
-function areArraysEqual(a = [], b = []) {
-  if (a.length !== b.length) {
-    return false;
+const createDefaultLayoutItem = (id, index, breakpoint) => {
+  const cols = GRID_COLS[breakpoint];
+  const defaultWidth = Math.max(Math.floor(cols / 3), Math.min(4, cols));
+  const width = Math.min(defaultWidth, cols);
+  const x = (index * width) % cols;
+  const y = Math.floor((index * width) / cols) * DEFAULT_HEIGHT_UNITS;
+  return {
+    i: id,
+    x,
+    y,
+    w: width,
+    h: DEFAULT_HEIGHT_UNITS,
+    minW: Math.max(2, Math.min(width, cols)),
+    minH: 8,
+  };
+};
+
+const ensureLayoutsForCategories = (categories, baseLayouts) => {
+  const categoryIds = categories.map((category) => `cat-${category}`);
+  const categoryIdSet = new Set(categoryIds);
+  const nextLayouts = {};
+
+  GRID_BREAKPOINTS.forEach((breakpoint) => {
+    const existing = Array.isArray(baseLayouts?.[breakpoint]) ? [...baseLayouts[breakpoint]] : [];
+    const filtered = existing.filter((item) => categoryIdSet.has(item.i));
+    const presentIds = new Set(filtered.map((item) => item.i));
+
+    categories.forEach((category, index) => {
+      const id = `cat-${category}`;
+      if (!presentIds.has(id)) {
+        filtered.push(createDefaultLayoutItem(id, index, breakpoint));
+      }
+    });
+
+    nextLayouts[breakpoint] = filtered;
+  });
+
+  return nextLayouts;
+};
+
+const layoutsEqual = (a, b) => {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  const keySet = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const key of keySet) {
+    const listA = Array.isArray(a[key]) ? a[key] : [];
+    const listB = Array.isArray(b[key]) ? b[key] : [];
+    if (listA.length !== listB.length) {
+      return false;
+    }
+    const sortedA = [...listA].sort((x, y) => x.i.localeCompare(y.i));
+    const sortedB = [...listB].sort((x, y) => x.i.localeCompare(y.i));
+    for (let i = 0; i < sortedA.length; i += 1) {
+      const itemA = sortedA[i];
+      const itemB = sortedB[i];
+      if (!itemA || !itemB) return false;
+      const props = ['i', 'x', 'y', 'w', 'h', 'minW', 'minH'];
+      if (props.some((prop) => itemA[prop] !== itemB[prop])) {
+        return false;
+      }
+    }
   }
-  return a.every((value, index) => value === b[index]);
-}
+  return true;
+};
 
 export function TaskView() {
   const [tasks, setTasks] = useState([]);
@@ -89,6 +201,8 @@ export function TaskView() {
   const [tagOptions, setTagOptions] = useState([]);
   const [selectedCategories, setSelectedCategories] = useState(() => loadSelectedCategories());
   const [selectedTask, setSelectedTask] = useState(null);
+  const [layouts, setLayouts] = useState(() => loadLayouts() || {});
+  const [hasFavoriteLayout, setHasFavoriteLayout] = useState(() => !!loadFavoriteLayout());
 
   useEffect(() => {
     Promise.all([
@@ -98,7 +212,7 @@ export function TaskView() {
       const normalizedTasks = normalizeTasks(tasksRes.data);
       setTasks(normalizedTasks);
 
-      const assignees = usersRes.data.map(user => user.displayName);
+      const assignees = usersRes.data.map((user) => user.displayName);
       setAssigneeOptions(assignees);
     });
   }, []);
@@ -107,13 +221,17 @@ export function TaskView() {
   const derivedTags = useMemo(() => extractTagList(tasks).sort(sortByName), [tasks]);
 
   useEffect(() => {
-    if (!areArraysEqual(categoryOptions, derivedCategories)) {
+    const categoriesChanged = categoryOptions.length !== derivedCategories.length
+      || categoryOptions.some((value, index) => value !== derivedCategories[index]);
+    if (categoriesChanged) {
       setCategoryOptions(derivedCategories);
     }
   }, [derivedCategories, categoryOptions]);
 
   useEffect(() => {
-    if (!areArraysEqual(tagOptions, derivedTags)) {
+    const tagsChanged = tagOptions.length !== derivedTags.length
+      || tagOptions.some((value, index) => value !== derivedTags[index]);
+    if (tagsChanged) {
       setTagOptions(derivedTags);
     }
   }, [derivedTags, tagOptions]);
@@ -134,7 +252,7 @@ export function TaskView() {
     const normalized = normalizeSelection(selectedCategories, derivedCategories);
     if (normalized.length === 0) {
       setSelectedCategories(derivedCategories);
-    } else if (!areArraysEqual(normalized, selectedCategories)) {
+    } else if (normalized.length !== selectedCategories.length) {
       setSelectedCategories(normalized);
     }
   }, [derivedCategories, selectedCategories]);
@@ -145,18 +263,35 @@ export function TaskView() {
     }
   }, [selectedCategories]);
 
+  const ensuredLayouts = useMemo(
+    () => ensureLayoutsForCategories(selectedCategories, layouts),
+    [selectedCategories, layouts]
+  );
+
+  useEffect(() => {
+    setLayouts((prev) => {
+      if (layoutsEqual(prev, ensuredLayouts)) {
+        return prev;
+      }
+      return ensuredLayouts;
+    });
+  }, [ensuredLayouts]);
+
+  useEffect(() => {
+    if (Object.keys(layouts || {}).length > 0) {
+      persistLayouts(layouts);
+    }
+  }, [layouts]);
+
   const categoryToTagsMap = useMemo(() => {
     if (selectedCategories.length === 0) {
       return {};
     }
-
     const grouped = groupTasksByCategoryAndTag(tasks);
     const result = {};
-
     selectedCategories.forEach((category) => {
       result[category] = grouped[category] || { [DEFAULT_TAG_LABEL]: [] };
     });
-
     return result;
   }, [tasks, selectedCategories]);
 
@@ -224,6 +359,44 @@ export function TaskView() {
     setSelectedCategories(categoryOptions);
   };
 
+  const handleLayoutChange = (currentLayout, allLayouts) => {
+    setLayouts(allLayouts);
+  };
+
+  const handleSaveFavoriteLayout = () => {
+    if (selectedCategories.length === 0) {
+      alert('保存するカテゴリがありません。');
+      return;
+    }
+    persistFavoriteLayout({
+      selectedCategories,
+      layouts,
+    });
+    setHasFavoriteLayout(true);
+    alert('現在のレイアウトをお気に入りとして保存しました。');
+  };
+
+  const handleLoadFavoriteLayout = () => {
+    const favorite = loadFavoriteLayout();
+    if (!favorite) {
+      alert('お気に入りが保存されていません。');
+      return;
+    }
+    const availableCategories = favorite.selectedCategories.filter((category) => categoryOptions.includes(category));
+    if (availableCategories.length === 0) {
+      alert('お気に入りに含まれるカテゴリが利用できません。');
+      return;
+    }
+    setSelectedCategories(availableCategories);
+    setLayouts(ensureLayoutsForCategories(availableCategories, favorite.layouts));
+  };
+
+  const handleClearFavoriteLayout = () => {
+    persistFavoriteLayout(null);
+    setHasFavoriteLayout(false);
+    alert('お気に入りを削除しました。');
+  };
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
@@ -254,138 +427,178 @@ export function TaskView() {
         </Button>
       </Paper>
 
-      <Box
-        sx={{
-          display: 'grid',
-          gap: 3,
-          gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
-          alignItems: 'start',
-        }}
+      <Stack direction="row" spacing={1} flexWrap="wrap">
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<StarBorderIcon />}
+          onClick={handleSaveFavoriteLayout}
+        >
+          お気に入りに保存
+        </Button>
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<StarIcon />}
+          onClick={handleLoadFavoriteLayout}
+          disabled={!hasFavoriteLayout}
+        >
+          お気に入りを読み込み
+        </Button>
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<RestoreIcon />}
+          onClick={handleClearFavoriteLayout}
+          disabled={!hasFavoriteLayout}
+        >
+          お気に入り解除
+        </Button>
+      </Stack>
+
+      <ResponsiveGridLayout
+        className="task-layout"
+        layouts={ensuredLayouts}
+        cols={GRID_COLS}
+        rowHeight={GRID_ROW_HEIGHT}
+        margin={GRID_MARGIN}
+        isDraggable
+        isResizable
+        draggableHandle=".category-card-header"
+        draggableCancel=".no-drag, .MuiIconButton-root, .MuiButtonBase-root"
+        onLayoutChange={handleLayoutChange}
+        compactType={null}
+        preventCollision
       >
         {selectedCategories.length === 0 ? (
-          <Paper sx={{ p: 4, gridColumn: '1 / -1' }}>
-            <Typography color="text.secondary">
-              表示するカテゴリがありません。カテゴリを選択してください。
-            </Typography>
-          </Paper>
+          <div key="empty">
+            <Paper sx={{ p: 4 }}>
+              <Typography color="text.secondary">
+                表示するカテゴリがありません。カテゴリを選択してください。
+              </Typography>
+            </Paper>
+          </div>
         ) : (
           selectedCategories.map((category) => {
             const tagsInCategory = categoryToTagsMap[category] || {};
             const sortedTags = Object.keys(tagsInCategory).sort(sortByName);
+            const totalTasks = Object.values(tagsInCategory).reduce((count, items) => count + items.length, 0);
 
             return (
-              <Paper
-                key={category}
-                sx={{
-                  p: 2,
-                  minWidth: 0,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 2,
-                }}
-              >
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Typography variant="h6">{category === DEFAULT_CATEGORY_LABEL ? 'カテゴリ未設定' : category}</Typography>
-                  <Chip label={`${Object.values(tagsInCategory).reduce((count, items) => count + items.length, 0)} 件`} size="small" />
-                </Box>
-                <Divider />
-
-                <Box
+              <div key={`cat-${category}`}>
+                <Paper
                   sx={{
-                    display: 'grid',
+                    p: 2,
+                    display: 'flex',
+                    flexDirection: 'column',
                     gap: 2,
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-                    alignItems: 'start',
+                    height: '100%',
+                    overflow: 'hidden',
                   }}
                 >
-                  {sortedTags.map((tag) => {
-                    const tasksForTag = tagsInCategory[tag] || [];
-                    return (
-                      <Paper
-                        key={`${category}-${tag}`}
-                        variant="outlined"
-                        sx={{
-                          p: 1.5,
-                          minWidth: 0,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: 1.5,
-                        }}
-                      >
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <Typography variant="subtitle1">
-                            {tag === DEFAULT_TAG_LABEL ? 'タグ未設定' : tag}
-                          </Typography>
-                          <Chip label={`${tasksForTag.length} 件`} size="small" />
-                        </Box>
-                        <Stack spacing={1.5}>
-                          {tasksForTag.map((task) => (
-                            <Paper
-                              key={task.id}
-                              variant="outlined"
-                              sx={{
-                                p: 1.5,
-                                minWidth: 0,
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: 1,
-                              }}
-                            >
-                              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-                                <CircleIcon sx={{ color: getStatusColor(task.status), fontSize: '1rem', mt: 0.5 }} />
-                                <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                                    {task.title || 'タイトル未設定'}
-                                  </Typography>
-                                  {task.description && (
-                                    <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
-                                      {task.description}
+                  <Box className="category-card-header" sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move' }}>
+                    <Typography variant="h6" noWrap>{category === DEFAULT_CATEGORY_LABEL ? 'カテゴリ未設定' : category}</Typography>
+                    <Chip label={`${totalTasks} 件`} size="small" />
+                  </Box>
+                  <Divider />
+
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gap: 2,
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                      alignItems: 'start',
+                      overflow: 'auto',
+                    }}
+                  >
+                    {sortedTags.map((tag) => {
+                      const tasksForTag = tagsInCategory[tag] || [];
+                      return (
+                        <Paper
+                          key={`${category}-${tag}`}
+                          variant="outlined"
+                          sx={{
+                            p: 1.5,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 1.5,
+                            height: '100%',
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <Typography variant="subtitle1" noWrap>
+                              {tag === DEFAULT_TAG_LABEL ? 'タグ未設定' : tag}
+                            </Typography>
+                            <Chip label={`${tasksForTag.length} 件`} size="small" />
+                          </Box>
+                          <Stack spacing={1.5}>
+                            {tasksForTag.map((task) => (
+                              <Paper
+                                key={task.id}
+                                variant="outlined"
+                                sx={{
+                                  p: 1.5,
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: 1,
+                                }}
+                              >
+                                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                                  <CircleIcon sx={{ color: getStatusColor(task.status), fontSize: '1rem', mt: 0.5 }} />
+                                  <Box sx={{ flexGrow: 1 }}>
+                                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                                      {task.title || 'タイトル未設定'}
                                     </Typography>
-                                  )}
-                                  <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
-                                    {Array.isArray(task.assignees) && task.assignees.length > 0 && (
-                                      <Chip label={`担当: ${task.assignees.join(', ')}`} size="small" />
+                                    {task.description && (
+                                      <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
+                                        {task.description}
+                                      </Typography>
                                     )}
-                                    {task.deadline && (
-                                      <Chip label={`期限: ${getDeadlineLabel(task.deadline)}`} size="small" />
-                                    )}
-                                  </Stack>
+                                    <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
+                                      {Array.isArray(task.assignees) && task.assignees.length > 0 && (
+                                        <Chip label={`担当: ${task.assignees.join(', ')}`} size="small" />
+                                      )}
+                                      {task.deadline && (
+                                        <Chip label={`期限: ${getDeadlineLabel(task.deadline)}`} size="small" />
+                                      )}
+                                    </Stack>
+                                  </Box>
                                 </Box>
-                              </Box>
-                              <Stack direction="row" spacing={1} justifyContent="flex-end">
-                                <Tooltip title="編集">
-                                  <IconButton size="small" onClick={() => handleEditTask(task)}>
-                                    <EditIcon fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
-                                <Tooltip title="削除">
-                                  <IconButton size="small" onClick={() => handleDeleteTask(task.id)}>
-                                    <DeleteIcon fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
-                              </Stack>
-                            </Paper>
-                          ))}
-                          {tasksForTag.length === 0 && (
-                            <Paper variant="outlined" sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
-                              タスクはありません
-                            </Paper>
-                          )}
-                        </Stack>
+                                <Stack direction="row" spacing={1} justifyContent="flex-end" className="no-drag">
+                                  <Tooltip title="編集">
+                                    <IconButton size="small" onClick={() => handleEditTask(task)}>
+                                      <EditIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                  <Tooltip title="削除">
+                                    <IconButton size="small" onClick={() => handleDeleteTask(task.id)}>
+                                      <DeleteIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                </Stack>
+                              </Paper>
+                            ))}
+                            {tasksForTag.length === 0 && (
+                              <Paper variant="outlined" sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
+                                タスクはありません
+                              </Paper>
+                            )}
+                          </Stack>
+                        </Paper>
+                      );
+                    })}
+                    {sortedTags.length === 0 && (
+                      <Paper variant="outlined" sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
+                        タグに紐づいたタスクがありません。
                       </Paper>
-                    );
-                  })}
-                  {sortedTags.length === 0 && (
-                    <Paper variant="outlined" sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
-                      タグに紐づいたタスクがありません。
-                    </Paper>
-                  )}
-                </Box>
-              </Paper>
+                    )}
+                  </Box>
+                </Paper>
+              </div>
             );
           })
         )}
-      </Box>
+      </ResponsiveGridLayout>
 
       {selectedTask && (
         <TaskDetailModal
