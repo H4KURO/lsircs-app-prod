@@ -48,6 +48,7 @@ const statusColorMap = {
 };
 
 const GRID_COLS = { lg: 12, md: 10, sm: 8, xs: 6, xxs: 2 };
+const MAX_COL_SPAN = 4;
 const GRID_ROW_HEIGHT = 36;
 const GRID_MARGIN = [16, 16];
 const GRID_BREAKPOINTS = Object.keys(GRID_COLS);
@@ -131,7 +132,7 @@ const normalizeSelection = (selection = [], options = []) => {
 
 const createDefaultLayoutItem = (id, index, breakpoint) => {
   const cols = GRID_COLS[breakpoint];
-  const defaultWidth = Math.max(Math.floor(cols / 3), Math.min(4, cols));
+  const defaultWidth = Math.min(MAX_COL_SPAN, Math.max(Math.floor(cols / 3) || 1, 3));
   const width = Math.min(defaultWidth, cols);
   const x = (index * width) % cols;
   const y = Math.floor((index * width) / cols) * DEFAULT_HEIGHT_UNITS;
@@ -141,29 +142,50 @@ const createDefaultLayoutItem = (id, index, breakpoint) => {
     y,
     w: width,
     h: DEFAULT_HEIGHT_UNITS,
-    minW: Math.max(2, Math.min(width, cols)),
+    minW: Math.min(Math.max(2, Math.floor(width / 2)), width),
     minH: 8,
   };
 };
 
+const normalizeLayoutItem = (item, category, index, breakpoint) => {
+  const cols = GRID_COLS[breakpoint];
+  const fallback = createDefaultLayoutItem(`cat-${category}`, index, breakpoint);
+  const source = item || fallback;
+  const maxWidth = Math.min(MAX_COL_SPAN, cols);
+  const width = Math.min(Math.max(source.w || fallback.w, fallback.minW), maxWidth);
+  const minW = Math.min(Math.max(source.minW || fallback.minW, 2), width);
+  const height = Math.max(source.h || fallback.h, fallback.minH);
+  const minH = Math.max(source.minH || fallback.minH, 6);
+  const fallbackX = fallback.x;
+  const fallbackY = fallback.y;
+  const widthChanged = source.w !== width;
+  const rawX = Number.isFinite(source.x) ? source.x : fallbackX;
+  const rawY = Number.isFinite(source.y) ? source.y : fallbackY;
+  const x = Math.min(widthChanged ? fallbackX : rawX, Math.max(cols - width, 0));
+  const y = widthChanged ? fallbackY : rawY;
+
+  return {
+    ...source,
+    i: `cat-${category}`,
+    x,
+    y,
+    w: width,
+    h: height,
+    minW,
+    minH,
+  };
+};
+
 const ensureLayoutsForCategories = (categories, baseLayouts) => {
-  const categoryIds = categories.map((category) => `cat-${category}`);
-  const categoryIdSet = new Set(categoryIds);
   const nextLayouts = {};
 
   GRID_BREAKPOINTS.forEach((breakpoint) => {
-    const existing = Array.isArray(baseLayouts?.[breakpoint]) ? [...baseLayouts[breakpoint]] : [];
-    const filtered = existing.filter((item) => categoryIdSet.has(item.i));
-    const presentIds = new Set(filtered.map((item) => item.i));
+    const source = Array.isArray(baseLayouts?.[breakpoint]) ? baseLayouts[breakpoint] : [];
+    const map = new Map(source.map((entry) => [entry.i, entry]));
 
-    categories.forEach((category, index) => {
-      const id = `cat-${category}`;
-      if (!presentIds.has(id)) {
-        filtered.push(createDefaultLayoutItem(id, index, breakpoint));
-      }
-    });
-
-    nextLayouts[breakpoint] = filtered;
+    nextLayouts[breakpoint] = categories.map((category, index) => (
+      normalizeLayoutItem(map.get(`cat-${category}`), category, index, breakpoint)
+    ));
   });
 
   return nextLayouts;
@@ -219,6 +241,10 @@ export function TaskView() {
 
   const derivedCategories = useMemo(() => extractCategoryList(tasks).sort(sortByName), [tasks]);
   const derivedTags = useMemo(() => extractTagList(tasks).sort(sortByName), [tasks]);
+  const normalizedLayouts = useMemo(
+    () => ensureLayoutsForCategories(selectedCategories, layouts),
+    [selectedCategories, layouts]
+  );
 
   useEffect(() => {
     const categoriesChanged = categoryOptions.length !== derivedCategories.length
@@ -263,25 +289,21 @@ export function TaskView() {
     }
   }, [selectedCategories]);
 
-  const ensuredLayouts = useMemo(
-    () => ensureLayoutsForCategories(selectedCategories, layouts),
-    [selectedCategories, layouts]
-  );
-
   useEffect(() => {
-    setLayouts((prev) => {
-      if (layoutsEqual(prev, ensuredLayouts)) {
-        return prev;
-      }
-      return ensuredLayouts;
-    });
-  }, [ensuredLayouts]);
-
-  useEffect(() => {
-    if (Object.keys(layouts || {}).length > 0) {
-      persistLayouts(layouts);
+    if (!layoutsEqual(layouts, normalizedLayouts)) {
+      setLayouts(normalizedLayouts);
     }
-  }, [layouts]);
+  }, [normalizedLayouts, layouts]);
+
+  useEffect(() => {
+    if (Object.keys(normalizedLayouts || {}).length > 0) {
+      persistLayouts(normalizedLayouts);
+    }
+  }, [normalizedLayouts]);
+
+  useEffect(() => {
+    setHasFavoriteLayout(!!loadFavoriteLayout());
+  }, []);
 
   const categoryToTagsMap = useMemo(() => {
     if (selectedCategories.length === 0) {
@@ -360,7 +382,7 @@ export function TaskView() {
   };
 
   const handleLayoutChange = (currentLayout, allLayouts) => {
-    setLayouts(allLayouts);
+    setLayouts(ensureLayoutsForCategories(selectedCategories, allLayouts));
   };
 
   const handleSaveFavoriteLayout = () => {
@@ -370,7 +392,7 @@ export function TaskView() {
     }
     persistFavoriteLayout({
       selectedCategories,
-      layouts,
+      layouts: normalizedLayouts,
     });
     setHasFavoriteLayout(true);
     alert('現在のレイアウトをお気に入りとして保存しました。');
@@ -458,17 +480,16 @@ export function TaskView() {
 
       <ResponsiveGridLayout
         className="task-layout"
-        layouts={ensuredLayouts}
+        layouts={normalizedLayouts}
         cols={GRID_COLS}
         rowHeight={GRID_ROW_HEIGHT}
         margin={GRID_MARGIN}
         isDraggable
         isResizable
+        compactType="horizontal"
         draggableHandle=".category-card-header"
         draggableCancel=".no-drag, .MuiIconButton-root, .MuiButtonBase-root"
         onLayoutChange={handleLayoutChange}
-        compactType={null}
-        preventCollision
       >
         {selectedCategories.length === 0 ? (
           <div key="empty">
