@@ -130,10 +130,19 @@ const normalizeSelection = (selection = [], options = []) => {
   return selection.filter((item) => optionSet.has(item));
 };
 
-const createDefaultLayoutItem = (id, index, breakpoint) => {
+const getResponsiveWidth = (cols, totalCategories) => {
+  if (!cols) {
+    return 1;
+  }
+  const effectiveTotal = Math.max(1, totalCategories || 1);
+  const maxColumnsPerRow = Math.max(1, Math.min(effectiveTotal, Math.floor(cols / 2) || 1));
+  const computed = Math.floor(cols / maxColumnsPerRow) || 1;
+  return Math.min(MAX_COL_SPAN, Math.max(2, computed));
+};
+
+const createDefaultLayoutItem = (id, index, breakpoint, totalCategories) => {
   const cols = GRID_COLS[breakpoint];
-  const defaultWidth = Math.min(MAX_COL_SPAN, Math.max(Math.floor(cols / 3) || 1, 3));
-  const width = Math.min(defaultWidth, cols);
+  const width = Math.min(getResponsiveWidth(cols, totalCategories), cols);
   const x = (index * width) % cols;
   const y = Math.floor((index * width) / cols) * DEFAULT_HEIGHT_UNITS;
   return {
@@ -147,11 +156,11 @@ const createDefaultLayoutItem = (id, index, breakpoint) => {
   };
 };
 
-const normalizeLayoutItem = (item, category, index, breakpoint) => {
+const normalizeLayoutItem = (item, category, index, breakpoint, totalCategories) => {
   const cols = GRID_COLS[breakpoint];
-  const fallback = createDefaultLayoutItem(`cat-${category}`, index, breakpoint);
+  const fallback = createDefaultLayoutItem(`cat-${category}`, index, breakpoint, totalCategories);
   const source = item || fallback;
-  const maxWidth = Math.min(MAX_COL_SPAN, cols);
+  const maxWidth = Math.min(getResponsiveWidth(cols, totalCategories), cols);
   const width = Math.min(Math.max(source.w || fallback.w, fallback.minW), maxWidth);
   const minW = Math.min(Math.max(source.minW || fallback.minW, 2), width);
   const height = Math.max(source.h || fallback.h, fallback.minH);
@@ -178,13 +187,14 @@ const normalizeLayoutItem = (item, category, index, breakpoint) => {
 
 const ensureLayoutsForCategories = (categories, baseLayouts) => {
   const nextLayouts = {};
+  const totalCategories = categories.length || 1;
 
   GRID_BREAKPOINTS.forEach((breakpoint) => {
     const source = Array.isArray(baseLayouts?.[breakpoint]) ? baseLayouts[breakpoint] : [];
     const map = new Map(source.map((entry) => [entry.i, entry]));
 
     nextLayouts[breakpoint] = categories.map((category, index) => (
-      normalizeLayoutItem(map.get(`cat-${category}`), category, index, breakpoint)
+      normalizeLayoutItem(map.get(`cat-${category}`), category, index, breakpoint, totalCategories)
     ));
   });
 
