@@ -16,13 +16,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
-import StarBorderIcon from '@mui/icons-material/StarBorder';
-import StarIcon from '@mui/icons-material/Star';
-import RestoreIcon from '@mui/icons-material/Restore';
 import CircleIcon from '@mui/icons-material/Circle';
-import { Responsive as ResponsiveGrid, WidthProvider } from 'react-grid-layout';
-import 'react-grid-layout/css/styles.css';
-import 'react-resizable/css/styles.css';
 import { TaskDetailModal } from './TaskDetailModal';
 import {
   normalizeTask,
@@ -34,26 +28,14 @@ import {
   DEFAULT_TAG_LABEL,
 } from './taskUtils';
 
-const ResponsiveGridLayout = WidthProvider(ResponsiveGrid);
-
 const API_URL = '/api';
 const STORAGE_KEY_SELECTED_CATEGORIES = 'taskViewSelectedCategories';
-const STORAGE_KEY_LAYOUTS = 'taskViewLayouts';
-const STORAGE_KEY_FAVORITE_LAYOUT = 'taskViewFavoriteLayout';
 
 const statusColorMap = {
   Done: 'success.main',
   Inprogress: 'warning.main',
   Started: 'info.main',
 };
-
-const GRID_COLS = { lg: 20, md: 16, sm: 12, xs: 8, xxs: 4 };
-const MAX_COL_SPAN = 4;
-const GRID_ROW_HEIGHT = 36;
-const GRID_MARGIN = [16, 16];
-const GRID_BREAKPOINTS = Object.keys(GRID_COLS);
-const DEFAULT_HEIGHT_UNITS = 14;
-
 
 const getStatusColor = (status) => statusColorMap[status] || 'action.disabled';
 
@@ -65,6 +47,10 @@ const getDeadlineLabel = (deadline) => {
     return deadline;
   }
 };
+
+const getCategoryLabel = (category) => (category === DEFAULT_CATEGORY_LABEL ? 'カテゴリ未設定' : category);
+
+const getTagLabel = (tag) => (tag === DEFAULT_TAG_LABEL ? 'タグ未設定' : tag);
 
 const loadSelectedCategories = () => {
   try {
@@ -84,169 +70,21 @@ const persistSelectedCategories = (categories) => {
   }
 };
 
-const loadLayouts = () => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY_LAYOUTS);
-    return stored ? JSON.parse(stored) : null;
-  } catch (error) {
-    console.warn('Failed to load saved layouts', error);
-    return null;
-  }
-};
+function sortByName(a, b) {
+  return a.localeCompare(b, 'ja');
+}
 
-const persistLayouts = (layouts) => {
-  try {
-    localStorage.setItem(STORAGE_KEY_LAYOUTS, JSON.stringify(layouts));
-  } catch (error) {
-    console.warn('Failed to persist layouts', error);
-  }
-};
-
-const loadFavoriteLayout = () => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY_FAVORITE_LAYOUT);
-    return stored ? JSON.parse(stored) : null;
-  } catch (error) {
-    console.warn('Failed to load favorite layout', error);
-    return null;
-  }
-};
-
-const persistFavoriteLayout = (payload) => {
-  try {
-    if (!payload) {
-      localStorage.removeItem(STORAGE_KEY_FAVORITE_LAYOUT);
-      return;
-    }
-    localStorage.setItem(STORAGE_KEY_FAVORITE_LAYOUT, JSON.stringify(payload));
-  } catch (error) {
-    console.warn('Failed to persist favorite layout', error);
-  }
-};
-
-const sortByName = (a, b) => a.localeCompare(b, 'ja');
-
-const normalizeSelection = (selection = [], options = []) => {
+function normalizeSelection(selection = [], options = []) {
   const optionSet = new Set(options);
   return selection.filter((item) => optionSet.has(item));
-};
+}
 
-const getResponsiveWidth = (cols, totalCategories) => {
-  if (!cols) {
-    return 1;
+function areArraysEqual(a = [], b = []) {
+  if (a.length !== b.length) {
+    return false;
   }
-  const total = Math.max(1, totalCategories || 1);
-  const candidates = [];
-  for (let width = Math.min(MAX_COL_SPAN, cols); width >= 2; width -= 1) {
-    const columnsPerRow = Math.floor(cols / width);
-    if (columnsPerRow <= 0) {
-      continue;
-    }
-    const rowsNeeded = Math.ceil(total / columnsPerRow);
-    const leftover = (columnsPerRow * rowsNeeded) - total;
-    const balanceScore = Math.abs(columnsPerRow - rowsNeeded);
-    candidates.push({ width, rowsNeeded, leftover, balanceScore });
-  }
-  if (candidates.length === 0) {
-    return Math.min(MAX_COL_SPAN, Math.max(1, cols));
-  }
-  candidates.sort((a, b) => {
-    if (a.rowsNeeded !== b.rowsNeeded) {
-      return a.rowsNeeded - b.rowsNeeded;
-    }
-    if (a.leftover !== b.leftover) {
-      return a.leftover - b.leftover;
-    }
-    return a.balanceScore - b.balanceScore;
-  });
-  return candidates[0].width;
-};
-
-const createDefaultLayoutItem = (id, index, breakpoint, totalCategories) => {
-  const cols = GRID_COLS[breakpoint];
-  const width = Math.min(getResponsiveWidth(cols, totalCategories), cols);
-  const x = (index * width) % cols;
-  const y = Math.floor((index * width) / cols) * DEFAULT_HEIGHT_UNITS;
-  return {
-    i: id,
-    x,
-    y,
-    w: width,
-    h: DEFAULT_HEIGHT_UNITS,
-    minW: Math.min(Math.max(2, Math.floor(width / 2)), width),
-    minH: 8,
-  };
-};
-
-const normalizeLayoutItem = (item, category, index, breakpoint, totalCategories) => {
-  const cols = GRID_COLS[breakpoint];
-  const fallback = createDefaultLayoutItem(`cat-${category}`, index, breakpoint, totalCategories);
-  const source = item || fallback;
-  const maxWidth = Math.min(getResponsiveWidth(cols, totalCategories), cols);
-  const width = Math.min(Math.max(source.w || fallback.w, fallback.minW), maxWidth);
-  const minW = Math.min(Math.max(source.minW || fallback.minW, 2), width);
-  const height = Math.max(source.h || fallback.h, fallback.minH);
-  const minH = Math.max(source.minH || fallback.minH, 6);
-  const fallbackX = fallback.x;
-  const fallbackY = fallback.y;
-  const widthChanged = source.w !== width;
-  const rawX = Number.isFinite(source.x) ? source.x : fallbackX;
-  const rawY = Number.isFinite(source.y) ? source.y : fallbackY;
-  const x = Math.min(widthChanged ? fallbackX : rawX, Math.max(cols - width, 0));
-  const y = widthChanged ? fallbackY : rawY;
-
-  return {
-    ...source,
-    i: `cat-${category}`,
-    x,
-    y,
-    w: width,
-    h: height,
-    minW,
-    minH,
-  };
-};
-
-const ensureLayoutsForCategories = (categories, baseLayouts) => {
-  const nextLayouts = {};
-  const totalCategories = categories.length || 1;
-
-  GRID_BREAKPOINTS.forEach((breakpoint) => {
-    const source = Array.isArray(baseLayouts?.[breakpoint]) ? baseLayouts[breakpoint] : [];
-    const map = new Map(source.map((entry) => [entry.i, entry]));
-
-    nextLayouts[breakpoint] = categories.map((category, index) => (
-      normalizeLayoutItem(map.get(`cat-${category}`), category, index, breakpoint, totalCategories)
-    ));
-  });
-
-  return nextLayouts;
-};
-
-const layoutsEqual = (a, b) => {
-  if (!a && !b) return true;
-  if (!a || !b) return false;
-  const keySet = new Set([...Object.keys(a), ...Object.keys(b)]);
-  for (const key of keySet) {
-    const listA = Array.isArray(a[key]) ? a[key] : [];
-    const listB = Array.isArray(b[key]) ? b[key] : [];
-    if (listA.length !== listB.length) {
-      return false;
-    }
-    const sortedA = [...listA].sort((x, y) => x.i.localeCompare(y.i));
-    const sortedB = [...listB].sort((x, y) => x.i.localeCompare(y.i));
-    for (let i = 0; i < sortedA.length; i += 1) {
-      const itemA = sortedA[i];
-      const itemB = sortedB[i];
-      if (!itemA || !itemB) return false;
-      const props = ['i', 'x', 'y', 'w', 'h', 'minW', 'minH'];
-      if (props.some((prop) => itemA[prop] !== itemB[prop])) {
-        return false;
-      }
-    }
-  }
-  return true;
-};
+  return a.every((value, index) => value === b[index]);
+}
 
 export function TaskView() {
   const [tasks, setTasks] = useState([]);
@@ -255,16 +93,11 @@ export function TaskView() {
   const [tagOptions, setTagOptions] = useState([]);
   const [selectedCategories, setSelectedCategories] = useState(() => loadSelectedCategories());
   const [selectedTask, setSelectedTask] = useState(null);
-  const [layouts, setLayouts] = useState(() => loadLayouts() || {});
-  const [hasFavoriteLayout, setHasFavoriteLayout] = useState(() => !!loadFavoriteLayout());
-
-
-
 
   useEffect(() => {
     Promise.all([
       axios.get(`${API_URL}/GetTasks`),
-      axios.get(`${API_URL}/GetAllUsers`)
+      axios.get(`${API_URL}/GetAllUsers`),
     ]).then(([tasksRes, usersRes]) => {
       const normalizedTasks = normalizeTasks(tasksRes.data);
       setTasks(normalizedTasks);
@@ -276,23 +109,15 @@ export function TaskView() {
 
   const derivedCategories = useMemo(() => extractCategoryList(tasks).sort(sortByName), [tasks]);
   const derivedTags = useMemo(() => extractTagList(tasks).sort(sortByName), [tasks]);
-  const normalizedLayouts = useMemo(
-    () => ensureLayoutsForCategories(selectedCategories, layouts),
-    [selectedCategories, layouts]
-  );
 
   useEffect(() => {
-    const categoriesChanged = categoryOptions.length !== derivedCategories.length
-      || categoryOptions.some((value, index) => value !== derivedCategories[index]);
-    if (categoriesChanged) {
+    if (!areArraysEqual(categoryOptions, derivedCategories)) {
       setCategoryOptions(derivedCategories);
     }
   }, [derivedCategories, categoryOptions]);
 
   useEffect(() => {
-    const tagsChanged = tagOptions.length !== derivedTags.length
-      || tagOptions.some((value, index) => value !== derivedTags[index]);
-    if (tagsChanged) {
+    if (!areArraysEqual(tagOptions, derivedTags)) {
       setTagOptions(derivedTags);
     }
   }, [derivedTags, tagOptions]);
@@ -313,7 +138,7 @@ export function TaskView() {
     const normalized = normalizeSelection(selectedCategories, derivedCategories);
     if (normalized.length === 0) {
       setSelectedCategories(derivedCategories);
-    } else if (normalized.length !== selectedCategories.length) {
+    } else if (!areArraysEqual(normalized, selectedCategories)) {
       setSelectedCategories(normalized);
     }
   }, [derivedCategories, selectedCategories]);
@@ -324,33 +149,46 @@ export function TaskView() {
     }
   }, [selectedCategories]);
 
-  useEffect(() => {
-    if (!layoutsEqual(layouts, normalizedLayouts)) {
-      setLayouts(normalizedLayouts);
-    }
-  }, [normalizedLayouts, layouts]);
-
-  useEffect(() => {
-    if (Object.keys(normalizedLayouts || {}).length > 0) {
-      persistLayouts(normalizedLayouts);
-    }
-  }, [normalizedLayouts]);
-
-  useEffect(() => {
-    setHasFavoriteLayout(!!loadFavoriteLayout());
-  }, []);
-
   const categoryToTagsMap = useMemo(() => {
     if (selectedCategories.length === 0) {
       return {};
     }
+
     const grouped = groupTasksByCategoryAndTag(tasks);
     const result = {};
+
     selectedCategories.forEach((category) => {
       result[category] = grouped[category] || { [DEFAULT_TAG_LABEL]: [] };
     });
+
     return result;
   }, [tasks, selectedCategories]);
+
+  const statusSummary = useMemo(
+    () =>
+      tasks.reduce((acc, task) => {
+        const key = task.status || '未設定';
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {}),
+    [tasks],
+  );
+
+  const upcomingDeadlines = useMemo(() => {
+    return tasks
+      .filter((task) => task.deadline)
+      .map((task) => {
+        const timestamp = Date.parse(task.deadline);
+        if (Number.isNaN(timestamp)) {
+          return null;
+        }
+        return { task, timestamp };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.timestamp - b.timestamp)
+      .slice(0, 3)
+      .map(({ task }) => task);
+  }, [tasks]);
 
   const handleOpenCreateModal = () => {
     setSelectedTask({
@@ -359,9 +197,10 @@ export function TaskView() {
       status: 'Started',
       priority: 'Medium',
       importance: 1,
-      category: selectedCategories[0] && selectedCategories[0] !== DEFAULT_CATEGORY_LABEL
-        ? selectedCategories[0]
-        : null,
+      category:
+        selectedCategories[0] && selectedCategories[0] !== DEFAULT_CATEGORY_LABEL
+          ? selectedCategories[0]
+          : null,
       assignees: [],
       assignee: null,
       tags: [],
@@ -416,148 +255,198 @@ export function TaskView() {
     setSelectedCategories(categoryOptions);
   };
 
-  const handleLayoutChange = (currentLayout, allLayouts) => {
-    setLayouts(ensureLayoutsForCategories(selectedCategories, allLayouts));
-  };
-
-  const handleSaveFavoriteLayout = () => {
-    if (selectedCategories.length === 0) {
-      alert('保存するカテゴリがありません。');
-      return;
-    }
-    persistFavoriteLayout({
-      selectedCategories,
-      layouts: normalizedLayouts,
-    });
-    setHasFavoriteLayout(true);
-    alert('現在のレイアウトをお気に入りとして保存しました。');
-  };
-
-  const handleLoadFavoriteLayout = () => {
-    const favorite = loadFavoriteLayout();
-    if (!favorite) {
-      alert('お気に入りが保存されていません。');
-      return;
-    }
-    const availableCategories = favorite.selectedCategories.filter((category) => categoryOptions.includes(category));
-    if (availableCategories.length === 0) {
-      alert('お気に入りに含まれるカテゴリが利用できません。');
-      return;
-    }
-    setSelectedCategories(availableCategories);
-    setLayouts(ensureLayoutsForCategories(availableCategories, favorite.layouts));
-  };
-
-  const handleClearFavoriteLayout = () => {
-    persistFavoriteLayout(null);
-    setHasFavoriteLayout(false);
-    alert('お気に入りを削除しました。');
-  };
+  const navCategories = selectedCategories.length > 0 ? selectedCategories : categoryOptions;
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-        <Typography variant="h4" component="h1" sx={{ flexGrow: 1 }}>
-          タスク管理
-        </Typography>
+    <Box
+      sx={{
+        display: 'grid',
+        gridTemplateRows: 'auto 1fr auto',
+        gap: { xs: 2, md: 3 },
+        minHeight: '100%',
+      }}
+    >
+      <Paper
+        component="header"
+        sx={{
+          p: { xs: 2, md: 3 },
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: { xs: 'stretch', md: 'center' },
+          justifyContent: 'space-between',
+          gap: 2,
+        }}
+      >
+        <Box sx={{ flex: '1 1 260px' }}>
+          <Typography variant="h4" component="h1">
+            タスク管理
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            カテゴリとタグごとにチームの作業状況を確認できます。
+          </Typography>
+        </Box>
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{
+            flex: { xs: '1 1 100%', md: '1 1 240px' },
+            flexWrap: 'wrap',
+          }}
+        >
+          <Chip label={`合計 ${tasks.length} 件`} color="primary" size="small" />
+          {Object.entries(statusSummary).map(([status, count]) => (
+            <Chip
+              key={status}
+              label={`${status}: ${count} 件`}
+              size="small"
+              icon={<CircleIcon sx={{ color: getStatusColor(status), fontSize: '0.875rem !important' }} />}
+              variant="outlined"
+              sx={{
+                color: getStatusColor(status),
+                borderColor: getStatusColor(status),
+              }}
+            />
+          ))}
+        </Stack>
         <Button
           startIcon={<AddIcon />}
           variant="contained"
           onClick={handleOpenCreateModal}
+          sx={{
+            alignSelf: { xs: 'stretch', md: 'center' },
+            flex: { xs: '1 1 100%', md: '0 0 auto' },
+          }}
         >
           タスクを追加
         </Button>
-      </Box>
-
-      <Paper elevation={1} sx={{ p: 2, display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
-        <Typography variant="subtitle1">表示するカテゴリ</Typography>
-        <Autocomplete
-          sx={{ minWidth: 280, flexGrow: 1, maxWidth: 480 }}
-          multiple
-          options={categoryOptions}
-          value={selectedCategories}
-          onChange={handleCategorySelectionChange}
-          renderInput={(params) => <TextField {...params} label="カテゴリを選択" placeholder="カテゴリ名" />}
-        />
-        <Button variant="outlined" size="small" onClick={handleResetSelection}>
-          全て表示
-        </Button>
       </Paper>
 
-      <Stack direction="row" spacing={1} flexWrap="wrap">
-        <Button
-          variant="outlined"
-          size="small"
-          startIcon={<StarBorderIcon />}
-          onClick={handleSaveFavoriteLayout}
+      <Box
+        component="section"
+        sx={{
+          display: 'grid',
+          gap: { xs: 2, md: 3 },
+          gridTemplateColumns: {
+            xs: '1fr',
+            md: '260px 1fr',
+            lg: '260px 1fr 320px',
+          },
+          gridTemplateAreas: {
+            xs: '"nav" "main" "aside"',
+            md: '"nav main" "aside aside"',
+            lg: '"nav main aside"',
+          },
+          alignItems: 'start',
+        }}
+      >
+        <Paper
+          sx={{
+            gridArea: 'nav',
+            p: { xs: 2, md: 3 },
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2,
+            position: { lg: 'sticky' },
+            top: { lg: 24 },
+            alignSelf: 'start',
+          }}
         >
-          お気に入りに保存
-        </Button>
-        <Button
-          variant="outlined"
-          size="small"
-          startIcon={<StarIcon />}
-          onClick={handleLoadFavoriteLayout}
-          disabled={!hasFavoriteLayout}
-        >
-          お気に入りを読み込み
-        </Button>
-        <Button
-          variant="outlined"
-          size="small"
-          startIcon={<RestoreIcon />}
-          onClick={handleClearFavoriteLayout}
-          disabled={!hasFavoriteLayout}
-        >
-          お気に入り解除
-        </Button>
-      </Stack>
+          <Typography variant="h6">表示設定</Typography>
+          <Typography variant="body2" color="text.secondary">
+            表示するカテゴリを選択してください。選択内容は次回開く際にも復元されます。
+          </Typography>
+          <Autocomplete
+            multiple
+            size="small"
+            options={categoryOptions}
+            value={selectedCategories}
+            onChange={handleCategorySelectionChange}
+            renderInput={(params) => (
+              <TextField {...params} label="カテゴリ選択" placeholder="カテゴリ" />
+            )}
+          />
+          <Button variant="outlined" size="small" onClick={handleResetSelection}>
+            すべて表示
+          </Button>
+          <Divider />
+          <Box>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>
+              タグの一覧
+            </Typography>
+            <Stack spacing={1.5}>
+              {navCategories.length > 0 ? (
+                navCategories.map((category) => {
+                  const tagsInCategory = categoryToTagsMap[category] || {};
+                  const sortedTags = Object.keys(tagsInCategory).sort(sortByName);
+                  return (
+                    <Box key={`nav-${category}`}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {getCategoryLabel(category)}
+                      </Typography>
+                      <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', mt: 0.5 }}>
+                        {sortedTags.length > 0 ? (
+                          sortedTags.map((tag) => (
+                            <Chip key={`nav-${category}-${tag}`} label={getTagLabel(tag)} size="small" />
+                          ))
+                        ) : (
+                          <Chip label="タグはありません" size="small" variant="outlined" />
+                        )}
+                      </Stack>
+                    </Box>
+                  );
+                })
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  データが読み込まれるとカテゴリ一覧が表示されます。
+                </Typography>
+              )}
+            </Stack>
+          </Box>
+        </Paper>
 
-      <Box sx={{ width: '100%', overflowX: 'auto', overflowY: 'visible', backgroundColor: '#f4f6f8', py: 1 }}>
-        <ResponsiveGridLayout
-          className="task-layout"
-          layouts={normalizedLayouts}
-          cols={GRID_COLS}
-          rowHeight={GRID_ROW_HEIGHT}
-          margin={GRID_MARGIN}
-          isDraggable
-          isResizable
-          compactType="horizontal"
-          draggableHandle=".category-card-header"
-          draggableCancel=".no-drag, .MuiIconButton-root, .MuiButtonBase-root"
-          onLayoutChange={handleLayoutChange}
-          autoSize
-          style={{ width: '100%', backgroundColor: '#f4f6f8' }}
+        <Box
+          sx={{
+            gridArea: 'main',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: { xs: 2, md: 3 },
+          }}
         >
-        {selectedCategories.length === 0 ? (
-          <div key="empty">
-            <Paper sx={{ p: 4 }}>
+          <Paper sx={{ p: { xs: 2, md: 3 } }}>
+            <Typography variant="h6">タスク一覧</Typography>
+            <Typography variant="body2" color="text.secondary">
+              カテゴリごとにカードを整理しています。カードの操作から編集や削除が可能です。
+            </Typography>
+          </Paper>
+
+          {selectedCategories.length === 0 ? (
+            <Paper sx={{ p: { xs: 3, md: 4 } }}>
               <Typography color="text.secondary">
-                表示するカテゴリがありません。カテゴリを選択してください。
+                表示するカテゴリが選択されていません。左のメニューからカテゴリを選択してください。
               </Typography>
             </Paper>
-          </div>
-        ) : (
-          selectedCategories.map((category) => {
-            const tagsInCategory = categoryToTagsMap[category] || {};
-            const sortedTags = Object.keys(tagsInCategory).sort(sortByName);
-            const totalTasks = Object.values(tagsInCategory).reduce((count, items) => count + items.length, 0);
+          ) : (
+            selectedCategories.map((category) => {
+              const tagsInCategory = categoryToTagsMap[category] || {};
+              const sortedTags = Object.keys(tagsInCategory).sort(sortByName);
+              const totalCount = Object.values(tagsInCategory).reduce(
+                (count, items) => count + items.length,
+                0,
+              );
 
-            return (
-              <div key={`cat-${category}`}>
+              return (
                 <Paper
+                  key={category}
                   sx={{
-                    p: 2,
+                    p: { xs: 2, md: 3 },
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 2,
-                    height: '100%',
-                    overflow: 'hidden',
                   }}
                 >
-                  <Box className="category-card-header" sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move' }}>
-                    <Typography variant="h6" noWrap>{category === DEFAULT_CATEGORY_LABEL ? 'カテゴリ未設定' : category}</Typography>
-                    <Chip label={`${totalTasks} 件`} size="small" />
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="h6">{getCategoryLabel(category)}</Typography>
+                    <Chip label={`${totalCount} 件`} size="small" />
                   </Box>
                   <Divider />
 
@@ -565,9 +454,7 @@ export function TaskView() {
                     sx={{
                       display: 'grid',
                       gap: 2,
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                      alignItems: 'start',
-                      overflow: 'auto',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
                     }}
                   >
                     {sortedTags.map((tag) => {
@@ -576,18 +463,10 @@ export function TaskView() {
                         <Paper
                           key={`${category}-${tag}`}
                           variant="outlined"
-                          sx={{
-                            p: 1.5,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 1.5,
-                            height: '100%',
-                          }}
+                          sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}
                         >
                           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <Typography variant="subtitle1" noWrap>
-                              {tag === DEFAULT_TAG_LABEL ? 'タグ未設定' : tag}
-                            </Typography>
+                            <Typography variant="subtitle1">{getTagLabel(tag)}</Typography>
                             <Chip label={`${tasksForTag.length} 件`} size="small" />
                           </Box>
                           <Stack spacing={1.5}>
@@ -595,12 +474,7 @@ export function TaskView() {
                               <Paper
                                 key={task.id}
                                 variant="outlined"
-                                sx={{
-                                  p: 1.5,
-                                  display: 'flex',
-                                  flexDirection: 'column',
-                                  gap: 1,
-                                }}
+                                sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}
                               >
                                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
                                   <CircleIcon sx={{ color: getStatusColor(task.status), fontSize: '1rem', mt: 0.5 }} />
@@ -623,7 +497,7 @@ export function TaskView() {
                                     </Stack>
                                   </Box>
                                 </Box>
-                                <Stack direction="row" spacing={1} justifyContent="flex-end" className="no-drag">
+                                <Stack direction="row" spacing={1} justifyContent="flex-end">
                                   <Tooltip title="編集">
                                     <IconButton size="small" onClick={() => handleEditTask(task)}>
                                       <EditIcon fontSize="small" />
@@ -648,17 +522,89 @@ export function TaskView() {
                     })}
                     {sortedTags.length === 0 && (
                       <Paper variant="outlined" sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
-                        タグに紐づいたタスクがありません。
+                        タグに紐づくタスクはまだありません。
                       </Paper>
                     )}
                   </Box>
                 </Paper>
-              </div>
-            );
-          })
-        )}
-        </ResponsiveGridLayout>
+              );
+            })
+          )}
+        </Box>
+
+        <Paper
+          sx={{
+            gridArea: 'aside',
+            p: { xs: 2, md: 3 },
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2,
+            position: { lg: 'sticky' },
+            top: { lg: 24 },
+            alignSelf: 'start',
+          }}
+        >
+          <Typography variant="h6">進捗サマリー</Typography>
+          <Stack spacing={1}>
+            {Object.keys(statusSummary).length > 0 ? (
+              Object.entries(statusSummary).map(([status, count]) => (
+                <Stack key={status} direction="row" spacing={1} alignItems="center">
+                  <CircleIcon sx={{ color: getStatusColor(status), fontSize: '0.875rem' }} />
+                  <Typography variant="body2">
+                    {status}: {count} 件
+                  </Typography>
+                </Stack>
+              ))
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                タスクが登録されるとステータスの内訳を表示します。
+              </Typography>
+            )}
+          </Stack>
+          <Divider />
+          <Typography variant="subtitle1">直近の期限</Typography>
+          <Stack spacing={1.5}>
+            {upcomingDeadlines.length > 0 ? (
+              upcomingDeadlines.map((task) => (
+                <Box
+                  key={`deadline-${task.id}`}
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 1,
+                    backgroundColor: 'action.hover',
+                  }}
+                >
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {task.title || 'タイトル未設定'}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    期限: {getDeadlineLabel(task.deadline)}
+                  </Typography>
+                </Box>
+              ))
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                期限付きのタスクはありません。
+              </Typography>
+            )}
+          </Stack>
+        </Paper>
       </Box>
+
+      <Paper
+        component="footer"
+        sx={{
+          p: { xs: 2, md: 3 },
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          color: 'text.secondary',
+        }}
+      >
+        <Typography variant="caption">
+          最新の更新情報は自動的に同期されます。状況が変わったらタスクを更新してください。
+        </Typography>
+      </Paper>
 
       {selectedTask && (
         <TaskDetailModal
@@ -666,15 +612,12 @@ export function TaskView() {
           onSave={handleSaveTask}
           onClose={() => setSelectedTask(null)}
           assigneeOptions={assigneeOptions}
-          categoryOptions={categoryOptions.map((category) => (category === DEFAULT_CATEGORY_LABEL ? '' : category))}
+          categoryOptions={categoryOptions.map((category) =>
+            category === DEFAULT_CATEGORY_LABEL ? '' : category,
+          )}
           tagOptions={tagOptions}
         />
       )}
     </Box>
   );
 }
-
-
-
-
-
