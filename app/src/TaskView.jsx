@@ -513,7 +513,7 @@ export function TaskView() {
         </Button>
       </Stack>
 
-      <Box sx={{ width: '100%', overflowX: 'auto', overflowY: 'visible' }}>
+      <Box sx={{ width: '100%', overflowX: 'auto', overflowY: 'visible', backgroundColor: '#f4f6f8', py: 1 }}>
         <ResponsiveGridLayout
           className="task-layout"
           layouts={normalizedLayouts}
@@ -527,7 +527,7 @@ export function TaskView() {
           draggableCancel=".no-drag, .MuiIconButton-root, .MuiButtonBase-root"
           onLayoutChange={handleLayoutChange}
           autoSize
-          style={{ width: '100%' }}
+          style={{ width: '100%', backgroundColor: '#f4f6f8' }}
         >
         {selectedCategories.length === 0 ? (
           <div key="empty">
@@ -673,6 +673,8 @@ export function TaskView() {
     </Box>
   );
 }
+
+
 
 
 
