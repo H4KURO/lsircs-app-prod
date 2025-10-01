@@ -117,7 +117,6 @@ function App() {
       </List>
       <Divider />
       <List>
-        {/* ▼▼▼ プロフィール設定へのリンクを追加 ▼▼▼ */}
         <ListItem disablePadding>
           <ListItemButton
             onClick={() => {
@@ -143,8 +142,38 @@ function App() {
     </Box>
   );
 
+  const renderView = () => {
+    if (!user) {
+      return <Typography>ようこそ。メニューからログインしてください。</Typography>;
+    }
+
+    switch (currentView) {
+      case "dashboard":
+        return <DashboardView user={user} />;
+      case "tasks":
+        return <TaskView />;
+      case "customers":
+        return <CustomerView />;
+      case "invoices":
+        return <InvoiceView />;
+      case "profile":
+        return <ProfileView />;
+      case "settings":
+        return <SettingsView />;
+      default:
+        return <DashboardView user={user} />;
+    }
+  };
+
   return (
-    <Box sx={{ display: "flex" }}>
+    <Box
+      className="App"
+      sx={{
+        display: "flex",
+        minHeight: "100vh",
+        backgroundColor: "background.default",
+      }}
+    >
       <AppBar component="header" position="fixed" sx={{ backgroundColor: "header.main" }}>
         <Toolbar>
           <IconButton
@@ -167,22 +196,37 @@ function App() {
         variant="temporary"
         open={drawerOpen}
         onClose={handleDrawerToggle}
+        ModalProps={{ keepMounted: true }}
         sx={{ "& .MuiDrawer-paper": { boxSizing: "border-box", width: 240 } }}
       >
         <Toolbar />
         {user ? userMenu : loginMenu}
       </Drawer>
 
-      <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
-        <Toolbar />
-        {!user && <Typography>ようこそ！メニューからログインしてください。</Typography>}
-
-        {user && currentView === "dashboard" && <DashboardView user={user} />}
-        {user && currentView === "tasks" && <TaskView />}
-        {user && currentView === "customers" && <CustomerView />}
-        {user && currentView === "invoices" && <InvoiceView />}
-        {user && currentView === "profile" && <ProfileView />}
-        {user && currentView === "settings" && <SettingsView />}
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          display: "flex",
+          justifyContent: "center",
+          width: "100%",
+          px: { xs: 2, md: 4 },
+          pb: 6,
+        }}
+      >
+        <Box
+          sx={{
+            width: "100%",
+            maxWidth: 1600,
+            display: "flex",
+            flexDirection: "column",
+            gap: 3,
+            minHeight: "100vh",
+          }}
+        >
+          <Toolbar sx={{ mb: 2 }} />
+          {renderView()}
+        </Box>
       </Box>
     </Box>
   );

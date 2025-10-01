@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import {
   Box,
@@ -50,7 +50,6 @@ const statusColorMap = {
 const GRID_COLS = { lg: 20, md: 16, sm: 12, xs: 8, xxs: 4 };
 const MAX_COL_SPAN = 4;
 const GRID_ROW_HEIGHT = 36;
-const MIN_ROW_HEIGHT = 120;
 const GRID_MARGIN = [16, 16];
 const GRID_BREAKPOINTS = Object.keys(GRID_COLS);
 const DEFAULT_HEIGHT_UNITS = 14;
@@ -258,24 +257,9 @@ export function TaskView() {
   const [selectedTask, setSelectedTask] = useState(null);
   const [layouts, setLayouts] = useState(() => loadLayouts() || {});
   const [hasFavoriteLayout, setHasFavoriteLayout] = useState(() => !!loadFavoriteLayout());
-  const [gridHeight, setGridHeight] = useState(null);
-  const [currentBreakpoint, setCurrentBreakpoint] = useState('lg');
-  const layoutContainerRef = useRef(null);
-
-  const updateContainerHeight = useCallback(() => {
-    if (!layoutContainerRef.current) return;
-    const rect = layoutContainerRef.current.getBoundingClientRect();
-    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-    const available = viewportHeight - rect.top - 24;
-    setGridHeight(Math.max(available, 320));
-  }, []);
 
 
-  useEffect(() => {
-    updateContainerHeight();
-    window.addEventListener('resize', updateContainerHeight);
-    return () => window.removeEventListener('resize', updateContainerHeight);
-  }, [updateContainerHeight]);
+
 
   useEffect(() => {
     Promise.all([
@@ -296,32 +280,6 @@ export function TaskView() {
     () => ensureLayoutsForCategories(selectedCategories, layouts),
     [selectedCategories, layouts]
   );
-
-  const totalRows = useMemo(() => {
-    const layoutForBreakpoint = normalizedLayouts[currentBreakpoint] || [];
-    return layoutForBreakpoint.reduce((max, item) => {
-      const bottom = (item.y ?? 0) + (item.h ?? 0);
-      return Math.max(max, bottom);
-    }, 0);
-  }, [normalizedLayouts, currentBreakpoint]);
-
-  const calculatedRowHeight = useMemo(() => {
-    if (!gridHeight || totalRows <= 0) {
-      return GRID_ROW_HEIGHT;
-    }
-    const totalMarginY = GRID_MARGIN[1] * Math.max(totalRows + 1, 1);
-    const usableHeight = gridHeight - totalMarginY;
-    if (usableHeight <= 0) {
-      return MIN_ROW_HEIGHT;
-    }
-    return Math.max(MIN_ROW_HEIGHT, Math.floor(usableHeight / totalRows));
-  }, [gridHeight, totalRows]);
-
-
-  useEffect(() => {
-    updateContainerHeight();
-  }, [selectedCategories.length, totalRows, updateContainerHeight]);
-
 
   useEffect(() => {
     const categoriesChanged = categoryOptions.length !== derivedCategories.length
@@ -460,7 +418,6 @@ export function TaskView() {
 
   const handleLayoutChange = (currentLayout, allLayouts) => {
     setLayouts(ensureLayoutsForCategories(selectedCategories, allLayouts));
-    updateContainerHeight();
   };
 
   const handleSaveFavoriteLayout = () => {
@@ -556,20 +513,12 @@ export function TaskView() {
         </Button>
       </Stack>
 
-      <Box
-        ref={layoutContainerRef}
-        sx={{
-          flexGrow: 1,
-          height: gridHeight ? `${gridHeight}px` : 'auto',
-          overflow: 'hidden',
-          display: 'flex',
-        }}
-      >
+      <Box sx={{ width: '100%', overflowX: 'auto', overflowY: 'visible' }}>
         <ResponsiveGridLayout
           className="task-layout"
           layouts={normalizedLayouts}
           cols={GRID_COLS}
-          rowHeight={gridHeight ? calculatedRowHeight : GRID_ROW_HEIGHT}
+          rowHeight={GRID_ROW_HEIGHT}
           margin={GRID_MARGIN}
           isDraggable
           isResizable
@@ -577,9 +526,8 @@ export function TaskView() {
           draggableHandle=".category-card-header"
           draggableCancel=".no-drag, .MuiIconButton-root, .MuiButtonBase-root"
           onLayoutChange={handleLayoutChange}
-          onBreakpointChange={(breakpoint) => setCurrentBreakpoint(breakpoint)}
-          autoSize={!gridHeight}
-          style={{ width: '100%', height: gridHeight ? '100%' : 'auto' }}
+          autoSize
+          style={{ width: '100%' }}
         >
         {selectedCategories.length === 0 ? (
           <div key="empty">
@@ -725,3 +673,6 @@ export function TaskView() {
     </Box>
   );
 }
+
+
+
