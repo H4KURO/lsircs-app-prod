@@ -569,7 +569,7 @@ export function TaskView() {
           className="task-layout"
           layouts={normalizedLayouts}
           cols={GRID_COLS}
-          rowHeight={calculatedRowHeight}
+          rowHeight={gridHeight ? calculatedRowHeight : GRID_ROW_HEIGHT}
           margin={GRID_MARGIN}
           isDraggable
           isResizable
@@ -578,8 +578,8 @@ export function TaskView() {
           draggableCancel=".no-drag, .MuiIconButton-root, .MuiButtonBase-root"
           onLayoutChange={handleLayoutChange}
           onBreakpointChange={(breakpoint) => setCurrentBreakpoint(breakpoint)}
-          autoSize={false}
-          style={{ width: '100%', height: '100%' }}
+          autoSize={!gridHeight}
+          style={{ width: '100%', height: gridHeight ? '100%' : 'auto' }}
         >
         {selectedCategories.length === 0 ? (
           <div key="empty">
