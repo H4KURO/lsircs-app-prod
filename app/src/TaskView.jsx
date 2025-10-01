@@ -47,7 +47,7 @@ const statusColorMap = {
   Started: 'info.main',
 };
 
-const GRID_COLS = { lg: 12, md: 10, sm: 8, xs: 6, xxs: 2 };
+const GRID_COLS = { lg: 20, md: 16, sm: 12, xs: 8, xxs: 4 };
 const MAX_COL_SPAN = 4;
 const GRID_ROW_HEIGHT = 36;
 const MIN_ROW_HEIGHT = 120;
@@ -136,10 +136,31 @@ const getResponsiveWidth = (cols, totalCategories) => {
   if (!cols) {
     return 1;
   }
-  const effectiveTotal = Math.max(1, totalCategories || 1);
-  const maxColumnsPerRow = Math.max(1, Math.min(effectiveTotal, Math.floor(cols / 2) || 1));
-  const computed = Math.floor(cols / maxColumnsPerRow) || 1;
-  return Math.min(MAX_COL_SPAN, Math.max(2, computed));
+  const total = Math.max(1, totalCategories || 1);
+  const candidates = [];
+  for (let width = Math.min(MAX_COL_SPAN, cols); width >= 2; width -= 1) {
+    const columnsPerRow = Math.floor(cols / width);
+    if (columnsPerRow <= 0) {
+      continue;
+    }
+    const rowsNeeded = Math.ceil(total / columnsPerRow);
+    const leftover = (columnsPerRow * rowsNeeded) - total;
+    const balanceScore = Math.abs(columnsPerRow - rowsNeeded);
+    candidates.push({ width, rowsNeeded, leftover, balanceScore });
+  }
+  if (candidates.length === 0) {
+    return Math.min(MAX_COL_SPAN, Math.max(1, cols));
+  }
+  candidates.sort((a, b) => {
+    if (a.rowsNeeded !== b.rowsNeeded) {
+      return a.rowsNeeded - b.rowsNeeded;
+    }
+    if (a.leftover !== b.leftover) {
+      return a.leftover - b.leftover;
+    }
+    return a.balanceScore - b.balanceScore;
+  });
+  return candidates[0].width;
 };
 
 const createDefaultLayoutItem = (id, index, breakpoint, totalCategories) => {
