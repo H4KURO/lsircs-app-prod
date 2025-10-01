@@ -212,6 +212,7 @@ function App() {
           width: "100%",
           px: { xs: 2, md: 4 },
           pb: 6,
+          overflowY: 'auto',
         }}
       >
         <Box
@@ -233,3 +234,4 @@ function App() {
 }
 
 export default App;
+

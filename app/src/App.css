@@ -19,3 +19,16 @@ body {
   display: flex;
   flex-direction: column;
 }
+.task-layout {
+  background-color: transparent !important;
+  min-height: 0;
+}
+
+.task-layout > .react-grid-item,
+.task-layout > .react-grid-item > div {
+  background-color: transparent !important;
+}
+
+.task-layout .react-grid-placeholder {
+  background-color: rgba(25, 118, 210, 0.25) !important;
+}
