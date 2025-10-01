@@ -12,6 +12,10 @@ import {
   Stack,
   Divider,
   Tooltip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -30,12 +34,44 @@ import {
 
 const API_URL = '/api';
 const STORAGE_KEY_SELECTED_CATEGORIES = 'taskViewSelectedCategories';
+const STORAGE_KEY_SORT_MODE = 'taskViewSortMode';
 
 const statusColorMap = {
   Done: 'success.main',
   Inprogress: 'warning.main',
   Started: 'info.main',
 };
+
+const STATUS_DEFINITIONS = [
+  { value: 'Started', label: '未着手' },
+  { value: 'Inprogress', label: '進行中' },
+  { value: 'Done', label: '完了' },
+];
+
+const UNKNOWN_STATUS_KEY = '__unknown';
+const DEFAULT_STATUS_LABEL = 'ステータス未設定';
+
+const statusOrderMap = STATUS_DEFINITIONS.reduce((acc, definition, index) => {
+  acc[definition.value] = index;
+  return acc;
+}, {});
+
+const statusLabelMap = STATUS_DEFINITIONS.reduce((acc, definition) => {
+  acc[definition.value] = definition.label;
+  return acc;
+}, {});
+
+const TASK_SORT_OPTIONS = [
+  { value: 'statusDeadline', label: '進捗度 → 期限（標準）' },
+  { value: 'deadlineAsc', label: '期限が近い順' },
+  { value: 'deadlineDesc', label: '期限が遠い順' },
+  { value: 'titleAsc', label: 'タイトル昇順' },
+];
+
+const sortLabelMap = TASK_SORT_OPTIONS.reduce((acc, option) => {
+  acc[option.value] = option.label;
+  return acc;
+}, {});
 
 const getStatusColor = (status) => statusColorMap[status] || 'action.disabled';
 
@@ -52,6 +88,117 @@ const getCategoryLabel = (category) => (category === DEFAULT_CATEGORY_LABEL ? '�
 
 const getTagLabel = (tag) => (tag === DEFAULT_TAG_LABEL ? 'タグ未設定' : tag);
 
+const getStatusLabel = (statusKey) => {
+  if (!statusKey || statusKey === UNKNOWN_STATUS_KEY) {
+    return DEFAULT_STATUS_LABEL;
+  }
+  return statusLabelMap[statusKey] || statusKey;
+};
+
+const normalizeStatusKey = (status) => {
+  if (!status) {
+    return UNKNOWN_STATUS_KEY;
+  }
+  return Object.prototype.hasOwnProperty.call(statusOrderMap, status) ? status : UNKNOWN_STATUS_KEY;
+};
+
+const getStatusRank = (status) => {
+  if (Object.prototype.hasOwnProperty.call(statusOrderMap, status)) {
+    return statusOrderMap[status];
+  }
+  return STATUS_DEFINITIONS.length;
+};
+
+const getDeadlineValue = (deadline) => {
+  if (!deadline) {
+    return Number.POSITIVE_INFINITY;
+  }
+  const value = Date.parse(deadline);
+  return Number.isNaN(value) ? Number.POSITIVE_INFINITY : value;
+};
+
+const compareTitleAsc = (a, b) => {
+  return (a.title || '').localeCompare(b.title || '', 'ja');
+};
+
+const compareDeadlineAsc = (a, b) => {
+  const diff = getDeadlineValue(a.deadline) - getDeadlineValue(b.deadline);
+  if (diff !== 0) {
+    return diff;
+  }
+  return compareTitleAsc(a, b);
+};
+
+const compareDeadlineDesc = (a, b) => {
+  const diff = getDeadlineValue(b.deadline) - getDeadlineValue(a.deadline);
+  if (diff !== 0) {
+    return diff;
+  }
+  return compareTitleAsc(a, b);
+};
+
+const sortTasksByMode = (tasks, mode) => {
+  const sorted = [...tasks];
+  switch (mode) {
+    case 'statusDeadline':
+      sorted.sort((a, b) => {
+        const statusDiff = getStatusRank(normalizeStatusKey(a.status)) - getStatusRank(normalizeStatusKey(b.status));
+        if (statusDiff !== 0) {
+          return statusDiff;
+        }
+        return compareDeadlineAsc(a, b);
+      });
+      return sorted;
+    case 'deadlineAsc':
+      return sorted.sort(compareDeadlineAsc);
+    case 'deadlineDesc':
+      return sorted.sort(compareDeadlineDesc);
+    case 'titleAsc':
+      return sorted.sort(compareTitleAsc);
+    default:
+      return sorted;
+  }
+};
+
+const groupTasksByStatus = (tasks) => {
+  const grouped = new Map();
+
+  tasks.forEach((task) => {
+    const key = normalizeStatusKey(task.status);
+    if (!grouped.has(key)) {
+      grouped.set(key, []);
+    }
+    grouped.get(key).push(task);
+  });
+
+  const orderedKeys = [...STATUS_DEFINITIONS.map((definition) => definition.value)];
+  if (grouped.has(UNKNOWN_STATUS_KEY)) {
+    orderedKeys.push(UNKNOWN_STATUS_KEY);
+  }
+
+  return orderedKeys
+    .filter((key) => grouped.has(key))
+    .map((key) => ({
+      key,
+      label: getStatusLabel(key),
+      tasks: grouped.get(key).slice().sort(compareDeadlineAsc),
+    }));
+};
+
+const prepareTasksForDisplay = (tasks, mode) => {
+  if (mode === 'statusDeadline') {
+    return groupTasksByStatus(tasks);
+  }
+
+  return [
+    {
+      key: mode,
+      label: sortLabelMap[mode] || '並び替え',
+      tasks: sortTasksByMode(tasks, mode),
+    },
+  ];
+};
+
 const loadSelectedCategories = () => {
   try {
     const stored = localStorage.getItem(STORAGE_KEY_SELECTED_CATEGORIES);
@@ -67,6 +214,24 @@ const persistSelectedCategories = (categories) => {
     localStorage.setItem(STORAGE_KEY_SELECTED_CATEGORIES, JSON.stringify(categories));
   } catch (error) {
     console.warn('Failed to persist task category preferences', error);
+  }
+};
+
+const loadSortMode = () => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_SORT_MODE);
+    return stored && sortLabelMap[stored] ? stored : 'statusDeadline';
+  } catch (error) {
+    console.warn('Failed to load task sort preference', error);
+    return 'statusDeadline';
+  }
+};
+
+const persistSortMode = (mode) => {
+  try {
+    localStorage.setItem(STORAGE_KEY_SORT_MODE, mode);
+  } catch (error) {
+    console.warn('Failed to persist task sort preference', error);
   }
 };
 
@@ -92,6 +257,7 @@ export function TaskView() {
   const [categoryOptions, setCategoryOptions] = useState([]);
   const [tagOptions, setTagOptions] = useState([]);
   const [selectedCategories, setSelectedCategories] = useState(() => loadSelectedCategories());
+  const [sortMode, setSortMode] = useState(() => loadSortMode());
   const [selectedTask, setSelectedTask] = useState(null);
 
   useEffect(() => {
@@ -149,6 +315,12 @@ export function TaskView() {
     }
   }, [selectedCategories]);
 
+  useEffect(() => {
+    if (sortMode) {
+      persistSortMode(sortMode);
+    }
+  }, [sortMode]);
+
   const categoryToTagsMap = useMemo(() => {
     if (selectedCategories.length === 0) {
       return {};
@@ -164,15 +336,13 @@ export function TaskView() {
     return result;
   }, [tasks, selectedCategories]);
 
-  const statusSummary = useMemo(
-    () =>
-      tasks.reduce((acc, task) => {
-        const key = task.status || '未設定';
-        acc[key] = (acc[key] || 0) + 1;
-        return acc;
-      }, {}),
-    [tasks],
-  );
+  const statusSummary = useMemo(() => {
+    return tasks.reduce((acc, task) => {
+      const key = normalizeStatusKey(task.status);
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+  }, [tasks]);
 
   const upcomingDeadlines = useMemo(() => {
     return tasks
@@ -255,6 +425,10 @@ export function TaskView() {
     setSelectedCategories(categoryOptions);
   };
 
+  const handleSortModeChange = (event) => {
+    setSortMode(event.target.value);
+  };
+
   const navCategories = selectedCategories.length > 0 ? selectedCategories : categoryOptions;
 
   return (
@@ -294,19 +468,33 @@ export function TaskView() {
           }}
         >
           <Chip label={`合計 ${tasks.length} 件`} color="primary" size="small" />
-          {Object.entries(statusSummary).map(([status, count]) => (
+          {STATUS_DEFINITIONS.map((definition) => {
+            const count = statusSummary[definition.value] || 0;
+            if (count === 0) {
+              return null;
+            }
+            return (
+              <Chip
+                key={definition.value}
+                label={`${definition.label}: ${count} 件`}
+                size="small"
+                icon={<CircleIcon sx={{ color: getStatusColor(definition.value), fontSize: '0.875rem !important' }} />}
+                variant="outlined"
+                sx={{
+                  color: getStatusColor(definition.value),
+                  borderColor: getStatusColor(definition.value),
+                }}
+              />
+            );
+          })}
+          {statusSummary[UNKNOWN_STATUS_KEY] ? (
             <Chip
-              key={status}
-              label={`${status}: ${count} 件`}
+              label={`${getStatusLabel(UNKNOWN_STATUS_KEY)}: ${statusSummary[UNKNOWN_STATUS_KEY]} 件`}
               size="small"
-              icon={<CircleIcon sx={{ color: getStatusColor(status), fontSize: '0.875rem !important' }} />}
               variant="outlined"
-              sx={{
-                color: getStatusColor(status),
-                borderColor: getStatusColor(status),
-              }}
+              icon={<CircleIcon sx={{ color: getStatusColor('unknown'), fontSize: '0.875rem !important' }} />}
             />
-          ))}
+          ) : null}
         </Stack>
         <Button
           startIcon={<AddIcon />}
@@ -353,7 +541,7 @@ export function TaskView() {
         >
           <Typography variant="h6">表示設定</Typography>
           <Typography variant="body2" color="text.secondary">
-            表示するカテゴリを選択してください。選択内容は次回開く際にも復元されます。
+            表示するカテゴリや並び順を選択してください。選択内容は次回開く際にも復元されます。
           </Typography>
           <Autocomplete
             multiple
@@ -368,6 +556,21 @@ export function TaskView() {
           <Button variant="outlined" size="small" onClick={handleResetSelection}>
             すべて表示
           </Button>
+          <FormControl size="small">
+            <InputLabel id="task-sort-mode-label">並び順</InputLabel>
+            <Select
+              labelId="task-sort-mode-label"
+              value={sortMode}
+              label="並び順"
+              onChange={handleSortModeChange}
+            >
+              {TASK_SORT_OPTIONS.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
           <Divider />
           <Box>
             <Typography variant="subtitle2" sx={{ mb: 1 }}>
@@ -415,7 +618,7 @@ export function TaskView() {
           <Paper sx={{ p: { xs: 2, md: 3 } }}>
             <Typography variant="h6">タスク一覧</Typography>
             <Typography variant="body2" color="text.secondary">
-              カテゴリごとにカードを整理しています。カードの操作から編集や削除が可能です。
+              カテゴリごとにカードを整理しています。並び替えは左のメニューから変更できます。
             </Typography>
           </Paper>
 
@@ -459,6 +662,9 @@ export function TaskView() {
                   >
                     {sortedTags.map((tag) => {
                       const tasksForTag = tagsInCategory[tag] || [];
+                      const sections = prepareTasksForDisplay(tasksForTag, sortMode);
+                      const hasTasks = tasksForTag.length > 0;
+
                       return (
                         <Paper
                           key={`${category}-${tag}`}
@@ -469,54 +675,70 @@ export function TaskView() {
                             <Typography variant="subtitle1">{getTagLabel(tag)}</Typography>
                             <Chip label={`${tasksForTag.length} 件`} size="small" />
                           </Box>
-                          <Stack spacing={1.5}>
-                            {tasksForTag.map((task) => (
-                              <Paper
-                                key={task.id}
-                                variant="outlined"
-                                sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}
-                              >
-                                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-                                  <CircleIcon sx={{ color: getStatusColor(task.status), fontSize: '1rem', mt: 0.5 }} />
-                                  <Box sx={{ flexGrow: 1 }}>
-                                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                                      {task.title || 'タイトル未設定'}
-                                    </Typography>
-                                    {task.description && (
-                                      <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
-                                        {task.description}
+                          {hasTasks ? (
+                            <Stack spacing={2}>
+                              {sections.map((section) => (
+                                <Box key={`${category}-${tag}-${section.key}`} sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                  {sections.length > 1 && (
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                      <Typography variant="subtitle2" color="text.secondary">
+                                        {section.label}
                                       </Typography>
-                                    )}
-                                    <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
-                                      {Array.isArray(task.assignees) && task.assignees.length > 0 && (
-                                        <Chip label={`担当: ${task.assignees.join(', ')}`} size="small" />
-                                      )}
-                                      {task.deadline && (
-                                        <Chip label={`期限: ${getDeadlineLabel(task.deadline)}`} size="small" />
-                                      )}
-                                    </Stack>
-                                  </Box>
+                                      <Chip label={`${section.tasks.length} 件`} size="small" variant="outlined" />
+                                    </Box>
+                                  )}
+                                  <Stack spacing={1.5}>
+                                    {section.tasks.map((task) => (
+                                      <Paper
+                                        key={task.id}
+                                        variant="outlined"
+                                        sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}
+                                      >
+                                        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                                          <CircleIcon sx={{ color: getStatusColor(task.status), fontSize: '1rem', mt: 0.5 }} />
+                                          <Box sx={{ flexGrow: 1 }}>
+                                            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                                              {task.title || 'タイトル未設定'}
+                                            </Typography>
+                                            {task.description && (
+                                              <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
+                                                {task.description}
+                                              </Typography>
+                                            )}
+                                            <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
+                                              {Array.isArray(task.assignees) && task.assignees.length > 0 && (
+                                                <Chip label={`担当: ${task.assignees.join(', ')}`} size="small" />
+                                              )}
+                                              {task.deadline && (
+                                                <Chip label={`期限: ${getDeadlineLabel(task.deadline)}`} size="small" />
+                                              )}
+                                              <Chip label={`進捗: ${getStatusLabel(task.status)}`} size="small" variant="outlined" />
+                                            </Stack>
+                                          </Box>
+                                        </Box>
+                                        <Stack direction="row" spacing={1} justifyContent="flex-end">
+                                          <Tooltip title="編集">
+                                            <IconButton size="small" onClick={() => handleEditTask(task)}>
+                                              <EditIcon fontSize="small" />
+                                            </IconButton>
+                                          </Tooltip>
+                                          <Tooltip title="削除">
+                                            <IconButton size="small" onClick={() => handleDeleteTask(task.id)}>
+                                              <DeleteIcon fontSize="small" />
+                                            </IconButton>
+                                          </Tooltip>
+                                        </Stack>
+                                      </Paper>
+                                    ))}
+                                  </Stack>
                                 </Box>
-                                <Stack direction="row" spacing={1} justifyContent="flex-end">
-                                  <Tooltip title="編集">
-                                    <IconButton size="small" onClick={() => handleEditTask(task)}>
-                                      <EditIcon fontSize="small" />
-                                    </IconButton>
-                                  </Tooltip>
-                                  <Tooltip title="削除">
-                                    <IconButton size="small" onClick={() => handleDeleteTask(task.id)}>
-                                      <DeleteIcon fontSize="small" />
-                                    </IconButton>
-                                  </Tooltip>
-                                </Stack>
-                              </Paper>
-                            ))}
-                            {tasksForTag.length === 0 && (
-                              <Paper variant="outlined" sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
-                                タスクはありません
-                              </Paper>
-                            )}
-                          </Stack>
+                              ))}
+                            </Stack>
+                          ) : (
+                            <Paper variant="outlined" sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
+                              タスクはありません
+                            </Paper>
+                          )}
                         </Paper>
                       );
                     })}
@@ -546,16 +768,29 @@ export function TaskView() {
         >
           <Typography variant="h6">進捗サマリー</Typography>
           <Stack spacing={1}>
-            {Object.keys(statusSummary).length > 0 ? (
-              Object.entries(statusSummary).map(([status, count]) => (
-                <Stack key={status} direction="row" spacing={1} alignItems="center">
-                  <CircleIcon sx={{ color: getStatusColor(status), fontSize: '0.875rem' }} />
+            {STATUS_DEFINITIONS.map((definition) => {
+              const count = statusSummary[definition.value] || 0;
+              if (count === 0) {
+                return null;
+              }
+              return (
+                <Stack key={`aside-${definition.value}`} direction="row" spacing={1} alignItems="center">
+                  <CircleIcon sx={{ color: getStatusColor(definition.value), fontSize: '0.875rem' }} />
                   <Typography variant="body2">
-                    {status}: {count} 件
+                    {definition.label}: {count} 件
                   </Typography>
                 </Stack>
-              ))
-            ) : (
+              );
+            })}
+            {statusSummary[UNKNOWN_STATUS_KEY] ? (
+              <Stack direction="row" spacing={1} alignItems="center">
+                <CircleIcon sx={{ color: getStatusColor('unknown'), fontSize: '0.875rem' }} />
+                <Typography variant="body2">
+                  {getStatusLabel(UNKNOWN_STATUS_KEY)}: {statusSummary[UNKNOWN_STATUS_KEY]} 件
+                </Typography>
+              </Stack>
+            ) : null}
+            {Object.keys(statusSummary).length === 0 && (
               <Typography variant="body2" color="text.secondary">
                 タスクが登録されるとステータスの内訳を表示します。
               </Typography>
