@@ -288,7 +288,7 @@ export function TaskDetailModal({
         <Box>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
             <Typography variant="h6">サブタスク</Typography>
-            <Chip label={${completedCount}/ 完了} size="small" />
+            <Chip label={`${completedCount}/${subtasks.length} 完了`} size="small" />
           </Box>
           <Stack spacing={1.5}>
             {subtasks.map((subtask) => (
@@ -352,3 +352,4 @@ export function TaskDetailModal({
     </Dialog>
   );
 }
+
