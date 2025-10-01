@@ -27,7 +27,7 @@ function normaliseHex(value) {
     return '';
   }
   const trimmed = value.trim();
-  return trimmed.startsWith('#') ? trimmed : #;
+  return trimmed.startsWith('#') ? trimmed : '#' + trimmed;
 }
 
 function normalizeRuleForState(rule = {}) {
@@ -550,6 +550,8 @@ export function SettingsView() {
     </Box>
   );
 }
+
+
 
 
 
