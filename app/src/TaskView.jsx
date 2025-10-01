@@ -270,24 +270,43 @@ export function TaskView() {
   const [assigneeOptions, setAssigneeOptions] = useState([]);
   const [categoryOptions, setCategoryOptions] = useState([]);
   const [tagOptions, setTagOptions] = useState([]);
+  const [automationRules, setAutomationRules] = useState([]);
   const [selectedCategories, setSelectedCategories] = useState(() => loadSelectedCategories());
   const [sortMode, setSortMode] = useState(() => loadSortMode());
   const [selectedTask, setSelectedTask] = useState(null);
 
   useEffect(() => {
-    Promise.all([
-      axios.get(`${API_URL}/GetTasks`),
-      axios.get(`${API_URL}/GetAllUsers`),
-    ]).then(([tasksRes, usersRes]) => {
-      const normalizedTasks = normalizeTasks(tasksRes.data);
-      setTasks(normalizedTasks);
+    const loadInitialData = async () => {
+      try {
+        const [tasksRes, usersRes, rulesRes] = await Promise.all([
+          axios.get(`${API_URL}/GetTasks`),
+          axios.get(`${API_URL}/GetAllUsers`),
+          axios.get(`${API_URL}/GetAutomationRules`).catch((error) => {
+            console.error('Failed to load automation rules', error);
+            return { data: [] };
+          }),
+        ]);
 
-      const assignees = usersRes.data.map((user) => user.displayName);
-      setAssigneeOptions(assignees);
-    });
+        const normalizedTasks = normalizeTasks(tasksRes.data);
+        setTasks(normalizedTasks);
+
+        const assignees = usersRes.data.map((user) => user.displayName);
+        setAssigneeOptions(assignees);
+
+        const rulesData = Array.isArray(rulesRes?.data) ? rulesRes.data : [];
+        setAutomationRules(rulesData);
+      } catch (error) {
+        console.error('Failed to load task data', error);
+      }
+    };
+
+    loadInitialData();
   }, []);
 
-  const derivedCategories = useMemo(() => extractCategoryList(tasks).sort(sortByName), [tasks]);
+  const derivedCategories = useMemo(
+    () => extractCategoryList(tasks).sort(sortByName),
+    [tasks],
+  );
   const derivedTags = useMemo(() => extractTagList(tasks).sort(sortByName), [tasks]);
 
   useEffect(() => {
@@ -334,7 +353,6 @@ export function TaskView() {
       persistSortMode(sortMode);
     }
   }, [sortMode]);
-
   const categoryToTagsMap = useMemo(() => {
     if (selectedCategories.length === 0) {
       return {};
@@ -966,9 +984,11 @@ export function TaskView() {
           categoryOptions={categoryOptions.map((category) =>
             category === DEFAULT_CATEGORY_LABEL ? '' : category,
           )}
+          automationRules={automationRules}
           tagOptions={tagOptions}
         />
       )}
     </Box>
   );
 }
+

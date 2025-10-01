@@ -1,8 +1,8 @@
 const { app } = require('@azure/functions');
 const { v4: uuidv4 } = require('uuid');
 const { getNamedContainer } = require('./cosmosClient');
+const { normalizeSubtasksInput } = require('./subtaskUtils');
 const { normalizeAssigneesPayload, ensureAssigneesOnTask } = require('./assigneeUtils');
-
 const tasksContainer = () =>
   getNamedContainer('Tasks', ['COSMOS_TASKS_CONTAINER', 'CosmosTasksContainer']);
 const n8nSecretKey = process.env.N8N_SECRET_KEY;
@@ -58,6 +58,7 @@ app.http('CreateTask', {
         importance: payload?.importance ?? 1,
         assignees,
         deadline: payload?.deadline ?? null,
+        subtasks: normalizeSubtasksInput(payload?.subtasks),
         createdAt: now,
         createdById: clientPrincipal.userId,
         createdByName: clientPrincipal.userDetails,

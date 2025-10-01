@@ -32,7 +32,15 @@ const createBlankSubtask = () => ({
   completed: false,
 });
 
-export function TaskDetailModal({ task, onSave, onClose, assigneeOptions, categoryOptions, tagOptions }) {
+export function TaskDetailModal({
+  task,
+  onSave,
+  onClose,
+  assigneeOptions,
+  categoryOptions,
+  tagOptions,
+  automationRules = [],
+}) {
   const [editableTask, setEditableTask] = useState(() => normalizeTask(task));
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
 
@@ -41,17 +49,98 @@ export function TaskDetailModal({ task, onSave, onClose, assigneeOptions, catego
     setNewSubtaskTitle('');
   }, [task]);
 
-  const subtasks = useMemo(() => Array.isArray(editableTask.subtasks) ? editableTask.subtasks : [], [editableTask.subtasks]);
+  const subtasks = useMemo(
+    () => (Array.isArray(editableTask.subtasks) ? editableTask.subtasks : []),
+    [editableTask.subtasks],
+  );
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
+  const automationRuleMap = useMemo(() => {
+    const map = new Map();
+    (Array.isArray(automationRules) ? automationRules : []).forEach((rule) => {
+      const tagKey = typeof rule?.tag === 'string' ? rule.tag.trim() : '';
+      if (!tagKey || rule?.enabled === false) {
+        return;
+      }
+      map.set(tagKey, {
+        ...rule,
+        subtasks: Array.isArray(rule.subtasks) ? rule.subtasks : [],
+      });
+    });
+    return map;
+  }, [automationRules]);
+
+  const mergeAutomationTemplates = (selectedTags, currentSubtasks = []) => {
+    if (!Array.isArray(selectedTags) || selectedTags.length === 0 || automationRuleMap.size === 0) {
+      return currentSubtasks;
+    }
+
+    const base = Array.isArray(currentSubtasks) ? [...currentSubtasks] : [];
+    const existingIds = new Set(
+      base.map((item) => (item?.id ? String(item.id) : '')).filter(Boolean),
+    );
+    const existingTitles = new Set(
+      base
+        .map((item) => (typeof item?.title === 'string' ? item.title.trim().toLowerCase() : ''))
+        .filter(Boolean),
+    );
+
+    let mutated = false;
+
+    selectedTags.forEach((tag) => {
+      const rule = automationRuleMap.get(tag);
+      if (!rule) {
+        return;
+      }
+      (Array.isArray(rule.subtasks) ? rule.subtasks : []).forEach((template) => {
+        const templateTitle = typeof template?.title === 'string' ? template.title.trim() : '';
+        const templateId = template?.id ? String(template.id) : null;
+        if (templateId && existingIds.has(templateId)) {
+          return;
+        }
+        if (!templateId && templateTitle && existingTitles.has(templateTitle.toLowerCase())) {
+          return;
+        }
+        const newSubtask = {
+          id: templateId || generateSubtaskId(),
+          title: templateTitle,
+          completed: Boolean(template?.completed),
+        };
+        base.push(newSubtask);
+        existingIds.add(newSubtask.id);
+        if (templateTitle) {
+          existingTitles.add(templateTitle.toLowerCase());
+        }
+        mutated = true;
+      });
+    });
+
+    return mutated ? base : currentSubtasks;
+  };
+
+  useEffect(() => {
+    if (!Array.isArray(automationRules) || automationRules.length === 0) {
+      return;
+    }
+    const currentTags = Array.isArray(editableTask.tags) ? editableTask.tags : [];
+    if (currentTags.length === 0) {
+      return;
+    }
+    const currentSubtasks = Array.isArray(editableTask.subtasks) ? editableTask.subtasks : [];
+    const merged = mergeAutomationTemplates(currentTags, currentSubtasks);
+    if (merged !== currentSubtasks) {
+      setEditableTask((prev) => ({ ...prev, subtasks: merged }));
+    }
+  }, [automationRules, editableTask.tags, editableTask.subtasks]);
+
+  const handleChange = (event) => {
+    const { name, value } = event.target;
     setEditableTask((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubtaskTitleChange = (subtaskId, value) => {
     setEditableTask((prev) => ({
       ...prev,
-      subtasks: subtasks.map((subtask) =>
+      subtasks: (Array.isArray(prev.subtasks) ? prev.subtasks : []).map((subtask) =>
         subtask.id === subtaskId ? { ...subtask, title: value } : subtask,
       ),
     }));
@@ -60,7 +149,7 @@ export function TaskDetailModal({ task, onSave, onClose, assigneeOptions, catego
   const handleToggleSubtask = (subtaskId) => {
     setEditableTask((prev) => ({
       ...prev,
-      subtasks: subtasks.map((subtask) =>
+      subtasks: (Array.isArray(prev.subtasks) ? prev.subtasks : []).map((subtask) =>
         subtask.id === subtaskId ? { ...subtask, completed: !subtask.completed } : subtask,
       ),
     }));
@@ -69,16 +158,19 @@ export function TaskDetailModal({ task, onSave, onClose, assigneeOptions, catego
   const handleRemoveSubtask = (subtaskId) => {
     setEditableTask((prev) => ({
       ...prev,
-      subtasks: subtasks.filter((subtask) => subtask.id !== subtaskId),
+      subtasks: (Array.isArray(prev.subtasks) ? prev.subtasks : []).filter((subtask) => subtask.id !== subtaskId),
     }));
   };
 
   const handleAddSubtask = (title) => {
     const trimmed = title.trim();
-    setEditableTask((prev) => ({
-      ...prev,
-      subtasks: [...subtasks, { ...createBlankSubtask(), title: trimmed }],
-    }));
+    setEditableTask((prev) => {
+      const current = Array.isArray(prev.subtasks) ? prev.subtasks : [];
+      return {
+        ...prev,
+        subtasks: [...current, { ...createBlankSubtask(), title: trimmed }],
+      };
+    });
   };
 
   const handleQuickAddSubtask = () => {
@@ -91,11 +183,13 @@ export function TaskDetailModal({ task, onSave, onClose, assigneeOptions, catego
   };
 
   const handleSubmit = () => {
-    const sanitizedSubtasks = subtasks.map((subtask, index) => ({
-      ...subtask,
-      title: subtask.title?.trim() || '',
-      order: index,
-    }));
+    const sanitizedSubtasks = (Array.isArray(editableTask.subtasks) ? editableTask.subtasks : []).map(
+      (subtask, index) => ({
+        ...subtask,
+        title: subtask.title?.trim() || '',
+        order: index,
+      }),
+    );
 
     onSave({
       ...editableTask,
@@ -162,11 +256,23 @@ export function TaskDetailModal({ task, onSave, onClose, assigneeOptions, catego
           options={tagOptions}
           value={editableTask.tags || []}
           onChange={(event, newValue) => {
-            const sanitized = (newValue || [])
-              .map((option) => (typeof option === 'string' ? option : option?.label ?? ''))
-              .map((tag) => tag.trim())
-              .filter(Boolean);
-            setEditableTask((prev) => ({ ...prev, tags: sanitized }));
+            const sanitized = Array.from(
+              new Set(
+                (newValue || [])
+                  .map((option) => (typeof option === 'string' ? option : option?.label ?? ''))
+                  .map((tag) => tag.trim())
+                  .filter(Boolean),
+              ),
+            );
+
+            setEditableTask((prev) => {
+              const currentSubtasks = Array.isArray(prev.subtasks) ? prev.subtasks : [];
+              const merged = mergeAutomationTemplates(sanitized, currentSubtasks);
+              if (merged !== currentSubtasks) {
+                return { ...prev, tags: sanitized, subtasks: merged };
+              }
+              return { ...prev, tags: sanitized };
+            });
           }}
           renderTags={(value, getTagProps) =>
             value.map((option, index) => (
@@ -182,7 +288,7 @@ export function TaskDetailModal({ task, onSave, onClose, assigneeOptions, catego
         <Box>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
             <Typography variant="h6">サブタスク</Typography>
-            <Chip label={`${completedCount}/${subtasks.length} 完了`} size="small" />
+            <Chip label={${completedCount}/ 完了} size="small" />
           </Box>
           <Stack spacing={1.5}>
             {subtasks.map((subtask) => (

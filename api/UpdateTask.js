@@ -1,5 +1,6 @@
 const { app } = require('@azure/functions');
 const { getNamedContainer } = require('./cosmosClient');
+const { normalizeSubtasksInput } = require('./subtaskUtils');
 const { normalizeAssigneesPayload, ensureAssigneesOnTask } = require('./assigneeUtils');
 
 const tasksContainer = () =>
@@ -36,6 +37,10 @@ app.http('UpdateTask', {
       const updatesPayload = await request.json();
       const sanitizedUpdates =
         updatesPayload && typeof updatesPayload === 'object' ? { ...updatesPayload } : {};
+
+      if (Object.prototype.hasOwnProperty.call(sanitizedUpdates, 'subtasks')) {
+        sanitizedUpdates.subtasks = normalizeSubtasksInput(sanitizedUpdates.subtasks);
+      }
 
       const hasAssigneeUpdate = Object.prototype.hasOwnProperty.call(sanitizedUpdates, 'assignees') ||
         Object.prototype.hasOwnProperty.call(sanitizedUpdates, 'assignee');
@@ -91,3 +96,4 @@ app.http('UpdateTask', {
     }
   },
 });
+
