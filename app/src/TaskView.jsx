@@ -16,11 +16,15 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Checkbox,
+  LinearProgress,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CircleIcon from '@mui/icons-material/Circle';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import { TaskDetailModal } from './TaskDetailModal';
 import {
   normalizeTask,
@@ -72,6 +76,16 @@ const sortLabelMap = TASK_SORT_OPTIONS.reduce((acc, option) => {
   acc[option.value] = option.label;
   return acc;
 }, {});
+
+const calculateSubtaskSummary = (subtasks = []) => {
+  if (!Array.isArray(subtasks) || subtasks.length === 0) {
+    return { total: 0, completed: 0, percent: 0 };
+  }
+  const completed = subtasks.filter((subtask) => subtask?.completed).length;
+  const total = subtasks.length;
+  const percent = Math.round((completed / total) * 100);
+  return { total, completed, percent };
+};
 
 const getStatusColor = (status) => statusColorMap[status] || 'action.disabled';
 
@@ -375,6 +389,7 @@ export function TaskView() {
       assignee: null,
       tags: [],
       deadline: null,
+      subtasks: [],
     });
   };
 
@@ -427,6 +442,42 @@ export function TaskView() {
 
   const handleSortModeChange = (event) => {
     setSortMode(event.target.value);
+  };
+
+  const handleToggleSubtaskCompletion = (taskId, subtaskId) => {
+    setTasks((prevTasks) => {
+      const targetTask = prevTasks.find((candidate) => candidate.id === taskId);
+      if (!targetTask) {
+        return prevTasks;
+      }
+
+      const updatedTask = {
+        ...targetTask,
+        subtasks: (targetTask.subtasks || []).map((subtask) =>
+          subtask.id === subtaskId ? { ...subtask, completed: !subtask.completed } : subtask
+        ),
+      };
+
+      const updatedTasks = prevTasks.map((candidate) =>
+        candidate.id === taskId ? updatedTask : candidate
+      );
+
+      axios
+        .put(`${API_URL}/UpdateTask/${taskId}`, updatedTask)
+        .then((res) => {
+          const savedTask = normalizeTask(res.data);
+          setTasks((current) =>
+            current.map((candidate) => (candidate.id === savedTask.id ? savedTask : candidate))
+          );
+        })
+        .catch((error) => {
+          console.error('Failed to update subtask status', error);
+          alert('サブタスクの更新に失敗しました。');
+          setTasks(prevTasks);
+        });
+
+      return updatedTasks;
+    });
   };
 
   const navCategories = selectedCategories.length > 0 ? selectedCategories : categoryOptions;
@@ -688,14 +739,18 @@ export function TaskView() {
                                     </Box>
                                   )}
                                   <Stack spacing={1.5}>
-                                    {section.tasks.map((task) => (
-                                      <Paper
+                                    {section.tasks.map((task) => {
+                                      const subtaskSummary = calculateSubtaskSummary(task.subtasks);
+                                      const hasSubtasks = subtaskSummary.total > 0;
+
+                                      return (
+                                        <Paper
                                         key={task.id}
                                         variant="outlined"
-                                        sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}
+                                        sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.25 }}
                                       >
                                         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-                                          <CircleIcon sx={{ color: getStatusColor(task.status), fontSize: '1rem', mt: 0.5 }} />
+                                          <CircleIcon sx={{ color: getStatusColor(task.status), fontSize: "1rem", mt: 0.5 }} />
                                           <Box sx={{ flexGrow: 1 }}>
                                             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                                               {task.title || 'タイトル未設定'}
@@ -705,17 +760,77 @@ export function TaskView() {
                                                 {task.description}
                                               </Typography>
                                             )}
-                                            <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
-                                              {Array.isArray(task.assignees) && task.assignees.length > 0 && (
-                                                <Chip label={`担当: ${task.assignees.join(', ')}`} size="small" />
-                                              )}
-                                              {task.deadline && (
-                                                <Chip label={`期限: ${getDeadlineLabel(task.deadline)}`} size="small" />
-                                              )}
-                                              <Chip label={`進捗: ${getStatusLabel(task.status)}`} size="small" variant="outlined" />
-                                            </Stack>
+                                          <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
+                                            {Array.isArray(task.assignees) && task.assignees.length > 0 && (
+                                              <Chip label={`担当: ${task.assignees.join(", ")}`} size="small" />
+                                            )}
+                                            {task.deadline && (
+                                              <Chip label={`期限: ${getDeadlineLabel(task.deadline)}`} size="small" />
+                                            )}
+                                            <Chip label={`進捗: ${getStatusLabel(task.status)}`} size="small" variant="outlined" />
+                                            {hasSubtasks && (
+                                              <Chip
+                                                label={`サブタスク: ${subtaskSummary.completed}/${subtaskSummary.total}`}
+                                                size="small"
+                                                color={subtaskSummary.completed === subtaskSummary.total ? 'success' : 'default'}
+                                              />
+                                            )}
+                                          </Stack>
                                           </Box>
                                         </Box>
+
+                                        {hasSubtasks ? (
+                                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                            <Stack direction="row" spacing={1} alignItems="center">
+                                              <LinearProgress
+                                                variant="determinate"
+                                                value={subtaskSummary.percent}
+                                                sx={{ flexGrow: 1, height: 6, borderRadius: 3 }}
+                                              />
+                                              <Typography variant="caption" color="text.secondary" sx={{ minWidth: 72, textAlign: 'right' }}>
+                                                {subtaskSummary.percent}%
+                                              </Typography>
+                                            </Stack>
+                                            <Stack spacing={0.75}>
+                                              {task.subtasks.map((subtask) => (
+                                                <Box
+                                                  key={subtask.id}
+                                                  sx={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 1,
+                                                    p: 0.75,
+                                                    borderRadius: 1,
+                                                    backgroundColor: subtask.completed ? 'action.selected' : 'transparent',
+                                                  }}
+                                                >
+                                                  <Checkbox
+                                                    checked={Boolean(subtask.completed)}
+                                                    onChange={() => handleToggleSubtaskCompletion(task.id, subtask.id)}
+                                                    icon={<RadioButtonUncheckedIcon fontSize="small" />}
+                                                    checkedIcon={<CheckCircleIcon fontSize="small" />}
+                                                    size="small"
+                                                  />
+                                                  <Typography
+                                                    variant="body2"
+                                                    sx={{
+                                                      textDecoration: subtask.completed ? 'line-through' : 'none',
+                                                      color: subtask.completed ? 'text.disabled' : 'text.primary',
+                                                      flexGrow: 1,
+                                                    }}
+                                                  >
+                                                    {subtask.title || '名称未設定のサブタスク'}
+                                                  </Typography>
+                                                </Box>
+                                              ))}
+                                            </Stack>
+                                          </Box>
+                                        ) : (
+                                          <Typography variant="body2" color="text.secondary">
+                                            サブタスクはまだ追加されていません。
+                                          </Typography>
+                                        )}
+
                                         <Stack direction="row" spacing={1} justifyContent="flex-end">
                                           <Tooltip title="編集">
                                             <IconButton size="small" onClick={() => handleEditTask(task)}>
@@ -729,7 +844,8 @@ export function TaskView() {
                                           </Tooltip>
                                         </Stack>
                                       </Paper>
-                                    ))}
+                                      );
+                                    })}
                                   </Stack>
                                 </Box>
                               ))}

@@ -1,6 +1,49 @@
 export const DEFAULT_CATEGORY_LABEL = '未設定カテゴリ';
 export const DEFAULT_TAG_LABEL = '未設定タグ';
 
+export const generateSubtaskId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `subtask-${Math.random().toString(36).slice(2, 10)}-${Date.now()}`;
+};
+
+const normalizeSubtask = (subtask, index) => {
+  if (!subtask) {
+    return {
+      id: generateSubtaskId(),
+      title: '',
+      completed: false,
+      order: index,
+    };
+  }
+
+  if (typeof subtask === 'string') {
+    return {
+      id: generateSubtaskId(),
+      title: subtask.trim(),
+      completed: false,
+      order: index,
+    };
+  }
+
+  const title = typeof subtask.title === 'string' ? subtask.title.trim() : '';
+  const completed = Boolean(subtask.completed);
+  const identifier =
+    subtask.id ||
+    subtask.subtaskId ||
+    subtask.key ||
+    (typeof subtask.title === 'string' && subtask.title ? `${subtask.title}-${index}` : null) ||
+    generateSubtaskId();
+
+  return {
+    id: String(identifier),
+    title,
+    completed,
+    order: typeof subtask.order === 'number' ? subtask.order : index,
+  };
+};
+
 export const normalizeTask = (task) => {
   if (!task || typeof task !== 'object') {
     return task;
@@ -43,11 +86,22 @@ export const normalizeTask = (task) => {
       return true;
     });
 
+  const rawSubtasks = Array.isArray(task.subtasks) ? task.subtasks : [];
+  const seenSubtaskIds = new Set();
+  const subtasks = rawSubtasks.map((subtask, index) => normalizeSubtask(subtask, index)).map((subtask) => {
+    if (seenSubtaskIds.has(subtask.id)) {
+      return { ...subtask, id: generateSubtaskId() };
+    }
+    seenSubtaskIds.add(subtask.id);
+    return subtask;
+  });
+
   return {
     ...task,
     assignees,
     assignee: assignees.length > 0 ? assignees[0] : null,
     tags,
+    subtasks,
   };
 };
 
@@ -81,7 +135,7 @@ export const extractTagList = (tasks = []) => {
 export const groupTasksByCategoryAndTag = (tasks = []) => {
   const grouped = {};
 
-  tasks.forEach((task) => {
+  tasks.forEach((task, taskIndex) => {
     if (!task || typeof task !== 'object') {
       return;
     }
@@ -98,7 +152,7 @@ export const groupTasksByCategoryAndTag = (tasks = []) => {
       if (!grouped[categoryKey][tagKey]) {
         grouped[categoryKey][tagKey] = [];
       }
-      grouped[categoryKey][tagKey].push(task);
+      grouped[categoryKey][tagKey].push({ ...task, order: task.order ?? taskIndex });
     });
   });
 
