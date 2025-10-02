@@ -2,6 +2,7 @@ const { app } = require('@azure/functions');
 const { v4: uuidv4 } = require('uuid');
 const { getNamedContainer } = require('./cosmosClient');
 const { normalizeSubtasksInput } = require('./subtaskUtils');
+const { notifyTaskCreated } = require('./slackClient');
 const { normalizeAssigneesPayload, ensureAssigneesOnTask } = require('./assigneeUtils');
 const tasksContainer = () =>
   getNamedContainer('Tasks', ['COSMOS_TASKS_CONTAINER', 'CosmosTasksContainer']);
@@ -66,7 +67,11 @@ app.http('CreateTask', {
 
       const taskToCreate = ensureAssigneesOnTask(baseTask);
       const { resource } = await container.items.create(taskToCreate);
-      return { status: 201, jsonBody: ensureAssigneesOnTask(resource) };
+      const savedTask = ensureAssigneesOnTask(resource);
+
+      await notifyTaskCreated(savedTask, context, { actorName: clientPrincipal.userDetails });
+
+      return { status: 201, jsonBody: savedTask };
     } catch (error) {
       const message = error.message || 'Error creating task.';
       if (message.includes('connection string')) {
@@ -81,3 +86,5 @@ app.http('CreateTask', {
     }
   },
 });
+
+

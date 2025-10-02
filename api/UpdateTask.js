@@ -1,6 +1,7 @@
 const { app } = require('@azure/functions');
 const { getNamedContainer } = require('./cosmosClient');
 const { normalizeSubtasksInput } = require('./subtaskUtils');
+const { notifyTaskStatusChanged } = require('./slackClient');
 const { normalizeAssigneesPayload, ensureAssigneesOnTask } = require('./assigneeUtils');
 
 const tasksContainer = () =>
@@ -56,6 +57,8 @@ app.http('UpdateTask', {
       if (!existingTask) {
         return { status: 404, body: 'Task not found.' };
       }
+      const previousStatus = existingTask.status;
+      let statusChanged = false;
 
       const lastUpdatedAt = new Date().toISOString();
       const baseTask = {
@@ -77,12 +80,21 @@ app.http('UpdateTask', {
           changedById: clientPrincipal.userId,
           changedByName: clientPrincipal.userDetails,
         });
+        statusChanged = true;
         baseTask.statusHistory = history;
       }
 
       const updatedTask = ensureAssigneesOnTask(baseTask);
       const { resource } = await container.item(id, id).replace(updatedTask);
-      return { status: 200, jsonBody: ensureAssigneesOnTask(resource) };
+      const savedTask = ensureAssigneesOnTask(resource);
+
+      if (statusChanged) {
+        await notifyTaskStatusChanged(savedTask, previousStatus, context, {
+          actorName: clientPrincipal.userDetails,
+        });
+      }
+
+      return { status: 200, jsonBody: savedTask };
     } catch (error) {
       if (error?.code === 404) {
         return { status: 404, body: 'Task not found.' };
