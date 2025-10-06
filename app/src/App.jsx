@@ -31,12 +31,65 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import { ProfileView } from "./ProfileView";
 
+const ALLOWED_VIEWS = new Set(["dashboard", "tasks", "customers", "invoices", "settings", "profile"]);
+
+const parseInitialLocation = () => {
+  if (typeof window === "undefined") {
+    return { view: "dashboard", taskId: null };
+  }
+
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const rawView = params.get("view");
+    const taskId = params.get("taskId");
+    const normalizedView = rawView && ALLOWED_VIEWS.has(rawView) ? rawView : "dashboard";
+    const effectiveView = taskId ? "tasks" : normalizedView;
+
+    return {
+      view: effectiveView,
+      taskId: taskId || null,
+    };
+  } catch (error) {
+    console.warn("Failed to parse initial query params", error);
+    return { view: "dashboard", taskId: null };
+  }
+};
+
+const syncLocation = (view, taskId) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    const params = new URLSearchParams();
+    if (view && view !== "dashboard") {
+      params.set("view", view);
+    }
+    if (taskId) {
+      params.set("taskId", taskId);
+    }
+
+    const query = params.toString();
+    const nextUrl = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+    window.history.replaceState(null, "", nextUrl);
+  } catch (error) {
+    console.warn("Failed to sync query params", error);
+  }
+};
+
 const API_URL = "/api";
 
 function App() {
-  const [currentView, setCurrentView] = useState("dashboard");
+  const initialLocation = parseInitialLocation();
+  const [currentView, setCurrentView] = useState(initialLocation.view);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [user, setUser] = useState(null);
+  const [deepLinkTaskId, setDeepLinkTaskId] = useState(initialLocation.taskId);
+  useEffect(() => {
+    const taskIdForSync = currentView === "tasks" ? deepLinkTaskId : null;
+    syncLocation(currentView, taskIdForSync);
+  }, [currentView, deepLinkTaskId]);
+
 
   useEffect(() => {
     async function fetchUser() {
@@ -63,6 +116,21 @@ function App() {
 
   const handleDrawerToggle = () => {
     setDrawerOpen(!drawerOpen);
+  };
+
+  const handleViewChange = (nextView) => {
+    setCurrentView(nextView);
+    if (nextView !== "tasks") {
+      setDeepLinkTaskId(null);
+    }
+  };
+
+  const handleTaskSelectionChange = (taskId) => {
+    const nextTaskId = taskId || null;
+    setDeepLinkTaskId(nextTaskId);
+    if (nextTaskId && currentView !== "tasks") {
+      setCurrentView("tasks");
+    }
   };
 
   const menuItems = [
@@ -106,7 +174,7 @@ function App() {
           <ListItem key={item.text} disablePadding>
             <ListItemButton
               onClick={() => {
-                setCurrentView(item.view);
+                handleViewChange(item.view);
                 setDrawerOpen(false);
               }}
             >
@@ -120,7 +188,7 @@ function App() {
         <ListItem disablePadding>
           <ListItemButton
             onClick={() => {
-              setCurrentView("profile");
+              handleViewChange("profile");
               setDrawerOpen(false);
             }}
           >
@@ -151,7 +219,7 @@ function App() {
       case "dashboard":
         return <DashboardView user={user} />;
       case "tasks":
-        return <TaskView />;
+        return <TaskView initialTaskId={deepLinkTaskId} onSelectedTaskChange={handleTaskSelectionChange} />;
       case "customers":
         return <CustomerView />;
       case "invoices":

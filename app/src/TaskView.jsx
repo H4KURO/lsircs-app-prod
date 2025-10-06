@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import {
   Box,
@@ -265,7 +265,7 @@ function areArraysEqual(a = [], b = []) {
   return a.every((value, index) => value === b[index]);
 }
 
-export function TaskView() {
+export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   const [tasks, setTasks] = useState([]);
   const [assigneeOptions, setAssigneeOptions] = useState([]);
   const [categoryOptions, setCategoryOptions] = useState([]);
@@ -274,6 +274,7 @@ export function TaskView() {
   const [selectedCategories, setSelectedCategories] = useState(() => loadSelectedCategories());
   const [sortMode, setSortMode] = useState(() => loadSortMode());
   const [selectedTask, setSelectedTask] = useState(null);
+  const deepLinkHandledRef = useRef(null);
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -302,6 +303,35 @@ export function TaskView() {
 
     loadInitialData();
   }, []);
+
+
+  useEffect(() => {
+    if (!initialTaskId) {
+      deepLinkHandledRef.current = null;
+      return;
+    }
+
+    if (deepLinkHandledRef.current === initialTaskId) {
+      return;
+    }
+
+    if (!Array.isArray(tasks) || tasks.length === 0) {
+      return;
+    }
+
+    const targetTask = tasks.find((candidate) => candidate.id === initialTaskId);
+    deepLinkHandledRef.current = initialTaskId;
+
+    if (targetTask) {
+      setSelectedTask(normalizeTask(targetTask));
+    }
+  }, [initialTaskId, tasks]);
+
+  useEffect(() => {
+    if (typeof onSelectedTaskChange === 'function') {
+      onSelectedTaskChange(selectedTask ? selectedTask.id : null);
+    }
+  }, [onSelectedTaskChange, selectedTask]);
 
   const derivedCategories = useMemo(
     () => extractCategoryList(tasks).sort(sortByName),

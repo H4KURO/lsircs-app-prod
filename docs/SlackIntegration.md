@@ -16,9 +16,10 @@ Slack-side manual work (creating the app, granting scopes, configuring the slash
 - Install the app into your workspace and copy the **Bot User OAuth Token**.
 - Add the bot to the channel where notifications should appear.
 - Set environment variables in the backend:
-  - `SLACK_BOT_TOKEN` – the bot token (starts with `xoxb-`).
-  - `SLACK_CHANNEL_ID` – channel ID for notifications (e.g. `C0123456789`).
-  - `SLACK_THREAD_TS` – optional message timestamp if you want every notification threaded under an existing message.
+  - `SLACK_BOT_TOKEN` - the bot token (starts with `xoxb-`).
+  - `SLACK_CHANNEL_ID` - channel ID for notifications (e.g. `C0123456789`).
+  - `SLACK_THREAD_TS` - optional message timestamp if you want every notification threaded under an existing message.
+  - `APP_BASE_URL` - optional but recommended; URL of the front-end (e.g. https://your-app) used to build the "Open task" link in Slack notifications.
 - When configured, the API automatically sends notifications from:
   - `CreateTask` (new task created).
   - `UpdateTask` when the status value changes.
@@ -63,23 +64,29 @@ The slash command replies with an ephemeral message in Slack and relies on the n
 | `SLACK_BOT_TOKEN` | Required for notifications | Bot token used to call Slack Web API |
 | `SLACK_CHANNEL_ID` | Required for notifications | Channel ID where the bot posts updates |
 | `SLACK_THREAD_TS` | Optional | Posts notifications as replies inside a thread |
+| `APP_BASE_URL` | Optional | Base URL of the front-end used to build task links in Slack notifications |
 | `SLACK_SIGNING_SECRET` | Required for slash command | Validates Slack signatures before processing commands |
 | `SLACK_ALLOWED_TEAM_ID` | Optional | Rejects slash commands from other Slack workspaces |
 
 ## Manual setup checklist
 
 1. Create a Slack App (or use an existing one) at <https://api.slack.com/apps>.
-2. Under **Basic Information → App Credentials**, note the **Signing Secret**.
+2. Under **Basic Information -> App Credentials**, note the **Signing Secret**.
 3. Under **OAuth & Permissions**:
    - Add bot scopes: `chat:write`, `chat:write.public` (optional), and `commands`.
    - Install the app to your workspace and copy the **Bot User OAuth Token**.
-4. Invite the bot to the target channel and copy the channel ID (from the channel details → **More** → **Copy channel ID** in Slack).
+4. Invite the bot to the target channel and copy the channel ID (from the channel details -> **More** -> **Copy channel ID** in Slack).
 5. Configure a Slash Command:
    - Command: `/task` (or your preferred name).
    - Request URL: `https://<your-app-host>/api/Slack/Command`.
    - Description and usage hint as desired.
 6. In your deployment environment (Azure Functions settings, local `local.settings.json`, etc.) add:
-   - `SLACK_BOT_TOKEN`, `SLACK_CHANNEL_ID`, `SLACK_THREAD_TS` (if needed), `SLACK_SIGNING_SECRET`, and optionally `SLACK_ALLOWED_TEAM_ID`.
+   - `SLACK_BOT_TOKEN` - bot user token (starts with `xoxb-`).
+   - `SLACK_CHANNEL_ID` - channel ID that receives notifications.
+   - `SLACK_THREAD_TS` - optional thread timestamp if you want replies.
+   - `APP_BASE_URL` - front-end base URL used to generate "Open task" links.
+   - `SLACK_SIGNING_SECRET` - secret for verifying slash command signatures.
+   - `SLACK_ALLOWED_TEAM_ID` - optional team ID restriction for slash commands.
 7. Redeploy/restart the Functions app so the new settings are picked up.
 
 ## Local testing tips

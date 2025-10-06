@@ -3,6 +3,7 @@ const axios = require('axios');
 const slackBotToken = process.env.SLACK_BOT_TOKEN;
 const defaultChannel = process.env.SLACK_CHANNEL_ID;
 const slackThreadTs = process.env.SLACK_THREAD_TS || null;
+const appBaseUrl = process.env.APP_BASE_URL || null;
 const SLACK_ENABLED = Boolean(slackBotToken && defaultChannel);
 
 const formatDate = (iso) => {
@@ -35,6 +36,22 @@ const resolveUsername = (name, fallback) => {
     return fallback.trim();
   }
   return 'Unknown user';
+};
+
+const buildTaskLink = (taskId) => {
+  if (!appBaseUrl) {
+    return null;
+  }
+  try {
+    const url = new URL(appBaseUrl);
+    url.searchParams.set('view', 'tasks');
+    if (taskId) {
+      url.searchParams.set('taskId', taskId);
+    }
+    return url.toString();
+  } catch (error) {
+    return null;
+  }
 };
 
 async function postToSlack(payload, context, overrides = {}) {
@@ -131,6 +148,21 @@ async function notifyTaskCreated(task, context, metadata = {}) {
     ],
   });
 
+  const taskLink = buildTaskLink(task.id);
+  if (taskLink) {
+    blocks.push({
+      type: 'actions',
+      elements: [
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: 'Open task' },
+          url: taskLink,
+          style: 'primary',
+        },
+      ],
+    });
+  }
+
   return postToSlack({ text, blocks }, context, metadata);
 }
 
@@ -153,10 +185,26 @@ async function notifyTaskStatusChanged(task, previousStatus, context, metadata =
     ],
   });
 
+  const taskLink = buildTaskLink(task.id);
+  if (taskLink) {
+    blocks.push({
+      type: 'actions',
+      elements: [
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: 'Open task' },
+          url: taskLink,
+        },
+      ],
+    });
+  }
+
   return postToSlack({ text, blocks }, context, metadata);
 }
 
 module.exports = {
   notifyTaskCreated,
   notifyTaskStatusChanged,
+  buildTaskLink,
+  SLACK_ENABLED,
 };
