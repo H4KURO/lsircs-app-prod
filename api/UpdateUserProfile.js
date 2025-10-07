@@ -1,27 +1,10 @@
 const { app } = require('@azure/functions');
-const { ensureNamedContainer } = require('./cosmosClient');
-
-const USER_CONTAINER_KEYS = ['COSMOS_USERS_CONTAINER', 'COSMOS_USER_CONTAINER', 'CosmosUsersContainer'];
-const USER_PARTITION_KEY = '/id';
-
-async function usersContainer() {
-  return ensureNamedContainer('Users', {
-    overrideKeys: USER_CONTAINER_KEYS,
-    partitionKey: USER_PARTITION_KEY,
-  });
-}
-
-function parseClientPrincipal(request) {
-  const header = request.headers.get('x-ms-client-principal');
-  if (!header) {
-    return null;
-  }
-  try {
-    return JSON.parse(Buffer.from(header, 'base64').toString('ascii'));
-  } catch (error) {
-    return null;
-  }
-}
+const {
+  usersContainer,
+  parseClientPrincipal,
+  getPrincipalUserId,
+  readUserProfile,
+} = require('./userProfileStore');
 
 app.http('UpdateUserProfile', {
   methods: ['PUT'],
@@ -32,7 +15,7 @@ app.http('UpdateUserProfile', {
       return { status: 401, body: 'Not logged in' };
     }
 
-    const userId = principal.userId;
+    const userId = getPrincipalUserId(principal);
     if (!userId) {
       return { status: 400, body: 'Client principal did not include a userId.' };
     }
@@ -45,7 +28,16 @@ app.http('UpdateUserProfile', {
       }
 
       const container = await usersContainer();
-      const { resource: existing } = await container.item(userId, userId).read();
+      let existing;
+      try {
+        existing = await readUserProfile(container, userId);
+      } catch (readError) {
+        if (readError?.code === 404 || readError?.code === 'NotFound') {
+          return { status: 404, body: 'User profile not found.' };
+        }
+        throw readError;
+      }
+
       if (!existing) {
         return { status: 404, body: 'User profile not found.' };
       }
