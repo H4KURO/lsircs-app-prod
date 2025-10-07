@@ -62,6 +62,7 @@ export function DashboardView({ user }) {
   const [categoryOptions, setCategoryOptions] = useState([]);
   const [tagOptions, setTagOptions] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [automationRules, setAutomationRules] = useState([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [dashboardSettings, setDashboardSettings] = useState(() => {
@@ -73,8 +74,9 @@ export function DashboardView({ user }) {
     Promise.all([
       axios.get(`${API_URL}/GetTasks`),
       axios.get(`${API_URL}/GetAllUsers`),
-      axios.get(`${API_URL}/GetCategories`)
-    ]).then(([tasksRes, usersRes, categoriesRes]) => {
+      axios.get(`${API_URL}/GetCategories`),
+      axios.get(`${API_URL}/GetAutomationRules`)
+    ]).then(([tasksRes, usersRes, categoriesRes, automationRes]) => {
       const normalized = normalizeTasks(tasksRes.data);
       setAllTasks(normalized);
 
@@ -83,6 +85,9 @@ export function DashboardView({ user }) {
 
       const categoryData = Array.isArray(categoriesRes.data) ? categoriesRes.data : [];
       setCategories(categoryData);
+
+      const automationData = Array.isArray(automationRes.data) ? automationRes.data : [];
+      setAutomationRules(automationData);
     });
   }, []);
 
@@ -269,6 +274,8 @@ export function DashboardView({ user }) {
           assigneeOptions={assigneeOptions}
           categoryOptions={categoryOptions}
           tagOptions={tagOptions}
+          automationRules={automationRules}
+          categoryColorMap={categoryColorMap}
         />
       )}
 
