@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { useMemo } from 'react';
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
 import format from 'date-fns/format';
 import parse from 'date-fns/parse';
@@ -8,8 +7,6 @@ import getDay from 'date-fns/getDay';
 import ja from 'date-fns/locale/ja';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { normalizeTask } from './taskUtils';
-
-const API_URL = '/api';
 
 const locales = { 'ja': ja };
 const localizer = dateFnsLocalizer({
@@ -20,54 +17,56 @@ const localizer = dateFnsLocalizer({
   locales,
 });
 
-export function TaskCalendar({ onTaskSelect }) {
-  const [events, setEvents] = useState([]);
-  const [categoryColors, setCategoryColors] = useState({});
+export function TaskCalendar({ tasks = [], categoryColors = {}, onTaskSelect }) {
+  const events = useMemo(() => {
+    if (!Array.isArray(tasks)) {
+      return [];
+    }
 
-  useEffect(() => {
-    Promise.all([
-      axios.get(`${API_URL}/GetTasks`),
-      axios.get(`${API_URL}/GetCategories`)
-    ]).then(([tasksRes, categoriesRes]) => {
-      const colors = {};
-      categoriesRes.data.forEach(cat => {
-        colors[cat.name] = cat.color;
-      });
-      setCategoryColors(colors);
+    return tasks
+      .map((task) => normalizeTask(task))
+      .filter((task) => Boolean(task?.deadline))
+      .map((task) => ({
+        title: task.title,
+        start: new Date(task.deadline),
+        end: new Date(task.deadline),
+        allDay: true,
+        resource: task,
+      }));
+  }, [tasks]);
 
-      const formattedEvents = tasksRes.data
-        .map(normalizeTask)
-        .filter(task => task.deadline)
-        .map(task => ({
-          title: task.title,
-          start: new Date(task.deadline),
-          end: new Date(task.deadline),
-          allDay: true,
-          resource: task,
-        }));
-      setEvents(formattedEvents);
-    })
-    .catch(error => console.error('Error fetching data for calendar:', error));
-  }, []);
+  const normalizedCategoryColors = useMemo(() => {
+    if (!categoryColors || typeof categoryColors !== 'object') {
+      return {};
+    }
+
+    const map = {};
+    Object.entries(categoryColors).forEach(([key, value]) => {
+      if (typeof key === 'string' && key.trim()) {
+        map[key.trim()] = value || '#9e9e9e';
+      }
+    });
+    return map;
+  }, [categoryColors]);
 
   const handleSelectEvent = (event) => {
-    if (event.resource && onTaskSelect) {
+    if (event?.resource && onTaskSelect) {
       onTaskSelect(event.resource);
     }
   };
 
   const eventStyleGetter = (event) => {
-    const backgroundColor = categoryColors[event.resource.category] || '#9e9e9e';
-    const style = {
-      backgroundColor,
-      borderRadius: '5px',
-      opacity: 0.8,
-      color: 'white',
-      border: '0px',
-      display: 'block'
-    };
+    const category = typeof event?.resource?.category === 'string' ? event.resource.category.trim() : '';
+    const backgroundColor = normalizedCategoryColors[category] || '#9e9e9e';
     return {
-      style: style
+      style: {
+        backgroundColor,
+        borderRadius: '5px',
+        opacity: 0.8,
+        color: 'white',
+        border: '0px',
+        display: 'block',
+      },
     };
   };
 

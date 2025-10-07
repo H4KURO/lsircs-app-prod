@@ -21,6 +21,8 @@ const defaultSettings = {
   showMyTasks: true,
   showUpcoming: true,
 };
+const arraysEqual = (a = [], b = []) =>
+  a.length === b.length && a.every((value, index) => value === b[index]);
 
 export function DashboardView({ user }) {
   const [allTasks, setAllTasks] = useState([]);
@@ -28,6 +30,7 @@ export function DashboardView({ user }) {
   const [assigneeOptions, setAssigneeOptions] = useState([]);
   const [categoryOptions, setCategoryOptions] = useState([]);
   const [tagOptions, setTagOptions] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [dashboardSettings, setDashboardSettings] = useState(() => {
@@ -38,21 +41,54 @@ export function DashboardView({ user }) {
   useEffect(() => {
     Promise.all([
       axios.get(`${API_URL}/GetTasks`),
-      axios.get(`${API_URL}/GetAllUsers`)
-    ]).then(([tasksRes, usersRes]) => {
+      axios.get(`${API_URL}/GetAllUsers`),
+      axios.get(`${API_URL}/GetCategories`)
+    ]).then(([tasksRes, usersRes, categoriesRes]) => {
       const normalized = normalizeTasks(tasksRes.data);
       setAllTasks(normalized);
 
       const assignees = usersRes.data.map(u => u.displayName);
       setAssigneeOptions(assignees);
 
-      const categories = [...new Set(normalized.map(t => t.category).filter(Boolean))];
-      const tags = [...new Set(normalized.flatMap(t => t.tags || []).filter(Boolean))];
-      setCategoryOptions(categories);
-      setTagOptions(tags);
+      const categoryData = Array.isArray(categoriesRes.data) ? categoriesRes.data : [];
+      setCategories(categoryData);
     });
   }, []);
 
+  useEffect(() => {
+    const apiCategoryNames = (Array.isArray(categories) ? categories : [])
+      .map((category) => (typeof category?.name === 'string' ? category.name.trim() : ''))
+      .filter(Boolean);
+
+    const taskCategoryNames = allTasks
+      .map((task) => (typeof task?.category === 'string' ? task.category.trim() : ''))
+      .filter(Boolean);
+
+    const mergedCategories = Array.from(new Set([...apiCategoryNames, ...taskCategoryNames])).sort();
+
+    setCategoryOptions((prev) => (arraysEqual(prev, mergedCategories) ? prev : mergedCategories));
+
+    const derivedTags = Array.from(
+      new Set(
+        allTasks
+          .flatMap((task) => (Array.isArray(task?.tags) ? task.tags : []))
+          .map((tag) => (typeof tag === 'string' ? tag.trim() : ''))
+          .filter(Boolean)
+      )
+    ).sort();
+
+    setTagOptions((prev) => (arraysEqual(prev, derivedTags) ? prev : derivedTags));
+  }, [allTasks, categories]);
+
+  const categoryColorMap = useMemo(() => {
+    const map = {};
+    (Array.isArray(categories) ? categories : []).forEach((category) => {
+      if (typeof category?.name === 'string' && category.name.trim()) {
+        map[category.name.trim()] = category.color || '#9e9e9e';
+      }
+    });
+    return map;
+  }, [categories]);
   const taskStats = useMemo(() => {
     const total = allTasks.length;
     const done = allTasks.filter(t => t.status === 'Done').length;
@@ -147,7 +183,11 @@ export function DashboardView({ user }) {
         <Grid item xs={12} md={8}>
           <Paper sx={{ p: 2, height: '60vh', minHeight: 500 }}>
             <Typography variant="h6" gutterBottom>カレンダービュー</Typography>
-            <TaskCalendar onTaskSelect={(task) => setSelectedTask(normalizeTask(task))} />
+            <TaskCalendar
+              tasks={allTasks}
+              categoryColors={categoryColorMap}
+              onTaskSelect={(task) => setSelectedTask(normalizeTask(task))}
+            />
           </Paper>
         </Grid>
 
