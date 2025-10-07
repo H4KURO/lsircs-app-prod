@@ -24,6 +24,37 @@ const defaultSettings = {
 const arraysEqual = (a = [], b = []) =>
   a.length === b.length && a.every((value, index) => value === b[index]);
 
+const normalizeColorValue = (value) => {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const hexMatch = trimmed.match(/^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/);
+  if (hexMatch) {
+    const hex = hexMatch[1].toLowerCase();
+    if (hex.length === 3) {
+      return '#' + hex.split('').map((char) => char + char).join('');
+    }
+    return '#' + hex;
+  }
+
+  const rgbMatch = trimmed.match(/^#?rgba?\s*\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})/i);
+  if (rgbMatch) {
+    const clamp = (input) => Math.max(0, Math.min(255, Number(input)));
+    const toHex = (input) => clamp(input).toString(16).padStart(2, '0');
+    const [r, g, b] = rgbMatch.slice(1, 4);
+    return '#' + toHex(r) + toHex(g) + toHex(b);
+  }
+
+  return null;
+};
+
+
 export function DashboardView({ user }) {
   const [allTasks, setAllTasks] = useState([]);
   const [selectedTask, setSelectedTask] = useState(null);
@@ -84,7 +115,9 @@ export function DashboardView({ user }) {
     const map = {};
     (Array.isArray(categories) ? categories : []).forEach((category) => {
       if (typeof category?.name === 'string' && category.name.trim()) {
-        map[category.name.trim()] = category.color || '#9e9e9e';
+        const key = category.name.trim();
+        const normalizedColor = normalizeColorValue(category.color);
+        map[key] = normalizedColor || '#9e9e9e';
       }
     });
     return map;
