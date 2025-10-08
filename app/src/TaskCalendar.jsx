@@ -5,10 +5,12 @@ import parse from 'date-fns/parse';
 import startOfWeek from 'date-fns/startOfWeek';
 import getDay from 'date-fns/getDay';
 import ja from 'date-fns/locale/ja';
+import enUS from 'date-fns/locale/en-US';
+import { useTranslation } from 'react-i18next';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { normalizeTask } from './taskUtils';
 
-const locales = { 'ja': ja };
+const locales = { ja, en: enUS };
 const localizer = dateFnsLocalizer({
   format,
   parse,
@@ -18,6 +20,10 @@ const localizer = dateFnsLocalizer({
 });
 
 export function TaskCalendar({ tasks = [], categoryColors = {}, onTaskSelect }) {
+  const { t, i18n } = useTranslation();
+  const currentLanguage = (i18n.language || 'ja').split('-')[0];
+  const culture = locales[currentLanguage] ? currentLanguage : 'ja';
+
   const events = useMemo(() => {
     if (!Array.isArray(tasks)) {
       return [];
@@ -70,6 +76,19 @@ export function TaskCalendar({ tasks = [], categoryColors = {}, onTaskSelect }) 
     };
   };
 
+  const messages = useMemo(
+    () => ({
+      next: t('calendar.next'),
+      previous: t('calendar.previous'),
+      today: t('calendar.today'),
+      month: t('calendar.month'),
+      week: t('calendar.week'),
+      day: t('calendar.day'),
+      agenda: t('calendar.agenda'),
+    }),
+    [t],
+  );
+
   return (
     <div style={{ height: '100%' }}>
       <Calendar
@@ -77,8 +96,8 @@ export function TaskCalendar({ tasks = [], categoryColors = {}, onTaskSelect }) 
         events={events}
         startAccessor="start"
         endAccessor="end"
-        culture='ja'
-        messages={{ next: '次', previous: '前', today: '今日', month: '月', week: '週', day: '日', agenda: '予定表' }}
+        culture={culture}
+        messages={messages}
         onSelectEvent={handleSelectEvent}
         eventPropGetter={eventStyleGetter}
       />

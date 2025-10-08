@@ -6,6 +6,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import TaskIcon from '@mui/icons-material/Task';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import DonutLargeIcon from '@mui/icons-material/DonutLarge';
+import { useTranslation } from 'react-i18next';
 import { TaskCalendar } from './TaskCalendar';
 import { DashboardTaskList } from './DashboardTaskList';
 import { TaskDetailModal } from './TaskDetailModal';
@@ -21,6 +22,7 @@ const defaultSettings = {
   showMyTasks: true,
   showUpcoming: true,
 };
+
 const arraysEqual = (a = [], b = []) =>
   a.length === b.length && a.every((value, index) => value === b[index]);
 
@@ -38,9 +40,9 @@ const normalizeColorValue = (value) => {
   if (hexMatch) {
     const hex = hexMatch[1].toLowerCase();
     if (hex.length === 3) {
-      return '#' + hex.split('').map((char) => char + char).join('');
+      return `#${hex.split('').map((char) => char + char).join('')}`;
     }
-    return '#' + hex;
+    return `#${hex}`;
   }
 
   const rgbMatch = trimmed.match(/^#?rgba?\s*\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})/i);
@@ -48,14 +50,14 @@ const normalizeColorValue = (value) => {
     const clamp = (input) => Math.max(0, Math.min(255, Number(input)));
     const toHex = (input) => clamp(input).toString(16).padStart(2, '0');
     const [r, g, b] = rgbMatch.slice(1, 4);
-    return '#' + toHex(r) + toHex(g) + toHex(b);
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
   }
 
   return null;
 };
 
-
 export function DashboardView({ user }) {
+  const { t } = useTranslation();
   const [allTasks, setAllTasks] = useState([]);
   const [selectedTask, setSelectedTask] = useState(null);
   const [assigneeOptions, setAssigneeOptions] = useState([]);
@@ -75,12 +77,12 @@ export function DashboardView({ user }) {
       axios.get(`${API_URL}/GetTasks`),
       axios.get(`${API_URL}/GetAllUsers`),
       axios.get(`${API_URL}/GetCategories`),
-      axios.get(`${API_URL}/GetAutomationRules`)
+      axios.get(`${API_URL}/GetAutomationRules`),
     ]).then(([tasksRes, usersRes, categoriesRes, automationRes]) => {
       const normalized = normalizeTasks(tasksRes.data);
       setAllTasks(normalized);
 
-      const assignees = usersRes.data.map(u => u.displayName);
+      const assignees = usersRes.data.map((u) => u.displayName);
       setAssigneeOptions(assignees);
 
       const categoryData = Array.isArray(categoriesRes.data) ? categoriesRes.data : [];
@@ -109,8 +111,8 @@ export function DashboardView({ user }) {
         allTasks
           .flatMap((task) => (Array.isArray(task?.tags) ? task.tags : []))
           .map((tag) => (typeof tag === 'string' ? tag.trim() : ''))
-          .filter(Boolean)
-      )
+          .filter(Boolean),
+      ),
     ).sort();
 
     setTagOptions((prev) => (arraysEqual(prev, derivedTags) ? prev : derivedTags));
@@ -127,10 +129,11 @@ export function DashboardView({ user }) {
     });
     return map;
   }, [categories]);
+
   const taskStats = useMemo(() => {
     const total = allTasks.length;
-    const done = allTasks.filter(t => t.status === 'Done').length;
-    const inProgress = allTasks.filter(t => t.status === 'Inprogress').length;
+    const done = allTasks.filter((t) => t.status === 'Done').length;
+    const inProgress = allTasks.filter((t) => t.status === 'Inprogress').length;
     return { total, done, inProgress };
   }, [allTasks]);
 
@@ -139,18 +142,21 @@ export function DashboardView({ user }) {
       ? axios.put(`${API_URL}/UpdateTask/${taskToSave.id}`, taskToSave)
       : axios.post(`${API_URL}/CreateTask`, taskToSave);
 
-    apiCall.then(res => {
-      const savedTask = normalizeTask(res.data);
-      const updatedTasks = taskToSave.id
-        ? allTasks.map(t => t.id === savedTask.id ? savedTask : t)
-        : [...allTasks, savedTask];
-      setAllTasks(updatedTasks);
-    }).catch(error => {
-      console.error('Task save error:', error);
-      alert('タスクの保存に失敗しました。');
-    }).finally(() => {
-      setSelectedTask(null);
-    });
+    apiCall
+      .then((res) => {
+        const savedTask = normalizeTask(res.data);
+        const updatedTasks = taskToSave.id
+          ? allTasks.map((t) => (t.id === savedTask.id ? savedTask : t))
+          : [...allTasks, savedTask];
+        setAllTasks(updatedTasks);
+      })
+      .catch((error) => {
+        console.error('Task save error:', error);
+        alert(t('dashboard.saveError'));
+      })
+      .finally(() => {
+        setSelectedTask(null);
+      });
   };
 
   const handleOpenNewTaskModal = () => {
@@ -175,19 +181,19 @@ export function DashboardView({ user }) {
   };
 
   const highPriorityTasks = useMemo(
-    () => allTasks.filter(task => task.priority === 'High'),
-    [allTasks]
+    () => allTasks.filter((task) => task.priority === 'High'),
+    [allTasks],
   );
 
   const myTasks = useMemo(() => {
     if (!user || !user.userDetails) return [];
-    return allTasks.filter(task => Array.isArray(task.assignees) && task.assignees.includes(user.userDetails));
+    return allTasks.filter((task) => Array.isArray(task.assignees) && task.assignees.includes(user.userDetails));
   }, [allTasks, user]);
 
   const upcomingTasks = useMemo(() => {
     const today = startOfToday();
     const sevenDaysLater = addDays(today, 7);
-    return allTasks.filter(task => {
+    return allTasks.filter((task) => {
       if (!task.deadline) return false;
       const deadlineDate = new Date(task.deadline);
       return deadlineDate >= today && deadlineDate <= sevenDaysLater;
@@ -198,29 +204,35 @@ export function DashboardView({ user }) {
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
         <Typography variant="h4" component="h1" sx={{ flexGrow: 1 }}>
-          ダッシュボード
+          {t('nav.dashboard')}
         </Typography>
-        <IconButton onClick={() => setSettingsOpen(true)}>
+        <IconButton onClick={() => setSettingsOpen(true)} aria-label={t('dashboard.settingsTitle')}>
           <SettingsIcon />
         </IconButton>
       </Box>
 
       <Grid container spacing={3} sx={{ mb: 3 }}>
         <Grid item xs={12} sm={4}>
-          <StatCard title="総タスク数" value={taskStats.total} icon={<TaskIcon sx={{ fontSize: 40 }} />} />
+          <StatCard title={t('dashboard.total')} value={taskStats.total} icon={<TaskIcon sx={{ fontSize: 40 }} />} />
         </Grid>
         <Grid item xs={12} sm={4}>
-          <StatCard title="完了済" value={taskStats.done} icon={<TaskAltIcon sx={{ fontSize: 40 }} />} />
+          <StatCard title={t('dashboard.completed')} value={taskStats.done} icon={<TaskAltIcon sx={{ fontSize: 40 }} />} />
         </Grid>
         <Grid item xs={12} sm={4}>
-          <StatCard title="進行中" value={taskStats.inProgress} icon={<DonutLargeIcon sx={{ fontSize: 40 }} />} />
+          <StatCard
+            title={t('dashboard.inProgress')}
+            value={taskStats.inProgress}
+            icon={<DonutLargeIcon sx={{ fontSize: 40 }} />}
+          />
         </Grid>
       </Grid>
 
       <Grid container spacing={3}>
         <Grid item xs={12} md={8}>
           <Paper sx={{ p: 2, height: '60vh', minHeight: 500 }}>
-            <Typography variant="h6" gutterBottom>カレンダービュー</Typography>
+            <Typography variant="h6" gutterBottom>
+              {t('dashboard.calendar')}
+            </Typography>
             <TaskCalendar
               tasks={allTasks}
               categoryColors={categoryColorMap}
@@ -232,8 +244,13 @@ export function DashboardView({ user }) {
         {dashboardSettings.showHighPriority && (
           <Grid item xs={12} md={4}>
             <Paper sx={{ p: 2, height: 'auto', mb: 2 }}>
-              <Typography variant="h6" gutterBottom>重要度の高いタスク</Typography>
-              <DashboardTaskList tasks={highPriorityTasks} onTaskClick={(task) => setSelectedTask(normalizeTask(task))} />
+              <Typography variant="h6" gutterBottom>
+                {t('dashboard.highPriority')}
+              </Typography>
+              <DashboardTaskList
+                tasks={highPriorityTasks}
+                onTaskClick={(task) => setSelectedTask(normalizeTask(task))}
+              />
             </Paper>
           </Grid>
         )}
@@ -241,7 +258,7 @@ export function DashboardView({ user }) {
         {dashboardSettings.showMyTasks && (
           <Grid item xs={12} md={6}>
             <Paper sx={{ p: 2, height: 'auto' }}>
-              <Typography variant="h6">あなたの担当タスク</Typography>
+              <Typography variant="h6">{t('dashboard.myTasks')}</Typography>
               <DashboardTaskList tasks={myTasks} onTaskClick={(task) => setSelectedTask(normalizeTask(task))} />
             </Paper>
           </Grid>
@@ -250,7 +267,7 @@ export function DashboardView({ user }) {
         {dashboardSettings.showUpcoming && (
           <Grid item xs={12} md={6}>
             <Paper sx={{ p: 2, height: 'auto' }}>
-              <Typography variant="h6">7日以内に期限を迎えるタスク</Typography>
+              <Typography variant="h6">{t('dashboard.upcoming')}</Typography>
               <DashboardTaskList tasks={upcomingTasks} onTaskClick={(task) => setSelectedTask(normalizeTask(task))} />
             </Paper>
           </Grid>
@@ -259,7 +276,7 @@ export function DashboardView({ user }) {
 
       <Fab
         color="primary"
-        aria-label="add"
+        aria-label={t('dashboard.addTask')}
         sx={{ position: 'fixed', bottom: 32, right: 32 }}
         onClick={handleOpenNewTaskModal}
       >

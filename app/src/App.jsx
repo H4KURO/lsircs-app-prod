@@ -1,7 +1,7 @@
 // app/src/App.jsx
 
 import axios from "axios";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { TaskView } from "./TaskView";
 import { CustomerView } from "./CustomerView";
 import { InvoiceView } from "./InvoiceView";
@@ -21,6 +21,9 @@ import {
   Divider,
   Chip,
   ListItemIcon,
+  FormControl,
+  Select,
+  MenuItem,
 } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
 import GoogleIcon from "@mui/icons-material/Google";
@@ -30,6 +33,7 @@ import { SettingsView } from "./SettingsView";
 import SettingsIcon from "@mui/icons-material/Settings";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import { ProfileView } from "./ProfileView";
+import { useTranslation } from "react-i18next";
 
 const ALLOWED_VIEWS = new Set(["dashboard", "tasks", "customers", "invoices", "settings", "profile"]);
 
@@ -85,11 +89,13 @@ function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [deepLinkTaskId, setDeepLinkTaskId] = useState(initialLocation.taskId);
+  const { t, i18n } = useTranslation();
+  const [language, setLanguage] = useState(() => (i18n.language || "ja").split("-")[0]);
+
   useEffect(() => {
     const taskIdForSync = currentView === "tasks" ? deepLinkTaskId : null;
     syncLocation(currentView, taskIdForSync);
   }, [currentView, deepLinkTaskId]);
-
 
   useEffect(() => {
     async function fetchUser() {
@@ -101,6 +107,7 @@ function App() {
         console.error("No user logged in", error);
       }
     }
+
     fetchUser();
   }, []);
 
@@ -114,8 +121,21 @@ function App() {
     });
   }, [user]);
 
+  useEffect(() => {
+    const handleLanguageChanged = (lng) => {
+      if (typeof lng === "string") {
+        setLanguage(lng.split("-")[0]);
+      }
+    };
+
+    i18n.on("languageChanged", handleLanguageChanged);
+    return () => {
+      i18n.off("languageChanged", handleLanguageChanged);
+    };
+  }, [i18n]);
+
   const handleDrawerToggle = () => {
-    setDrawerOpen(!drawerOpen);
+    setDrawerOpen((prev) => !prev);
   };
 
   const handleViewChange = (nextView) => {
@@ -133,18 +153,30 @@ function App() {
     }
   };
 
-  const menuItems = [
-    { text: "ダッシュボード", view: "dashboard" },
-    { text: "タスク管理", view: "tasks" },
-    { text: "顧客管理", view: "customers" },
-    { text: "請求書管理", view: "invoices" },
-    { text: "設定", view: "settings", icon: <SettingsIcon /> },
-  ];
+  const handleLanguageChange = (event) => {
+    const nextLang = event.target.value;
+    setLanguage(nextLang);
+    i18n.changeLanguage(nextLang);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("appLanguage", nextLang);
+    }
+  };
+
+  const menuItems = useMemo(
+    () => [
+      { text: t("nav.dashboard"), view: "dashboard" },
+      { text: t("nav.tasks"), view: "tasks" },
+      { text: t("nav.customers"), view: "customers" },
+      { text: t("nav.invoices"), view: "invoices" },
+      { text: t("nav.settings"), view: "settings", icon: <SettingsIcon /> },
+    ],
+    [t],
+  );
 
   const loginMenu = (
     <Box sx={{ p: 2, textAlign: "center" }}>
       <Typography variant="subtitle2" sx={{ mb: 2 }}>
-        ログインしてください
+        {t("auth.signInPrompt")}
       </Typography>
       <List>
         <ListItem disablePadding>
@@ -152,7 +184,7 @@ function App() {
             <ListItemIcon>
               <GoogleIcon />
             </ListItemIcon>
-            <ListItemText primary="Googleでログイン" />
+            <ListItemText primary={t("auth.google")} />
           </ListItemButton>
         </ListItem>
         <ListItem disablePadding>
@@ -160,7 +192,7 @@ function App() {
             <ListItemIcon>
               <MicrosoftIcon />
             </ListItemIcon>
-            <ListItemText primary="Microsoftでログイン" />
+            <ListItemText primary={t("auth.microsoft")} />
           </ListItemButton>
         </ListItem>
       </List>
@@ -171,7 +203,7 @@ function App() {
     <Box sx={{ overflow: "auto" }}>
       <List>
         {menuItems.map((item) => (
-          <ListItem key={item.text} disablePadding>
+          <ListItem key={item.view} disablePadding>
             <ListItemButton
               onClick={() => {
                 handleViewChange(item.view);
@@ -195,7 +227,7 @@ function App() {
             <ListItemIcon>
               <AccountCircleIcon />
             </ListItemIcon>
-            <ListItemText primary="プロフィール設定" />
+            <ListItemText primary={t("nav.profile")} />
           </ListItemButton>
         </ListItem>
         <ListItem disablePadding>
@@ -203,7 +235,7 @@ function App() {
             <ListItemIcon>
               <LogoutIcon />
             </ListItemIcon>
-            <ListItemText primary="ログアウト" />
+            <ListItemText primary={t("auth.logout")} />
           </ListItemButton>
         </ListItem>
       </List>
@@ -212,7 +244,7 @@ function App() {
 
   const renderView = () => {
     if (!user) {
-      return <Typography>ようこそ。メニューからログインしてください。</Typography>;
+      return <Typography>{t("auth.welcome")}</Typography>;
     }
 
     switch (currentView) {
@@ -254,8 +286,23 @@ function App() {
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            {t('app.title')}
+            {t("app.title")}
           </Typography>
+          <FormControl
+            size="small"
+            variant="standard"
+            sx={{
+              minWidth: 120,
+              mr: user ? 2 : 0,
+              "& .MuiInputBase-root": { color: "inherit" },
+              "& .MuiSvgIcon-root": { color: "inherit" },
+            }}
+          >
+            <Select value={language} onChange={handleLanguageChange} disableUnderline>
+              <MenuItem value="ja">{t("language.ja")}</MenuItem>
+              <MenuItem value="en">{t("language.en")}</MenuItem>
+            </Select>
+          </FormControl>
           {user && <Chip label={user.userDetails} color="info" />}
         </Toolbar>
       </AppBar>
@@ -280,7 +327,7 @@ function App() {
           width: "100%",
           px: { xs: 2, md: 4 },
           pb: 6,
-          overflowY: 'auto',
+          overflowY: "auto",
         }}
       >
         <Box
@@ -302,4 +349,3 @@ function App() {
 }
 
 export default App;
-
