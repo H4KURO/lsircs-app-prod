@@ -18,13 +18,8 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
+import { useTranslation } from 'react-i18next';
 import { normalizeTask, generateSubtaskId } from './taskUtils';
-
-const importanceOptions = [
-  { label: '高', value: 2 },
-  { label: '中', value: 1 },
-  { label: '低', value: 0 },
-];
 
 const createBlankSubtask = () => ({
   id: generateSubtaskId(),
@@ -41,6 +36,16 @@ export function TaskDetailModal({
   tagOptions,
   automationRules = [],
 }) {
+  const { t } = useTranslation();
+  const importanceOptions = useMemo(
+    () => [
+      { label: t('taskDetail.importanceHigh'), value: 2 },
+      { label: t('taskDetail.importanceMedium'), value: 1 },
+      { label: t('taskDetail.importanceLow'), value: 0 },
+    ],
+    [t],
+  );
+
   const [editableTask, setEditableTask] = useState(() => normalizeTask(task));
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
 
@@ -128,22 +133,34 @@ export function TaskDetailModal({
     const currentSubtasks = Array.isArray(editableTask.subtasks) ? editableTask.subtasks : [];
     const merged = mergeAutomationTemplates(currentTags, currentSubtasks);
     if (merged !== currentSubtasks) {
-      setEditableTask((prev) => ({ ...prev, subtasks: merged }));
+      setEditableTask((prev) => ({
+        ...prev,
+        subtasks: merged,
+      }));
     }
-  }, [automationRules, editableTask.tags, editableTask.subtasks]);
+  }, [automationRuleMap, automationRules, editableTask.tags, editableTask.subtasks]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
-    setEditableTask((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubtaskTitleChange = (subtaskId, value) => {
     setEditableTask((prev) => ({
       ...prev,
-      subtasks: (Array.isArray(prev.subtasks) ? prev.subtasks : []).map((subtask) =>
-        subtask.id === subtaskId ? { ...subtask, title: value } : subtask,
-      ),
+      [name]: value,
     }));
+  };
+
+  const handleSubmit = () => {
+    const sanitizedSubtasks = (Array.isArray(editableTask.subtasks) ? editableTask.subtasks : []).map(
+      (subtask, index) => ({
+        ...subtask,
+        title: subtask.title?.trim() || '',
+        order: index,
+      }),
+    );
+
+    onSave({
+      ...editableTask,
+      subtasks: sanitizedSubtasks,
+    });
   };
 
   const handleToggleSubtask = (subtaskId) => {
@@ -159,6 +176,15 @@ export function TaskDetailModal({
     setEditableTask((prev) => ({
       ...prev,
       subtasks: (Array.isArray(prev.subtasks) ? prev.subtasks : []).filter((subtask) => subtask.id !== subtaskId),
+    }));
+  };
+
+  const handleSubtaskTitleChange = (subtaskId, value) => {
+    setEditableTask((prev) => ({
+      ...prev,
+      subtasks: (Array.isArray(prev.subtasks) ? prev.subtasks : []).map((subtask) =>
+        subtask.id === subtaskId ? { ...subtask, title: value } : subtask,
+      ),
     }));
   };
 
@@ -182,29 +208,30 @@ export function TaskDetailModal({
     setNewSubtaskTitle('');
   };
 
-  const handleSubmit = () => {
-    const sanitizedSubtasks = (Array.isArray(editableTask.subtasks) ? editableTask.subtasks : []).map(
-      (subtask, index) => ({
-        ...subtask,
-        title: subtask.title?.trim() || '',
-        order: index,
-      }),
-    );
-
-    onSave({
-      ...editableTask,
-      subtasks: sanitizedSubtasks,
-    });
-  };
-
   const completedCount = subtasks.filter((subtask) => subtask.completed).length;
 
   return (
     <Dialog open onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>{task.id ? 'タスク詳細の編集' : '新規タスク作成'}</DialogTitle>
+      <DialogTitle>{task.id ? t('taskDetail.editTitle') : t('taskDetail.createTitle')}</DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 3, paddingTop: '10px !important', mt: 1 }}>
-        <TextField label="タイトル" name="title" value={editableTask.title || ''} onChange={handleChange} variant="outlined" fullWidth />
-        <TextField label="説明" name="description" value={editableTask.description || ''} onChange={handleChange} variant="outlined" multiline rows={4} fullWidth />
+        <TextField
+          label={t('taskDetail.title')}
+          name="title"
+          value={editableTask.title || ''}
+          onChange={handleChange}
+          variant="outlined"
+          fullWidth
+        />
+        <TextField
+          label={t('taskDetail.description')}
+          name="description"
+          value={editableTask.description || ''}
+          onChange={handleChange}
+          variant="outlined"
+          multiline
+          rows={4}
+          fullWidth
+        />
 
         <Autocomplete
           options={importanceOptions}
@@ -213,17 +240,19 @@ export function TaskDetailModal({
           onChange={(event, newValue) => {
             setEditableTask((prev) => ({ ...prev, importance: newValue ? newValue.value : 1 }));
           }}
-          renderInput={(params) => <TextField {...params} label="重要度" />}
+          renderInput={(params) => <TextField {...params} label={t('taskDetail.importance')} />}
         />
 
         <Autocomplete
           options={categoryOptions}
           value={editableTask.category || null}
           onChange={(event, newValue) => {
-            setEditableTask((prev) => ({ ...prev, category: newValue || null }));
+            setEditableTask((prev) => ({
+              ...prev,
+              category: typeof newValue === 'string' ? newValue : newValue || null,
+            }));
           }}
-          freeSolo
-          renderInput={(params) => <TextField {...params} label="カテゴリ" />}
+          renderInput={(params) => <TextField {...params} label={t('taskDetail.category')} />}
         />
 
         <Autocomplete
@@ -247,7 +276,13 @@ export function TaskDetailModal({
               <Chip variant="outlined" label={option} {...getTagProps({ index })} />
             ))
           }
-          renderInput={(params) => <TextField {...params} label="担当者" placeholder="担当者を入力または選択..." />}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              label={t('taskDetail.assignees')}
+              placeholder={t('taskDetail.assigneesPlaceholder')}
+            />
+          )}
         />
 
         <Autocomplete
@@ -279,16 +314,29 @@ export function TaskDetailModal({
               <Chip variant="outlined" label={option} {...getTagProps({ index })} />
             ))
           }
-          renderInput={(params) => <TextField {...params} label="タグ" placeholder="タグを入力..." />}
+          renderInput={(params) => (
+            <TextField {...params} label={t('taskDetail.tags')} placeholder={t('taskDetail.tagsPlaceholder')} />
+          )}
         />
 
-        <TextField label="期限" name="deadline" type="date" value={editableTask.deadline ? editableTask.deadline.split('T')[0] : ''} onChange={handleChange} InputLabelProps={{ shrink: true }} fullWidth />
+        <TextField
+          label={t('taskDetail.deadline')}
+          name="deadline"
+          type="date"
+          value={editableTask.deadline ? editableTask.deadline.split('T')[0] : ''}
+          onChange={handleChange}
+          InputLabelProps={{ shrink: true }}
+          fullWidth
+        />
 
         <Divider />
         <Box>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-            <Typography variant="h6">サブタスク</Typography>
-            <Chip label={`${completedCount}/${subtasks.length} 完了`} size="small" />
+            <Typography variant="h6">{t('taskDetail.subtasks')}</Typography>
+            <Chip
+              label={t('taskDetail.subtasksProgress', { completed: completedCount, total: subtasks.length })}
+              size="small"
+            />
           </Box>
           <Stack spacing={1.5}>
             {subtasks.map((subtask) => (
@@ -306,26 +354,35 @@ export function TaskDetailModal({
                   <Checkbox
                     checked={Boolean(subtask.completed)}
                     onChange={() => handleToggleSubtask(subtask.id)}
-                    inputProps={{ 'aria-label': 'サブタスクの完了' }}
+                    inputProps={{ 'aria-label': t('taskDetail.toggleSubtask') }}
                   />
                   <TextField
                     fullWidth
                     value={subtask.title || ''}
                     onChange={(event) => handleSubtaskTitleChange(subtask.id, event.target.value)}
-                    placeholder="サブタスク名を入力"
+                    placeholder={t('taskDetail.subtaskPlaceholder')}
                     size="small"
                   />
                 </Box>
-                <IconButton edge="end" aria-label="サブタスクを削除" onClick={() => handleRemoveSubtask(subtask.id)}>
+                <IconButton
+                  edge="end"
+                  aria-label={t('taskDetail.removeSubtask')}
+                  onClick={() => handleRemoveSubtask(subtask.id)}
+                >
                   <DeleteIcon fontSize="small" />
                 </IconButton>
               </Box>
             ))}
           </Stack>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ xs: 'stretch', sm: 'center' }} sx={{ mt: 2 }}>
+          <Stack
+            direction={{ xs: 'column', sm: 'row' }}
+            spacing={1.5}
+            alignItems={{ xs: 'stretch', sm: 'center' }}
+            sx={{ mt: 2 }}
+          >
             <TextField
-              label="サブタスクを追加"
-              placeholder="サブタスク名"
+              label={t('taskDetail.addSubtaskLabel')}
+              placeholder={t('taskDetail.subtaskPlaceholder')}
               size="small"
               fullWidth
               value={newSubtaskTitle}
@@ -338,18 +395,17 @@ export function TaskDetailModal({
               }}
             />
             <Button variant="outlined" startIcon={<AddIcon />} onClick={handleQuickAddSubtask}>
-              追加
+              {t('taskDetail.addSubtaskButton')}
             </Button>
           </Stack>
         </Box>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>キャンセル</Button>
+        <Button onClick={onClose}>{t('taskDetail.cancel')}</Button>
         <Button onClick={handleSubmit} variant="contained">
-          保存
+          {t('taskDetail.save')}
         </Button>
       </DialogActions>
     </Dialog>
   );
 }
-
