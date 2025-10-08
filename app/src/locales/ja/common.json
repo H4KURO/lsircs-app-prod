@@ -1,0 +1,51 @@
+{
+  "nav": {
+    "dashboard": "ダッシュボード",
+    "tasks": "タスク管理",
+    "customers": "顧客管理",
+    "invoices": "請求書管理",
+    "settings": "設定",
+    "profile": "プロフィール設定"
+  },
+  "auth": {
+    "signInPrompt": "ログインしてください",
+    "google": "Googleでログイン",
+    "microsoft": "Microsoftでログイン",
+    "welcome": "ようこそ。メニューからログインしてください。",
+    "logout": "ログアウト"
+  },
+  "app": {
+    "title": "LSIRCS アプリ"
+  },
+  "language": {
+    "label": "表示言語",
+    "ja": "日本語",
+    "en": "英語"
+  },
+  "dashboard": {
+    "saveError": "タスクの保存に失敗しました。",
+    "total": "総タスク数",
+    "completed": "完了済",
+    "inProgress": "進行中",
+    "calendar": "カレンダービュー",
+    "highPriority": "重要度の高いタスク",
+    "myTasks": "あなたの担当タスク",
+    "upcoming": "期日の近いタスク",
+    "noTasks": "対象のタスクはありません。",
+    "due": "締切: {{date}}",
+    "settingsTitle": "ダッシュボードに表示するカードを選択"
+  },
+  "common": {
+    "cancel": "キャンセル",
+    "save": "保存"
+  },
+  "calendar": {
+    "next": "次",
+    "previous": "前",
+    "today": "今日",
+    "month": "月",
+    "week": "週",
+    "day": "日",
+    "agenda": "予定表"
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "tasks": "Task Management",
+    "customers": "Customer Management",
+    "invoices": "Invoice Management",
+    "settings": "Settings",
+    "profile": "Profile Settings"
+  },
+  "auth": {
+    "signInPrompt": "Please sign in",
+    "google": "Sign in with Google",
+    "microsoft": "Sign in with Microsoft",
+    "welcome": "Welcome. Please sign in from the menu.",
+    "logout": "Log out"
+  },
+  "app": {
+    "title": "LSIRCS App"
+  },
+  "language": {
+    "label": "Language",
+    "ja": "Japanese",
+    "en": "English"
+  },
+  "dashboard": {
+    "saveError": "Failed to save the task.",
+    "total": "Total Tasks",
+    "completed": "Completed",
+    "inProgress": "In Progress",
+    "calendar": "Calendar View",
+    "highPriority": "High Priority Tasks",
+    "myTasks": "My Tasks",
+    "upcoming": "Upcoming Deadlines",
+    "noTasks": "No tasks to display.",
+    "due": "Due: {{date}}",
+    "settingsTitle": "Select the cards to show on the dashboard"
+  },
+  "common": {
+    "cancel": "Cancel",
+    "save": "Save"
+  },
+  "calendar": {
+    "next": "Next",
+    "previous": "Prev",
+    "today": "Today",
+    "month": "Month",
+    "week": "Week",
+    "day": "Day",
+    "agenda": "Agenda"
+  }
+}

@@ -254,7 +254,7 @@ function App() {
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            LSIRCS アプリ
+            {t('app.title')}
           </Typography>
           {user && <Chip label={user.userDetails} color="info" />}
         </Toolbar>
