@@ -1,95 +1,211 @@
 // app/src/InvoiceView.jsx
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { InvoiceDetailModal } from './InvoiceDetailModal'; // 作成したモーダルをインポート
+import {
+  Box,
+  Paper,
+  Typography,
+  TextField,
+  Button,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemText,
+  IconButton,
+} from '@mui/material';
+import DeleteIcon from '@mui/icons-material/Delete';
+import { useTranslation } from 'react-i18next';
+import { InvoiceDetailModal } from './InvoiceDetailModal';
 
 const API_URL = '/api';
 
+const normalizeCurrencyLocale = (language) => {
+  if (!language) {
+    return { locale: 'ja-JP', currency: 'JPY' };
+  }
+  const base = language.split('-')[0];
+  switch (base) {
+    case 'en':
+      return { locale: 'en-US', currency: 'USD' };
+    case 'ja':
+    default:
+      return { locale: 'ja-JP', currency: 'JPY' };
+  }
+};
+
+const normalizeStatusKey = (status) =>
+  typeof status === 'string' && status.trim() ? status.trim().toLowerCase() : 'unknown';
+
 export function InvoiceView() {
+  const { t, i18n } = useTranslation();
   const [invoices, setInvoices] = useState([]);
   const [customers, setCustomers] = useState([]);
-  const [newInvoice, setNewInvoice] = useState({ customerId: '', amount: 0 });
-  const [selectedInvoice, setSelectedInvoice] = useState(null); // 編集用モーダルのstate
+  const [newInvoice, setNewInvoice] = useState({ customerId: '', amount: '' });
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+
+  const { locale, currency } = useMemo(() => normalizeCurrencyLocale(i18n.language), [i18n.language]);
+
+  const currencyFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat(locale, {
+        style: 'currency',
+        currency,
+        maximumFractionDigits: 0,
+      }),
+    [locale, currency],
+  );
+
+  const formatAmount = (value) => {
+    const numeric = Number(value ?? 0);
+    if (Number.isNaN(numeric)) {
+      return currencyFormatter.format(0);
+    }
+    return currencyFormatter.format(numeric);
+  };
+
+  const getStatusLabel = (status) => {
+    const key = normalizeStatusKey(status);
+    const translated = t(`invoiceView.status.${key}`, { defaultValue: '' }).trim();
+    return translated || status || t('invoiceView.status.unknown');
+  };
 
   useEffect(() => {
-    axios.get(`${API_URL}/GetInvoices`).then(res => setInvoices(res.data));
-    axios.get(`${API_URL}/GetCustomers`).then(res => setCustomers(res.data));
+    Promise.all([
+      axios.get(`${API_URL}/GetInvoices`),
+      axios.get(`${API_URL}/GetCustomers`),
+    ]).then(([invoiceRes, customerRes]) => {
+      setInvoices(invoiceRes.data ?? []);
+      setCustomers(customerRes.data ?? []);
+    });
   }, []);
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setNewInvoice(prev => ({ ...prev, [name]: value }));
+  const handleInputChange = (event) => {
+    const { name, value } = event.target;
+    setNewInvoice((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleCreate = (e) => {
-    e.preventDefault();
-    if (!newInvoice.customerId || newInvoice.amount <= 0) {
-      alert("顧客を選択し、金額を正しく入力してください。");
+  const handleCreate = (event) => {
+    event.preventDefault();
+    const amountValue = Number(newInvoice.amount);
+    if (!newInvoice.customerId || Number.isNaN(amountValue) || amountValue <= 0) {
+      alert(t('invoiceView.form.validation'));
       return;
     }
-    axios.post(`${API_URL}/CreateInvoice`, newInvoice).then(res => {
-      setInvoices([...invoices, res.data]);
-      setNewInvoice({ customerId: '', amount: 0 });
-    });
-  };
-
-  // ▼▼▼ 更新と削除の処理を追加 ▼▼▼
-  const handleUpdate = (invoiceToUpdate) => {
-    axios.put(`${API_URL}/UpdateInvoice/${invoiceToUpdate.id}`, invoiceToUpdate).then(res => {
-      setInvoices(invoices.map(inv => inv.id === invoiceToUpdate.id ? res.data : inv));
-      setSelectedInvoice(null); // モーダルを閉じる
-    });
+    axios
+      .post(`${API_URL}/CreateInvoice`, { ...newInvoice, amount: amountValue })
+      .then((res) => {
+        setInvoices((prev) => [...prev, res.data]);
+        setNewInvoice({ customerId: '', amount: '' });
+      });
   };
 
   const handleDelete = (idToDelete) => {
-    // 削除前に確認ダイアログを表示
-    if (window.confirm("この請求書を本当に削除しますか？")) {
-      axios.delete(`${API_URL}/DeleteInvoice/${idToDelete}`).then(() => {
-        setInvoices(invoices.filter(inv => inv.id !== idToDelete));
-      });
+    if (!window.confirm(t('invoiceView.deleteConfirm'))) {
+      return;
     }
+    axios.delete(`${API_URL}/DeleteInvoice/${idToDelete}`).then(() => {
+      setInvoices((prev) => prev.filter((invoice) => invoice.id !== idToDelete));
+    });
+  };
+
+  const handleUpdate = (invoiceToUpdate) => {
+    axios.put(`${API_URL}/UpdateInvoice/${invoiceToUpdate.id}`, invoiceToUpdate).then((res) => {
+      setInvoices((prev) => prev.map((invoice) => (invoice.id === invoiceToUpdate.id ? res.data : invoice)));
+      setSelectedInvoice(null);
+    });
+  };
+
+  const findCustomerName = (customerId) =>
+    customers.find((customer) => customer.id === customerId)?.name || t('invoiceView.list.unknownCustomer');
+
+  const renderInvoiceSecondary = (invoice) => {
+    const amountText = t('invoiceView.list.amount', { amount: formatAmount(invoice.amount) });
+    const statusText = t('invoiceView.list.status', { status: getStatusLabel(invoice.status) });
+    return `${amountText} / ${statusText}`;
   };
 
   return (
-    <div>
-      <h2>請求書管理</h2>
-      <form onSubmit={handleCreate} className="task-form">
-        <select name="customerId" value={newInvoice.customerId} onChange={handleInputChange} required>
-          <option value="">顧客を選択</option>
-          {customers.map(customer => (
-            <option key={customer.id} value={customer.id}>{customer.name}</option>
-          ))}
-        </select>
-        <input
-          type="number"
-          name="amount"
-          value={newInvoice.amount}
-          onChange={handleInputChange}
-          placeholder="金額"
-          required
-        />
-        <button type="submit">請求書作成</button>
-      </form>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <Typography variant="h4" component="h1" gutterBottom>
+        {t('invoiceView.title')}
+      </Typography>
 
-      <div className="task-list">
-        <ul>
-          {invoices.map(invoice => (
-            <li key={invoice.id}>
-              {/* 請求書をクリックで詳細編集モーダルを開く */}
-              <span className="task-title" onClick={() => setSelectedInvoice(invoice)}>
-                <strong>顧客: {customers.find(c => c.id === invoice.customerId)?.name || '不明'}</strong>
-                - 金額: {invoice.amount.toLocaleString()}円 - ステータス: {invoice.status}
-              </span>
-              <div className="task-buttons">
-                <button onClick={() => handleDelete(invoice.id)} className="delete-button">削除</button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </div>
+      <Paper elevation={2} sx={{ p: 2 }}>
+        <Typography variant="h6" gutterBottom>
+          {t('invoiceView.form.title')}
+        </Typography>
+        <Box component="form" onSubmit={handleCreate} sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+          <FormControl size="small" sx={{ minWidth: 200 }}>
+            <InputLabel id="invoice-customer-label">{t('invoiceView.form.customerLabel')}</InputLabel>
+            <Select
+              labelId="invoice-customer-label"
+              name="customerId"
+              value={newInvoice.customerId}
+              label={t('invoiceView.form.customerLabel')}
+              onChange={handleInputChange}
+              required
+            >
+              <MenuItem value="">
+                {t('invoiceView.form.customerPlaceholder')}
+              </MenuItem>
+              {customers.map((customer) => (
+                <MenuItem key={customer.id} value={customer.id}>
+                  {customer.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <TextField
+            type="number"
+            name="amount"
+            size="small"
+            label={t('invoiceView.form.amountLabel')}
+            placeholder={t('invoiceView.form.amountPlaceholder')}
+            value={newInvoice.amount}
+            onChange={handleInputChange}
+            inputProps={{ min: 0, step: 1 }}
+            sx={{ minWidth: 160 }}
+            required
+          />
+          <Button type="submit" variant="contained" sx={{ alignSelf: 'center' }}>
+            {t('invoiceView.form.submit')}
+          </Button>
+        </Box>
+      </Paper>
 
-      {/* 選択された請求書があればモーダルを表示 */}
+      <Paper elevation={2} sx={{ p: 2 }}>
+        <Typography variant="h6" gutterBottom>
+          {t('invoiceView.list.title')}
+        </Typography>
+        {invoices.length === 0 ? (
+          <Typography variant="body2" color="text.secondary">
+            {t('invoiceView.list.empty')}
+          </Typography>
+        ) : (
+          <List>
+            {invoices.map((invoice) => (
+              <ListItem key={invoice.id} disableGutters secondaryAction={
+                <IconButton edge="end" aria-label={t('invoiceView.list.delete')} onClick={() => handleDelete(invoice.id)}>
+                  <DeleteIcon />
+                </IconButton>
+              }>
+                <ListItemButton onClick={() => setSelectedInvoice(invoice)}>
+                  <ListItemText
+                    primary={t('invoiceView.list.customer', { name: findCustomerName(invoice.customerId) })}
+                    secondary={renderInvoiceSecondary(invoice)}
+                  />
+                </ListItemButton>
+              </ListItem>
+            ))}
+          </List>
+        )}
+      </Paper>
+
       {selectedInvoice && (
         <InvoiceDetailModal
           invoice={selectedInvoice}
@@ -98,6 +214,9 @@ export function InvoiceView() {
           onClose={() => setSelectedInvoice(null)}
         />
       )}
-    </div>
+    </Box>
   );
 }
+
+
+
