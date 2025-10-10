@@ -47,5 +47,99 @@
     "week": "週",
     "day": "日",
     "agenda": "予定表"
+  },
+  "customerView": {
+    "title": "顧客管理",
+    "newSection": {
+      "title": "新規顧客の追加",
+      "placeholder": "顧客名",
+      "submit": "追加"
+    },
+    "filters": {
+      "title": "フィルター",
+      "namePlaceholder": "名称で検索",
+      "assigneePlaceholder": "担当者で検索",
+      "sortByName": "名前順",
+      "sortByPrice": "金額順"
+    },
+    "list": {
+      "title": "顧客一覧",
+      "assignee": "担当者: {{name}}",
+      "unassigned": "未担当"
+    }
+  },
+  "taskView": {
+    "description": "カテゴリやタグごとにチームの状況を把握できます。表示ビューはユーザーごとに自動保存されます。",
+    "actions": {
+      "addTask": "タスクを追加",
+      "resetCategories": "すべて表示",
+      "edit": "編集",
+      "delete": "削除"
+    },
+    "alerts": {
+      "saveFailed": "タスクの保存に失敗しました。",
+      "subtaskUpdateFailed": "サブタスクの更新に失敗しました。"
+    },
+    "statuses": {
+      "started": "着手前",
+      "inProgress": "進行中",
+      "done": "完了",
+      "unknown": "ステータス未設定"
+    },
+    "sortModes": {
+      "statusDeadline": "ステータス → 期限（昇順）",
+      "deadlineAsc": "期限が早い順",
+      "deadlineDesc": "期限が遅い順",
+      "titleAsc": "タイトル順"
+    },
+    "layouts": {
+      "category": "カテゴリ × タグ",
+      "status": "進捗（ステータス）",
+      "assignee": "担当者"
+    },
+    "labels": {
+      "categoryUnset": "カテゴリ未設定",
+      "tagUnset": "タグ未設定",
+      "unassignedAssignee": "未担当",
+      "untitledTask": "タイトル未設定",
+      "untitledSubtask": "未設定のサブタスク",
+      "assignees": "担当: {{names}}",
+      "deadline": "期限: {{date}}",
+      "status": "進捗: {{status}}",
+      "subtaskSummary": "サブタスク: {{completed}}/{{total}}",
+      "noSubtasks": "サブタスクはまだありません。",
+      "itemCount": "{{count}} 件",
+      "totalCount": "総数 {{count}} 件",
+      "statusCount": "{{status}}: {{count}} 件",
+      "saving": "ビュー設定を保存中…",
+      "saved": "ビュー設定は最新です",
+      "toggleUnassigned": "未担当の列を表示",
+      "viewLabel": "ビュー",
+      "categorySelectLabel": "カテゴリ選択",
+      "categoryPlaceholder": "カテゴリ名",
+      "sortModeLabel": "並び順",
+      "assigneeSelectLabel": "担当者選択",
+      "assigneePlaceholder": "担当者名",
+      "categoryListTitle": "カテゴリ一覧",
+      "categoryListEmpty": "データを読み込むとカテゴリ一覧を表示します。",
+      "taskListTitle": "タスク一覧",
+      "taskListDescription": "選択したビューに応じてタスクを表示します。並び替えは右のメニューから変更できます。",
+      "statusSummaryTitle": "進捗サマリー",
+      "statusSummaryEmpty": "タスクを登録するとステータスの件数を表示します。",
+      "upcomingTitle": "直近の期限",
+      "upcomingEmpty": "近日中に期限を迎えるタスクはありません。"
+    },
+    "messages": {
+      "selectCategoriesPrompt": "表示したいカテゴリを選択してください。左のメニューからカテゴリを指定できます。",
+      "noTasksRegistered": "タスクはまだ登録されていません。",
+      "noTaggedTasks": "タグに紐づいたタスクはありません。",
+      "noTasksInSection": "タスクはありません。",
+      "noTasksToShow": "表示できるタスクがありません。"
+    },
+    "nav": {
+      "title": "表示設定",
+      "description": "表示するカテゴリや並び順、レイアウトを指定できます。設定はユーザーごとに自動保存されます。"
+    },
+    "footer": "表示内容は自動保存されます。ビューを切り替えてチームの状況を確認しましょう。"
   }
 }

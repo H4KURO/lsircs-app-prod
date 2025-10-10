@@ -47,5 +47,99 @@
     "week": "Week",
     "day": "Day",
     "agenda": "Agenda"
+  },
+  "customerView": {
+    "title": "Customer Management",
+    "newSection": {
+      "title": "Add New Customer",
+      "placeholder": "Customer name",
+      "submit": "Add"
+    },
+    "filters": {
+      "title": "Filters",
+      "namePlaceholder": "Search by name",
+      "assigneePlaceholder": "Search by assignee",
+      "sortByName": "Sort by name",
+      "sortByPrice": "Sort by price"
+    },
+    "list": {
+      "title": "Customer List",
+      "assignee": "Assignee: {{name}}",
+      "unassigned": "Unassigned"
+    }
+  },
+  "taskView": {
+    "description": "Track your team by category and tag. Each user’s view is saved automatically.",
+    "actions": {
+      "addTask": "Add Task",
+      "resetCategories": "Show All",
+      "edit": "Edit",
+      "delete": "Delete"
+    },
+    "alerts": {
+      "saveFailed": "Failed to save the task.",
+      "subtaskUpdateFailed": "Failed to update the subtask."
+    },
+    "statuses": {
+      "started": "Not Started",
+      "inProgress": "In Progress",
+      "done": "Completed",
+      "unknown": "Status not set"
+    },
+    "sortModes": {
+      "statusDeadline": "Status → Due date (asc)",
+      "deadlineAsc": "Earliest due date",
+      "deadlineDesc": "Latest due date",
+      "titleAsc": "Title (A→Z)"
+    },
+    "layouts": {
+      "category": "Category × Tag",
+      "status": "Status",
+      "assignee": "Assignee"
+    },
+    "labels": {
+      "categoryUnset": "No category",
+      "tagUnset": "No tag",
+      "unassignedAssignee": "Unassigned",
+      "untitledTask": "Untitled task",
+      "untitledSubtask": "Untitled subtask",
+      "assignees": "Assignees: {{names}}",
+      "deadline": "Due: {{date}}",
+      "status": "Status: {{status}}",
+      "subtaskSummary": "Subtasks: {{completed}}/{{total}}",
+      "noSubtasks": "No subtasks yet.",
+      "itemCount": "{{count}} tasks",
+      "totalCount": "Total {{count}} tasks",
+      "statusCount": "{{status}}: {{count}} tasks",
+      "saving": "Saving view preferences…",
+      "saved": "View preferences are up to date",
+      "toggleUnassigned": "Show unassigned column",
+      "viewLabel": "View",
+      "categorySelectLabel": "Select categories",
+      "categoryPlaceholder": "Category name",
+      "sortModeLabel": "Sort by",
+      "assigneeSelectLabel": "Select assignees",
+      "assigneePlaceholder": "Assignee name",
+      "categoryListTitle": "Category overview",
+      "categoryListEmpty": "Categories will appear after loading data.",
+      "taskListTitle": "Task list",
+      "taskListDescription": "Tasks are displayed according to the selected view. Use the right menu to adjust sorting.",
+      "statusSummaryTitle": "Status summary",
+      "statusSummaryEmpty": "Add tasks to see the status counts.",
+      "upcomingTitle": "Upcoming deadlines",
+      "upcomingEmpty": "No tasks with upcoming deadlines."
+    },
+    "messages": {
+      "selectCategoriesPrompt": "Select the categories you want to view. Use the left menu to adjust the selection.",
+      "noTasksRegistered": "No tasks have been registered yet.",
+      "noTaggedTasks": "No tasks are linked to this tag.",
+      "noTasksInSection": "No tasks.",
+      "noTasksToShow": "No tasks to display."
+    },
+    "nav": {
+      "title": "Display settings",
+      "description": "Choose categories, sort order, and layout. Preferences are saved per user."
+    },
+    "footer": "Your selections are saved automatically. Switch views to review your team’s progress."
   }
 }
