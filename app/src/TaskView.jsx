@@ -27,6 +27,8 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import CircleIcon from '@mui/icons-material/Circle';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import { TaskDetailModal } from './TaskDetailModal';
 import {
   normalizeTask,
@@ -725,6 +727,36 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
     setSelectedTask(normalizeTask(task));
   }, []);
 
+  const handleMoveCategory = useCallback(
+    (category, direction) => {
+      if (!category) {
+        return;
+      }
+      updatePreferences((prev) => {
+        const baseList = prev.selectedCategories.length === 0 ? derivedCategories : prev.selectedCategories;
+        if (!Array.isArray(baseList) || baseList.length === 0) {
+          return prev;
+        }
+        const current = [...baseList];
+        const index = current.indexOf(category);
+        if (index === -1) {
+          return prev;
+        }
+        const targetIndex = index + direction;
+        if (targetIndex < 0 || targetIndex >= current.length) {
+          return prev;
+        }
+        const [moved] = current.splice(index, 1);
+        current.splice(targetIndex, 0, moved);
+        return {
+          ...prev,
+          selectedCategories: current,
+        };
+      });
+    },
+    [derivedCategories, updatePreferences],
+  );
+
   const handleCategorySelectionChange = (event, newValue) => {
     updatePreferences((prev) => ({
       ...prev,
@@ -1273,23 +1305,63 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
             <Typography variant="subtitle2" sx={{ mb: 1 }}>
               カテゴリ一覧
             </Typography>
+            <Typography variant="caption" color="text.secondary">
+              矢印ボタンで表示順を変更できます。
+            </Typography>
             <Stack spacing={1.5}>
               {navCategories.length > 0 ? (
-                navCategories.map((category) => {
+                navCategories.map((category, index) => {
                   const displayLabel = getCategoryLabel(category);
+                  const taskCount = categoryToTagsMap[category]
+                    ? Object.values(categoryToTagsMap[category]).reduce(
+                        (count, items) => count + items.length,
+                        0,
+                      )
+                    : 0;
+
                   return (
-                    <Stack key={`nav-${category}`} direction="row" alignItems="center" spacing={1}>
-                      <Chip label={displayLabel} size="small" />
-                      <Typography variant="caption" color="text.secondary">
-                        {categoryToTagsMap[category]
-                          ? Object.values(categoryToTagsMap[category]).reduce(
-                              (count, items) => count + items.length,
-                              0,
-                            )
-                          : 0}{' '}
-                        件
-                      </Typography>
-                    </Stack>
+                    <Box
+                      key={`nav-${category}`}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 1,
+                      }}
+                    >
+                      <Stack direction="row" alignItems="center" spacing={1}>
+                        <Chip label={displayLabel} size="small" />
+                        <Typography variant="caption" color="text.secondary">
+                          {taskCount} 件
+                        </Typography>
+                      </Stack>
+                      <Stack direction="row" spacing={0.5}>
+                        <Tooltip title="カテゴリを上に移動">
+                          <span>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleMoveCategory(category, -1)}
+                              disabled={index === 0}
+                              aria-label="カテゴリを上に移動"
+                            >
+                              <KeyboardArrowUpIcon fontSize="inherit" />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                        <Tooltip title="カテゴリを下に移動">
+                          <span>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleMoveCategory(category, 1)}
+                              disabled={index === navCategories.length - 1}
+                              aria-label="カテゴリを下に移動"
+                            >
+                              <KeyboardArrowDownIcon fontSize="inherit" />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                      </Stack>
+                    </Box>
                   );
                 })
               ) : (
