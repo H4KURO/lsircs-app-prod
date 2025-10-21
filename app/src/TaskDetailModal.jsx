@@ -6,6 +6,7 @@ import {
   DialogActions,
   TextField,
   Button,
+  MenuItem,
   Autocomplete,
   Chip,
   Box,
@@ -19,7 +20,7 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import { useTranslation } from 'react-i18next';
-import { normalizeTask, generateSubtaskId } from './taskUtils';
+import { normalizeTask, generateSubtaskId, TASK_STATUS_DEFINITIONS, TASK_STATUS_VALUES } from './taskUtils';
 
 const createBlankSubtask = () => ({
   id: generateSubtaskId(),
@@ -45,6 +46,18 @@ export function TaskDetailModal({
     ],
     [t],
   );
+  const statusOptions = useMemo(
+    () =>
+      TASK_STATUS_DEFINITIONS.map((definition) => ({
+        value: definition.value,
+        label: t(definition.translationKey, { defaultValue: definition.value }),
+      })),
+    [t],
+  );
+
+  const resolvedStatusValue =
+    statusOptions.find((option) => option.value === editableTask.status)?.value ??
+    statusOptions[0]?.value ?? '';
 
   const [editableTask, setEditableTask] = useState(() => normalizeTask(task));
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
@@ -157,8 +170,13 @@ export function TaskDetailModal({
       }),
     );
 
+    const sanitizedStatus = TASK_STATUS_VALUES.includes(editableTask.status)
+      ? editableTask.status
+      : TASK_STATUS_VALUES[0];
+
     onSave({
       ...editableTask,
+      status: sanitizedStatus,
       subtasks: sanitizedSubtasks,
     });
   };
@@ -232,6 +250,21 @@ export function TaskDetailModal({
           rows={4}
           fullWidth
         />
+        <TextField
+          select
+          label={t('taskDetail.statusLabel', { defaultValue: 'Status' })}
+          value={resolvedStatusValue}
+          onChange={(event) =>
+            setEditableTask((prev) => ({ ...prev, status: event.target.value }))
+          }
+          fullWidth
+        >
+          {statusOptions.map((option) => (
+            <MenuItem key={option.value} value={option.value}>
+              {option.label}
+            </MenuItem>
+          ))}
+        </TextField>
 
         <Autocomplete
           options={importanceOptions}

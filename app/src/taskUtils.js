@@ -1,6 +1,28 @@
 export const DEFAULT_CATEGORY_LABEL = '未設定カテゴリ';
 export const DEFAULT_TAG_LABEL = '未設定タグ';
 
+export const TASK_STATUS_DEFINITIONS = Object.freeze([
+  { value: 'Started', translationKey: 'taskView.statuses.started' },
+  { value: 'Inprogress', translationKey: 'taskView.statuses.inProgress' },
+  { value: 'Done', translationKey: 'taskView.statuses.done' },
+]);
+
+export const TASK_STATUS_VALUES = TASK_STATUS_DEFINITIONS.map((definition) => definition.value);
+
+export const TASK_STATUS_INDEX_MAP = TASK_STATUS_VALUES.reduce((acc, status, index) => {
+  acc[status] = index;
+  return acc;
+}, {});
+
+export const getNextTaskStatus = (currentStatus) => {
+  if (!currentStatus || !(currentStatus in TASK_STATUS_INDEX_MAP)) {
+    return TASK_STATUS_VALUES[0] ?? null;
+  }
+  const currentIndex = TASK_STATUS_INDEX_MAP[currentStatus];
+  const nextStatus = TASK_STATUS_VALUES[currentIndex + 1];
+  return nextStatus ?? null;
+};
+
 export const generateSubtaskId = () => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();

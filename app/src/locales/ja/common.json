@@ -33,7 +33,10 @@
     "upcoming": "期日の近いタスク",
     "noTasks": "対象のタスクはありません。",
     "due": "締切: {{date}}",
-    "settingsTitle": "ダッシュボードに表示するカードを選択"
+    "settingsTitle": "ダッシュボードに表示するカードを選択",
+    "advanceStatus": "状況を進める",
+    "advancingStatus": "更新中...",
+    "advanceStatusError": "進捗ステータスの更新に失敗しました。"
   },
   "common": {
     "cancel": "キャンセル",
@@ -141,5 +144,8 @@
       "description": "表示するカテゴリや並び順、レイアウトを指定できます。設定はユーザーごとに自動保存されます。"
     },
     "footer": "表示内容は自動保存されます。ビューを切り替えてチームの状況を確認しましょう。"
+  },
+  "taskDetail": {
+    "statusLabel": "ステータス"
   }
 }

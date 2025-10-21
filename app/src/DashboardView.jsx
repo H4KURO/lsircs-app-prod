@@ -13,7 +13,7 @@ import { TaskDetailModal } from './TaskDetailModal';
 import { DashboardSettingsModal } from './DashboardSettingsModal';
 import { StatCard } from './StatCard';
 import { addDays, startOfToday } from 'date-fns';
-import { normalizeTask, normalizeTasks } from './taskUtils';
+import { normalizeTask, normalizeTasks, getNextTaskStatus } from './taskUtils';
 
 const API_URL = '/api';
 
@@ -66,6 +66,7 @@ export function DashboardView({ user }) {
   const [categories, setCategories] = useState([]);
   const [automationRules, setAutomationRules] = useState([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [statusUpdatingIds, setStatusUpdatingIds] = useState([]);
 
   const [dashboardSettings, setDashboardSettings] = useState(() => {
     const savedSettings = localStorage.getItem('dashboardSettings');
@@ -136,7 +137,71 @@ export function DashboardView({ user }) {
     const inProgress = allTasks.filter((t) => t.status === 'Inprogress').length;
     return { total, done, inProgress };
   }, [allTasks]);
+  const markStatusUpdating = (taskId, updating) => {
+    if (taskId == null) {
+      return;
+    }
+    const normalizedId = String(taskId);
+    setStatusUpdatingIds((prev) => {
+      if (updating) {
+        if (prev.includes(normalizedId)) {
+          return prev;
+        }
+        return [...prev, normalizedId];
+      }
+      return prev.filter((value) => value !== normalizedId);
+    });
+  };
 
+  const handleAdvanceTaskStatus = (task) => {
+    if (!task) {
+      return;
+    }
+
+    const taskId = task.id ?? task.taskId;
+    if (taskId == null) {
+      return;
+    }
+
+    const normalizedId = String(taskId);
+    const baseTask = normalizeTask(
+      allTasks.find((item) => String(item.id) === normalizedId) ?? task,
+    );
+
+    const nextStatus = getNextTaskStatus(baseTask.status);
+    if (!nextStatus) {
+      return;
+    }
+
+    const payload = { ...baseTask, status: nextStatus };
+
+    markStatusUpdating(normalizedId, true);
+
+    axios
+      .put(`${API_URL}/UpdateTask/${taskId}`, payload)
+      .then((res) => {
+        const savedTask = normalizeTask(res.data);
+
+        setAllTasks((prev) => {
+          const index = prev.findIndex((item) => String(item.id) === normalizedId);
+          if (index === -1) {
+            return [...prev, savedTask];
+          }
+          const next = [...prev];
+          next[index] = savedTask;
+          return next;
+        });
+
+        setSelectedTask((prev) => (prev && String(prev.id) === normalizedId ? savedTask : prev));
+      })
+      .catch((error) => {
+        console.error('Task status advance error:', error);
+        alert(t('dashboard.advanceStatusError', { defaultValue: 'Failed to update task status.' }));
+      })
+      .finally(() => {
+        markStatusUpdating(normalizedId, false);
+      });
+  };
   const handleSaveTask = (taskToSave) => {
     const apiCall = taskToSave.id
       ? axios.put(`${API_URL}/UpdateTask/${taskToSave.id}`, taskToSave)
@@ -250,6 +315,8 @@ export function DashboardView({ user }) {
               <DashboardTaskList
                 tasks={highPriorityTasks}
                 onTaskClick={(task) => setSelectedTask(normalizeTask(task))}
+                onAdvanceStatus={handleAdvanceTaskStatus}
+                advancingTaskIds={statusUpdatingIds}
               />
             </Paper>
           </Grid>
@@ -259,7 +326,12 @@ export function DashboardView({ user }) {
           <Grid item xs={12} md={6}>
             <Paper sx={{ p: 2, height: 'auto' }}>
               <Typography variant="h6">{t('dashboard.myTasks')}</Typography>
-              <DashboardTaskList tasks={myTasks} onTaskClick={(task) => setSelectedTask(normalizeTask(task))} />
+              <DashboardTaskList
+                tasks={myTasks}
+                onTaskClick={(task) => setSelectedTask(normalizeTask(task))}
+                onAdvanceStatus={handleAdvanceTaskStatus}
+                advancingTaskIds={statusUpdatingIds}
+              />
             </Paper>
           </Grid>
         )}
@@ -268,7 +340,12 @@ export function DashboardView({ user }) {
           <Grid item xs={12} md={6}>
             <Paper sx={{ p: 2, height: 'auto' }}>
               <Typography variant="h6">{t('dashboard.upcoming')}</Typography>
-              <DashboardTaskList tasks={upcomingTasks} onTaskClick={(task) => setSelectedTask(normalizeTask(task))} />
+              <DashboardTaskList
+                tasks={upcomingTasks}
+                onTaskClick={(task) => setSelectedTask(normalizeTask(task))}
+                onAdvanceStatus={handleAdvanceTaskStatus}
+                advancingTaskIds={statusUpdatingIds}
+              />
             </Paper>
           </Grid>
         )}

@@ -33,7 +33,10 @@
     "upcoming": "Upcoming Deadlines",
     "noTasks": "No tasks to display.",
     "due": "Due: {{date}}",
-    "settingsTitle": "Select the cards to show on the dashboard"
+    "settingsTitle": "Select the cards to show on the dashboard",
+    "advanceStatus": "Advance status",
+    "advancingStatus": "Updating...",
+    "advanceStatusError": "Failed to update the task status."
   },
   "common": {
     "cancel": "Cancel",
@@ -141,5 +144,8 @@
       "description": "Choose categories, sort order, and layout. Preferences are saved per user."
     },
     "footer": "Your selections are saved automatically. Switch views to review your team’s progress."
+  },
+  "taskDetail": {
+    "statusLabel": "Status"
   }
 }
