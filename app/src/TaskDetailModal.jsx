@@ -55,12 +55,17 @@ export function TaskDetailModal({
     [t],
   );
 
-  const resolvedStatusValue =
-    statusOptions.find((option) => option.value === editableTask.status)?.value ??
-    statusOptions[0]?.value ?? '';
 
   const [editableTask, setEditableTask] = useState(() => normalizeTask(task));
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const resolvedStatusValue = useMemo(() => {
+    const fallback = statusOptions[0]?.value ?? TASK_STATUS_VALUES[0] ?? '';
+    const status = editableTask?.status;
+    if (!status) {
+      return fallback;
+    }
+    return statusOptions.some((option) => option.value === status) ? status : fallback;
+  }, [editableTask?.status, statusOptions]);
 
   useEffect(() => {
     setEditableTask(normalizeTask(task));
@@ -170,9 +175,7 @@ export function TaskDetailModal({
       }),
     );
 
-    const sanitizedStatus = TASK_STATUS_VALUES.includes(editableTask.status)
-      ? editableTask.status
-      : TASK_STATUS_VALUES[0];
+    const sanitizedStatus = resolvedStatusValue;
 
     onSave({
       ...editableTask,
