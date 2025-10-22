@@ -24,6 +24,7 @@ import {
   CircularProgress,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CircleIcon from '@mui/icons-material/Circle';
@@ -1013,19 +1014,28 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
         <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center">
           <Tooltip title={advanceTooltip}>
             <span>
-              <Button
+              <IconButton
                 size="small"
-                variant="outlined"
+                color="primary"
                 onClick={() => handleAdvanceTaskStatus(task)}
                 disabled={!nextStatus || isAdvancing}
-                startIcon={isAdvancing ? <CircularProgress size={16} /> : undefined}
+                aria-label={t('taskView.actions.advanceStatus')}
+                sx={{ position: 'relative' }}
               >
-                {isAdvancing
-                  ? t('taskView.actions.advancingStatus')
-                  : nextStatus
-                    ? t('taskView.actions.advanceStatus')
-                    : t('taskView.actions.statusMax')}
-              </Button>
+                <ArrowForwardIcon fontSize="small" />
+                {isAdvancing && (
+                  <CircularProgress
+                    size={26}
+                    sx={{
+                      position: 'absolute',
+                      top: '50%',
+                      left: '50%',
+                      marginTop: '-13px',
+                      marginLeft: '-13px',
+                    }}
+                  />
+                )}
+              </IconButton>
             </span>
           </Tooltip>
           <Tooltip title="編集">
