@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import axios from 'axios';
 import {
@@ -20,6 +21,7 @@ import {
   LinearProgress,
   FormControlLabel,
   Switch,
+  CircularProgress,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -38,6 +40,7 @@ import {
   groupTasksByCategoryAndTag,
   DEFAULT_CATEGORY_LABEL,
   DEFAULT_TAG_LABEL,
+  getNextTaskStatus
 } from './taskUtils';
 
 const API_URL = '/api';
@@ -349,6 +352,7 @@ function arePreferencesEqual(a, b) {
 
 const getTaskCategoryKey = (task) => (task?.category?.trim() ? task.category.trim() : DEFAULT_CATEGORY_LABEL);
 export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
+  const { t } = useTranslation();
   const [tasks, setTasks] = useState([]);
   const [assigneeOptions, setAssigneeOptions] = useState([]);
   const [categoryOptions, setCategoryOptions] = useState([]);
@@ -359,6 +363,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [isSavingPreferences, setIsSavingPreferences] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
+  const [statusUpdatingIds, setStatusUpdatingIds] = useState([]);
 
   const deepLinkHandledRef = useRef(null);
   const savePreferencesTimerRef = useRef(null);
@@ -372,6 +377,22 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
         return prev;
       }
       return normalized;
+    });
+  }, []);
+
+  const markStatusUpdating = useCallback((taskId, updating) => {
+    if (taskId == null) {
+      return;
+    }
+    const normalizedId = String(taskId);
+    setStatusUpdatingIds((prev) => {
+      if (updating) {
+        if (prev.includes(normalizedId)) {
+          return prev;
+        }
+        return [...prev, normalizedId];
+      }
+      return prev.filter((value) => value !== normalizedId);
     });
   }, []);
 
@@ -723,6 +744,56 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
     });
   };
 
+  const handleAdvanceTaskStatus = useCallback(
+    (task) => {
+      if (!task) {
+        return;
+      }
+
+      const taskId = task.id ?? task.taskId;
+      if (taskId == null) {
+        return;
+      }
+
+      const normalizedId = String(taskId);
+      const baseTask = normalizeTask(
+        tasks.find((candidate) => String(candidate.id) === normalizedId) ?? task,
+      );
+
+      const nextStatus = getNextTaskStatus(baseTask.status);
+      if (!nextStatus) {
+        return;
+      }
+
+      const payload = { ...baseTask, status: nextStatus };
+
+      markStatusUpdating(normalizedId, true);
+
+      axios
+        .put(`${API_URL}/UpdateTask/${taskId}`, payload)
+        .then((res) => {
+          const savedTask = normalizeTask(res.data);
+          setTasks((prev) => {
+            const index = prev.findIndex((candidate) => String(candidate.id) === normalizedId);
+            if (index === -1) {
+              return [...prev, savedTask];
+            }
+            const nextList = [...prev];
+            nextList[index] = savedTask;
+            return nextList;
+          });
+          setSelectedTask((prev) => (prev && String(prev.id) === normalizedId ? savedTask : prev));
+        })
+        .catch((error) => {
+          console.error('Task status advance error:', error);
+          alert(t('taskView.actions.advanceStatusError'));
+        })
+        .finally(() => {
+          markStatusUpdating(normalizedId, false);
+        });
+    },
+    [tasks, markStatusUpdating, t],
+  );
   const handleEditTask = useCallback((task) => {
     setSelectedTask(normalizeTask(task));
   }, []);
@@ -841,6 +912,15 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   const renderTaskCard = (task) => {
     const subtaskSummary = calculateSubtaskSummary(task.subtasks);
     const hasSubtasks = subtaskSummary.total > 0;
+    const normalizedTaskId =
+      task?.id != null ? String(task.id) : task?.taskId != null ? String(task.taskId) : null;
+    const nextStatus = getNextTaskStatus(task.status);
+    const nextStatusLabel = nextStatus ? getStatusLabel(nextStatus) : null;
+    const isAdvancing = normalizedTaskId ? statusUpdatingIds.includes(normalizedTaskId) : false;
+    const currentStatusLabel = getStatusLabel(task.status);
+    const advanceTooltip = nextStatus
+      ? `${currentStatusLabel} → ${nextStatusLabel}`
+      : t('taskView.actions.statusMax');
 
     return (
       <Paper
@@ -866,7 +946,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
               {task.deadline && (
                 <Chip label={`期限: ${getDeadlineLabel(task.deadline)}`} size="small" />
               )}
-              <Chip label={`進捗: ${getStatusLabel(task.status)}`} size="small" variant="outlined" />
+              <Chip label={`進捗: ${currentStatusLabel}`} size="small" variant="outlined" />
               {hasSubtasks && (
                 <Chip
                   label={`サブタスク: ${subtaskSummary.completed}/${subtaskSummary.total}`}
@@ -930,7 +1010,24 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
           </Typography>
         )}
 
-        <Stack direction="row" spacing={1} justifyContent="flex-end">
+        <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center">
+          <Tooltip title={advanceTooltip}>
+            <span>
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() => handleAdvanceTaskStatus(task)}
+                disabled={!nextStatus || isAdvancing}
+                startIcon={isAdvancing ? <CircularProgress size={16} /> : undefined}
+              >
+                {isAdvancing
+                  ? t('taskView.actions.advancingStatus')
+                  : nextStatus
+                    ? t('taskView.actions.advanceStatus')
+                    : t('taskView.actions.statusMax')}
+              </Button>
+            </span>
+          </Tooltip>
           <Tooltip title="編集">
             <IconButton size="small" onClick={() => handleEditTask(task)}>
               <EditIcon fontSize="small" />
@@ -1496,5 +1593,3 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
     </Box>
   );
 }
-
-

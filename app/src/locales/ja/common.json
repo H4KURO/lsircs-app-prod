@@ -77,7 +77,11 @@
       "addTask": "タスクを追加",
       "resetCategories": "すべて表示",
       "edit": "編集",
-      "delete": "削除"
+      "delete": "削除",
+      "advanceStatus": "進捗を進める",
+      "advancingStatus": "更新中…",
+      "advanceStatusError": "ステータスの更新に失敗しました。",
+      "statusMax": "最終ステータスです"
     },
     "alerts": {
       "saveFailed": "タスクの保存に失敗しました。",

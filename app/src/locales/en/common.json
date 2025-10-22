@@ -77,7 +77,11 @@
       "addTask": "Add Task",
       "resetCategories": "Show All",
       "edit": "Edit",
-      "delete": "Delete"
+      "delete": "Delete",
+      "advanceStatus": "Advance status",
+      "advancingStatus": "Updating...",
+      "advanceStatusError": "Failed to update the task status.",
+      "statusMax": "No further status"
     },
     "alerts": {
       "saveFailed": "Failed to save the task.",
