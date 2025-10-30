@@ -1079,6 +1079,8 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
             display: 'flex',
             flexDirection: 'column',
             gap: 2,
+            height: '100%',
+            minHeight: 0,
           }}
         >
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
@@ -1089,55 +1091,69 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
 
           <Box
             sx={{
-              display: 'grid',
-              gap: 2,
-              gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+              flexGrow: 1,
+              minHeight: 0,
+              overflow: 'hidden',
             }}
           >
-            {sortedTags.map((tag) => {
-              const tasksForTag = tagsInCategory[tag] || [];
-              const sections = prepareTasksForDisplay(tasksForTag, sortMode);
-              const hasTasks = tasksForTag.length > 0;
+            <Box
+              sx={{
+                display: 'grid',
+                gap: 2,
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                maxHeight: '100%',
+                overflowY: 'auto',
+                pr: 1,
+                pb: 0.5,
+              }}
+            >
+              {sortedTags.map((tag) => {
+                const tasksForTag = tagsInCategory[tag] || [];
+                const sections = prepareTasksForDisplay(tasksForTag, sortMode);
+                const hasTasks = tasksForTag.length > 0;
 
-              return (
-                <Paper
-                  key={`${category}-${tag}`}
-                  variant="outlined"
-                  sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-                    <Typography variant="subtitle1" noWrap>{getTagLabel(tag)}</Typography>
-                    <Chip label={`${tasksForTag.length} 件`} size="small" />
-                  </Box>
-                  {hasTasks ? (
-                    <Stack spacing={2}>
-                      {sections.map((section) => (
-                        <Box
-                          key={`${category}-${tag}-${section.key}`}
-                          sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}
-                        >
-                          {sections.length > 1 && (
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <Typography variant="subtitle2" color="text.secondary" noWrap>
-                                {section.label}
-                              </Typography>
-                              <Chip label={`${section.tasks.length} 件`} size="small" variant="outlined" />
+                return (
+                  <Paper
+                    key={`${category}-${tag}`}
+                    variant="outlined"
+                    sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.5, height: '100%', minHeight: 0 }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                      <Typography variant="subtitle1" noWrap>{getTagLabel(tag)}</Typography>
+                      <Chip label={`${tasksForTag.length} 件`} size="small" />
+                    </Box>
+                    {hasTasks ? (
+                      <Box sx={{ flexGrow: 1, minHeight: 0, overflowY: 'auto', pr: 0.5 }}>
+                        <Stack spacing={2}>
+                          {sections.map((section) => (
+                            <Box
+                              key={`${category}-${tag}-${section.key}`}
+                              sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}
+                            >
+                              {sections.length > 1 && (
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <Typography variant="subtitle2" color="text.secondary" noWrap>
+                                    {section.label}
+                                  </Typography>
+                                  <Chip label={`${section.tasks.length} 件`} size="small" variant="outlined" />
+                                </Box>
+                              )}
+                              <Stack spacing={1.5}>
+                                {section.tasks.map((task) => renderTaskCard(task))}
+                              </Stack>
                             </Box>
-                          )}
-                          <Stack spacing={1.5}>
-                            {section.tasks.map((task) => renderTaskCard(task))}
-                          </Stack>
-                        </Box>
-                      ))}
-                    </Stack>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">
-                      タスクはありません。
-                    </Typography>
-                  )}
-                </Paper>
-              );
-            })}
+                          ))}
+                        </Stack>
+                      </Box>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        タスクはありません。
+                      </Typography>
+                    )}
+                  </Paper>
+                );
+              })}
+            </Box>
           </Box>
         </Paper>
       );
@@ -1148,14 +1164,15 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
         sx={{
           display: 'grid',
           gap: { xs: 2, md: 3 },
-          gridTemplateColumns: { xs: 'repeat(auto-fit, minmax(280px, 1fr))', lg: 'repeat(auto-fit, minmax(320px, 1fr))' },
+          gridTemplateColumns: { xs: 'repeat(auto-fit, minmax(260px, 1fr))', lg: 'repeat(auto-fit, minmax(300px, 1fr))' },
+          gridAutoRows: { xs: 'minmax(320px, 1fr)', lg: 'minmax(360px, 1fr)' },
+          alignContent: 'start',
         }}
       >
         {categoryCards}
       </Box>
     );
   };
-
 const renderStatusLayout = () => {
     if (statusSections.length === 0) {
       return (
@@ -1613,3 +1630,4 @@ const renderStatusLayout = () => {
     </Box>
   );
 }
+
