@@ -1093,7 +1093,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
                   gap: 2,
                   flex: 1,
                   minHeight: 260,
-                  maxHeight: 380,
+                  maxHeight: 700,
                 }}
               >
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
