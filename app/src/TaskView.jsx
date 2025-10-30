@@ -1063,113 +1063,108 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
       );
     }
 
-    const categoryCards = selectedCategories.map((category) => {
-      const tagsInCategory = categoryToTagsMap[category] || {};
-      const sortedTags = Object.keys(tagsInCategory).sort(sortByName);
-      const totalCount = Object.values(tagsInCategory).reduce(
-        (count, items) => count + items.length,
-        0,
-      );
-
-      return (
-        <Paper
-          key={category}
-          sx={{
-            p: { xs: 2, md: 3 },
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 2,
-            height: '100%',
-            minHeight: 0,
-          }}
-        >
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
-            <Typography variant="h6" noWrap>{getCategoryLabel(category)}</Typography>
-            <Chip label={`${totalCount} 件`} size="small" />
-          </Box>
-          <Divider />
-
-          <Box
-            sx={{
-              flexGrow: 1,
-              minHeight: 0,
-              overflow: 'hidden',
-            }}
-          >
-            <Box
-              sx={{
-                display: 'grid',
-                gap: 2,
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                maxHeight: '100%',
-                overflowY: 'auto',
-                pr: 1,
-                pb: 0.5,
-              }}
-            >
-              {sortedTags.map((tag) => {
-                const tasksForTag = tagsInCategory[tag] || [];
-                const sections = prepareTasksForDisplay(tasksForTag, sortMode);
-                const hasTasks = tasksForTag.length > 0;
-
-                return (
-                  <Paper
-                    key={`${category}-${tag}`}
-                    variant="outlined"
-                    sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.5, height: '100%', minHeight: 0 }}
-                  >
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-                      <Typography variant="subtitle1" noWrap>{getTagLabel(tag)}</Typography>
-                      <Chip label={`${tasksForTag.length} 件`} size="small" />
-                    </Box>
-                    {hasTasks ? (
-                      <Box sx={{ flexGrow: 1, minHeight: 0, overflowY: 'auto', pr: 0.5 }}>
-                        <Stack spacing={2}>
-                          {sections.map((section) => (
-                            <Box
-                              key={`${category}-${tag}-${section.key}`}
-                              sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}
-                            >
-                              {sections.length > 1 && (
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <Typography variant="subtitle2" color="text.secondary" noWrap>
-                                    {section.label}
-                                  </Typography>
-                                  <Chip label={`${section.tasks.length} 件`} size="small" variant="outlined" />
-                                </Box>
-                              )}
-                              <Stack spacing={1.5}>
-                                {section.tasks.map((task) => renderTaskCard(task))}
-                              </Stack>
-                            </Box>
-                          ))}
-                        </Stack>
-                      </Box>
-                    ) : (
-                      <Typography variant="body2" color="text.secondary">
-                        タスクはありません。
-                      </Typography>
-                    )}
-                  </Paper>
-                );
-              })}
-            </Box>
-          </Box>
-        </Paper>
-      );
-    });
-
     return (
       <Box
         sx={{
-          display: 'grid',
+          display: 'flex',
+          flexWrap: 'wrap',
           gap: { xs: 2, md: 3 },
-          gridTemplateColumns: { xs: 'repeat(auto-fit, minmax(260px, 1fr))', lg: 'repeat(auto-fit, minmax(300px, 1fr))' },
-          gridAutoRows: { xs: 'minmax(320px, 1fr)', lg: 'minmax(360px, 1fr)' },
-          alignContent: 'start',
+          alignItems: 'stretch',
         }}
       >
-        {categoryCards}
+        {selectedCategories.map((category) => {
+          const tagsInCategory = categoryToTagsMap[category] || {};
+          const sortedTags = Object.keys(tagsInCategory).sort(sortByName);
+          const totalCount = Object.values(tagsInCategory).reduce(
+            (count, items) => count + items.length,
+            0,
+          );
+
+          return (
+            <Box
+              key={`category-card-${category}`}
+              sx={{ flex: '1 1 280px', minWidth: 240, maxWidth: 360, display: 'flex' }}
+            >
+              <Paper
+                sx={{
+                  p: { xs: 2, md: 3 },
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 2,
+                  flex: 1,
+                  minHeight: 260,
+                  maxHeight: 380,
+                }}
+              >
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="h6" noWrap>{getCategoryLabel(category)}</Typography>
+                  <Chip label={`${totalCount} 件`} size="small" />
+                </Box>
+                <Divider />
+
+                <Box sx={{ flexGrow: 1, minHeight: 0, overflow: 'hidden' }}>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 2,
+                      height: '100%',
+                      overflowY: 'auto',
+                      pr: 1,
+                    }}
+                  >
+                    {sortedTags.map((tag) => {
+                      const tasksForTag = tagsInCategory[tag] || [];
+                      const sections = prepareTasksForDisplay(tasksForTag, sortMode);
+                      const hasTasks = tasksForTag.length > 0;
+
+                      return (
+                        <Paper
+                          key={`${category}-${tag}`}
+                          variant="outlined"
+                          sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                            <Typography variant="subtitle1" noWrap>{getTagLabel(tag)}</Typography>
+                            <Chip label={`${tasksForTag.length} 件`} size="small" />
+                          </Box>
+                          {hasTasks ? (
+                            <Box sx={{ maxHeight: 200, overflowY: 'auto', pr: 0.5 }}>
+                              <Stack spacing={1.5}>
+                                {sections.map((section) => (
+                                  <Box
+                                    key={`${category}-${tag}-${section.key}`}
+                                    sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}
+                                  >
+                                    {sections.length > 1 && (
+                                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <Typography variant="subtitle2" color="text.secondary" noWrap>
+                                          {section.label}
+                                        </Typography>
+                                        <Chip label={`${section.tasks.length} 件`} size="small" variant="outlined" />
+                                      </Box>
+                                    )}
+                                    <Stack spacing={1.5}>
+                                      {section.tasks.map((task) => renderTaskCard(task))}
+                                    </Stack>
+                                  </Box>
+                                ))}
+                              </Stack>
+                            </Box>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">
+                              タスクはありません。
+                            </Typography>
+                          )}
+                        </Paper>
+                      );
+                    })}
+                  </Box>
+                </Box>
+              </Paper>
+            </Box>
+          );
+        })}
       </Box>
     );
   };
@@ -1630,4 +1625,3 @@ const renderStatusLayout = () => {
     </Box>
   );
 }
-
