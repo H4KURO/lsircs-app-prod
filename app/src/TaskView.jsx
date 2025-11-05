@@ -1578,7 +1578,7 @@ const renderStatusLayout = () => {
                 </Select>
               </FormControl>
             </>
-          )
+          )}
 
           {layout === 'assignee' && (
             <>
