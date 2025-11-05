@@ -1,6 +1,7 @@
-const PREFERENCES_SCHEMA_VERSION = 1;
+const PREFERENCES_SCHEMA_VERSION = 2;
 const ALLOWED_LAYOUTS = new Set(['category', 'status', 'assignee']);
 const ALLOWED_SORT_MODES = new Set(['statusDeadline', 'deadlineAsc', 'deadlineDesc', 'titleAsc']);
+const ALLOWED_CATEGORY_TASK_ORDERS = new Set(['progress', 'createdAtDesc', 'deadlineAsc']);
 const MAX_LIST_LENGTH = 100;
 
 function sanitizeStringArray(value) {
@@ -35,6 +36,8 @@ function createDefaultPreferences(timestamp = new Date().toISOString()) {
     selectedCategories: [],
     selectedAssignees: [],
     includeUnassignedColumn: true,
+    categoryGroupByTag: true,
+    categoryTaskOrder: 'progress',
     updatedAt: timestamp,
   };
 }
@@ -57,6 +60,14 @@ function normalizePreferences(preferences = {}, timestamp = new Date().toISOStri
     ? preferences.includeUnassignedColumn
     : base.includeUnassignedColumn;
 
+  const categoryGroupByTag = typeof preferences.categoryGroupByTag === 'boolean'
+    ? preferences.categoryGroupByTag
+    : base.categoryGroupByTag;
+
+  const categoryTaskOrder = typeof preferences.categoryTaskOrder === 'string' && ALLOWED_CATEGORY_TASK_ORDERS.has(preferences.categoryTaskOrder)
+    ? preferences.categoryTaskOrder
+    : base.categoryTaskOrder;
+
   const updatedAt = typeof preferences.updatedAt === 'string' && preferences.updatedAt.trim().length > 0
     ? preferences.updatedAt
     : timestamp;
@@ -68,6 +79,8 @@ function normalizePreferences(preferences = {}, timestamp = new Date().toISOStri
     selectedCategories,
     selectedAssignees,
     includeUnassignedColumn,
+    categoryGroupByTag,
+    categoryTaskOrder,
     updatedAt,
   };
 }

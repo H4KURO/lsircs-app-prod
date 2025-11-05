@@ -77,7 +77,18 @@ const TASK_SORT_OPTIONS = [
   { value: 'titleAsc', label: 'タイトル順' },
 ];
 
-const sortLabelMap = TASK_SORT_OPTIONS.reduce((acc, option) => {
+const CATEGORY_TASK_ORDER_OPTIONS = [
+  { value: 'progress', label: '進捗度順' },
+  { value: 'createdAtDesc', label: '作成が新しい順' },
+  { value: 'deadlineAsc', label: '期日が近い順' },
+];
+
+const sortLabelMap = [...TASK_SORT_OPTIONS, ...CATEGORY_TASK_ORDER_OPTIONS].reduce((acc, option) => {
+  acc[option.value] = option.label;
+  return acc;
+}, {});
+
+const CATEGORY_TASK_ORDER_LABEL_MAP = CATEGORY_TASK_ORDER_OPTIONS.reduce((acc, option) => {
   acc[option.value] = option.label;
   return acc;
 }, {});
@@ -90,6 +101,9 @@ const LAYOUT_OPTIONS = [
 
 const ALLOWED_LAYOUTS = new Set(LAYOUT_OPTIONS.map((option) => option.value));
 const ALLOWED_SORT_MODES = new Set(TASK_SORT_OPTIONS.map((option) => option.value));
+const ALLOWED_CATEGORY_TASK_ORDERS = new Set(
+  CATEGORY_TASK_ORDER_OPTIONS.map((option) => option.value),
+);
 
 const DEFAULT_PREFERENCES = Object.freeze({
   layout: 'category',
@@ -97,6 +111,8 @@ const DEFAULT_PREFERENCES = Object.freeze({
   selectedCategories: [],
   selectedAssignees: [],
   includeUnassignedColumn: true,
+  categoryGroupByTag: true,
+  categoryTaskOrder: 'progress',
   updatedAt: null,
 });
 
@@ -156,6 +172,37 @@ const getDeadlineValue = (deadline) => {
   return Number.isNaN(value) ? Number.POSITIVE_INFINITY : value;
 };
 
+const getCreatedAtValue = (task) => {
+  if (!task || typeof task !== 'object') {
+    return Number.NEGATIVE_INFINITY;
+  }
+
+  const sources = [task.createdAt, task.createdDate, task.createdOn, task.created];
+  for (const source of sources) {
+    if (!source) {
+      continue;
+    }
+    if (source instanceof Date) {
+      const timestamp = source.getTime();
+      if (!Number.isNaN(timestamp)) {
+        return timestamp;
+      }
+      continue;
+    }
+    if (typeof source === 'number' && Number.isFinite(source)) {
+      return source;
+    }
+    if (typeof source === 'string' && source.trim()) {
+      const parsed = Date.parse(source.trim());
+      if (!Number.isNaN(parsed)) {
+        return parsed;
+      }
+    }
+  }
+
+  return Number.NEGATIVE_INFINITY;
+};
+
 const compareTitleAsc = (a, b) => {
   return (a.title || '').localeCompare(b.title || '', 'ja');
 };
@@ -176,12 +223,23 @@ const compareDeadlineDesc = (a, b) => {
   return compareTitleAsc(a, b);
 };
 
+
+const compareCreatedAtDesc = (a, b) => {
+  const diff = getCreatedAtValue(b) - getCreatedAtValue(a);
+  if (diff !== 0) {
+    return diff;
+  }
+  return compareDeadlineAsc(a, b);
+};
+
 const sortTasksByMode = (tasks, mode) => {
   const sorted = [...tasks];
-  switch (mode) {
+  const effectiveMode = mode === 'progress' ? 'statusDeadline' : mode;
+  switch (effectiveMode) {
     case 'statusDeadline':
       sorted.sort((a, b) => {
-        const statusDiff = getStatusRank(normalizeStatusKey(a.status)) - getStatusRank(normalizeStatusKey(b.status));
+        const statusDiff =
+          getStatusRank(normalizeStatusKey(a.status)) - getStatusRank(normalizeStatusKey(b.status));
         if (statusDiff !== 0) {
           return statusDiff;
         }
@@ -192,6 +250,8 @@ const sortTasksByMode = (tasks, mode) => {
       return sorted.sort(compareDeadlineAsc);
     case 'deadlineDesc':
       return sorted.sort(compareDeadlineDesc);
+    case 'createdAtDesc':
+      return sorted.sort(compareCreatedAtDesc);
     case 'titleAsc':
       return sorted.sort(compareTitleAsc);
     default:
@@ -225,15 +285,16 @@ const groupTasksByStatus = (tasks) => {
 };
 
 const prepareTasksForDisplay = (tasks, mode) => {
-  if (mode === 'statusDeadline') {
+  const effectiveMode = mode === 'progress' ? 'statusDeadline' : mode;
+  if (effectiveMode === 'statusDeadline') {
     return groupTasksByStatus(tasks);
   }
 
   return [
     {
       key: mode,
-      label: sortLabelMap[mode] || '並び替え',
-      tasks: sortTasksByMode(tasks, mode),
+      label: CATEGORY_TASK_ORDER_LABEL_MAP[mode] || sortLabelMap[mode] || '並び替え',
+      tasks: sortTasksByMode(tasks, effectiveMode),
     },
   ];
 };
@@ -308,6 +369,13 @@ function normalizePreferencesForClient(preferences = {}) {
     typeof preferences.includeUnassignedColumn === 'boolean'
       ? preferences.includeUnassignedColumn
       : DEFAULT_PREFERENCES.includeUnassignedColumn;
+  const categoryGroupByTag =
+    typeof preferences.categoryGroupByTag === 'boolean'
+      ? preferences.categoryGroupByTag
+      : DEFAULT_PREFERENCES.categoryGroupByTag;
+  const categoryTaskOrder = ALLOWED_CATEGORY_TASK_ORDERS.has(preferences.categoryTaskOrder)
+    ? preferences.categoryTaskOrder
+    : DEFAULT_PREFERENCES.categoryTaskOrder;
 
   return {
     layout,
@@ -315,6 +383,8 @@ function normalizePreferencesForClient(preferences = {}) {
     selectedCategories,
     selectedAssignees,
     includeUnassignedColumn,
+    categoryGroupByTag,
+    categoryTaskOrder,
     updatedAt:
       typeof preferences.updatedAt === 'string' && preferences.updatedAt.trim().length > 0
         ? preferences.updatedAt
@@ -346,6 +416,8 @@ function arePreferencesEqual(a, b) {
     a.layout === b.layout &&
     a.sortMode === b.sortMode &&
     a.includeUnassignedColumn === b.includeUnassignedColumn &&
+    a.categoryGroupByTag === b.categoryGroupByTag &&
+    a.categoryTaskOrder === b.categoryTaskOrder &&
     areArraysEqual(a.selectedCategories, b.selectedCategories) &&
     areArraysEqual(a.selectedAssignees, b.selectedAssignees)
   );
@@ -600,7 +672,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
     };
   }, []);
 
-  const { layout, sortMode, selectedCategories, selectedAssignees, includeUnassignedColumn } = preferences;
+  const { layout, sortMode, selectedCategories, selectedAssignees, includeUnassignedColumn, categoryGroupByTag, categoryTaskOrder } = preferences;
 
   const selectedCategorySet = useMemo(() => {
     if (selectedCategories.length === 0) {
@@ -851,6 +923,21 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
     }));
   };
 
+  const handleCategoryTaskOrderChange = (event) => {
+    const value = event.target.value;
+    updatePreferences((prev) => ({
+      ...prev,
+      categoryTaskOrder: ALLOWED_CATEGORY_TASK_ORDERS.has(value) ? value : prev.categoryTaskOrder,
+    }));
+  };
+
+  const handleToggleCategoryGroupByTag = (_event, checked) => {
+    updatePreferences((prev) => ({
+      ...prev,
+      categoryGroupByTag: Boolean(checked),
+    }));
+  };
+
   const handleLayoutChange = (event) => {
     const value = event.target.value;
     updatePreferences((prev) => ({
@@ -1092,10 +1179,14 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
         {selectedCategories.map((category) => {
           const tagsInCategory = categoryToTagsMap[category] || {};
           const sortedTags = Object.keys(tagsInCategory).sort(sortByName);
-          const totalCount = Object.values(tagsInCategory).reduce(
-            (count, items) => count + items.length,
-            0,
+          const tasksInCategory = filteredTasks.filter(
+            (task) => getTaskCategoryKey(task) === category,
           );
+          const totalCount = categoryGroupByTag
+            ? Object.values(tagsInCategory).reduce((count, items) => count + items.length, 0)
+            : tasksInCategory.length;
+          const sectionsForCategory = prepareTasksForDisplay(tasksInCategory, categoryTaskOrder);
+          const hasCategoryTasks = tasksInCategory.length > 0;
 
           return (
             <Box
@@ -1120,63 +1211,101 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
                 <Divider />
 
                 <Box sx={{ flexGrow: 1, minHeight: 0, overflow: 'hidden' }}>
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 2,
-                      height: '100%',
-                      overflowY: 'auto',
-                      pr: 1,
-                    }}
-                  >
-                    {sortedTags.map((tag) => {
-                      const tasksForTag = tagsInCategory[tag] || [];
-                      const sections = prepareTasksForDisplay(tasksForTag, sortMode);
-                      const hasTasks = tasksForTag.length > 0;
+                  {categoryGroupByTag ? (
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 2,
+                        height: '100%',
+                        overflowY: 'auto',
+                        pr: 1,
+                      }}
+                    >
+                      {sortedTags.map((tag) => {
+                        const tasksForTag = tagsInCategory[tag] || [];
+                        const sections = prepareTasksForDisplay(tasksForTag, categoryTaskOrder);
+                        const hasTasks = tasksForTag.length > 0;
 
-                      return (
-                        <Paper
-                          key={`${category}-${tag}`}
-                          variant="outlined"
-                          sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}
-                        >
-                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-                            <Typography variant="subtitle1" noWrap>{getTagLabel(tag)}</Typography>
-                            <Chip label={`${tasksForTag.length} 件`} size="small" />
-                          </Box>
-                          {hasTasks ? (
-                            <Box sx={{ maxHeight: 200, overflowY: 'auto', pr: 0.5 }}>
-                              <Stack spacing={1.5}>
-                                {sections.map((section) => (
-                                  <Box
-                                    key={`${category}-${tag}-${section.key}`}
-                                    sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}
-                                  >
-                                    {sections.length > 1 && (
-                                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <Typography variant="subtitle2" color="text.secondary" noWrap>
-                                          {section.label}
-                                        </Typography>
-                                        <Chip label={`${section.tasks.length} 件`} size="small" variant="outlined" />
-                                      </Box>
-                                    )}
-                                    <Stack spacing={1.5}>
-                                      {section.tasks.map((task) => renderTaskCard(task))}
-                                    </Stack>
-                                  </Box>
-                                ))}
-                              </Stack>
+                        return (
+                          <Paper
+                            key={`${category}-${tag}`}
+                            variant="outlined"
+                            sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}
+                          >
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                              <Typography variant="subtitle1" noWrap>{getTagLabel(tag)}</Typography>
+                              <Chip label={`${tasksForTag.length} 件`} size="small" />
                             </Box>
-                          ) : (
-                            <Typography variant="body2" color="text.secondary">
-                              タスクはありません。
-                            </Typography>
-                          )}
-                        </Paper>
-                      );
-                    })}
-                  </Box>
+                            {hasTasks ? (
+                              <Box sx={{ maxHeight: 200, overflowY: 'auto', pr: 0.5 }}>
+                                <Stack spacing={1.5}>
+                                  {sections.map((section) => (
+                                    <Box
+                                      key={`${category}-${tag}-${section.key}`}
+                                      sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}
+                                    >
+                                      {sections.length > 1 && (
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                          <Typography variant="subtitle2" color="text.secondary" noWrap>
+                                            {section.label}
+                                          </Typography>
+                                          <Chip label={`${section.tasks.length} 件`} size="small" variant="outlined" />
+                                        </Box>
+                                      )}
+                                      <Stack spacing={1.5}>
+                                        {section.tasks.map((task) => renderTaskCard(task))}
+                                      </Stack>
+                                    </Box>
+                                  ))}
+                                </Stack>
+                              </Box>
+                            ) : (
+                              <Typography variant="body2" color="text.secondary">
+                                タスクはありません。
+                              </Typography>
+                            )}
+                          </Paper>
+                        );
+                      })}
+                    </Box>
+                  ) : hasCategoryTasks ? (
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 2,
+                        height: '100%',
+                        overflowY: 'auto',
+                        pr: 1,
+                      }}
+                    >
+                      <Stack spacing={1.5}>
+                        {sectionsForCategory.map((section) => (
+                          <Box
+                            key={`${category}-${section.key}`}
+                            sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}
+                          >
+                            {sectionsForCategory.length > 1 && (
+                              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Typography variant="subtitle2" color="text.secondary" noWrap>
+                                  {section.label}
+                                </Typography>
+                                <Chip label={`${section.tasks.length} 件`} size="small" variant="outlined" />
+                              </Box>
+                            )}
+                            <Stack spacing={1.5}>
+                              {section.tasks.map((task) => renderTaskCard(task))}
+                            </Stack>
+                          </Box>
+                        ))}
+                      </Stack>
+                    </Box>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      タスクはありません。
+                    </Typography>
+                  )}
                 </Box>
               </Paper>
             </Box>
@@ -1420,6 +1549,36 @@ const renderStatusLayout = () => {
               ))}
             </Select>
           </FormControl>
+
+          {layout === 'category' && (
+            <>
+              <FormControlLabel
+                control={(
+                  <Switch
+                    size="small"
+                    checked={categoryGroupByTag}
+                    onChange={handleToggleCategoryGroupByTag}
+                  />
+                )}
+                label="タグでグループ化"
+              />
+              <FormControl size="small">
+                <InputLabel id="category-task-order-label">カテゴリ内の並び順</InputLabel>
+                <Select
+                  labelId="category-task-order-label"
+                  value={categoryTaskOrder}
+                  label="カテゴリ内の並び順"
+                  onChange={handleCategoryTaskOrderChange}
+                >
+                  {CATEGORY_TASK_ORDER_OPTIONS.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </>
+          )
 
           {layout === 'assignee' && (
             <>
