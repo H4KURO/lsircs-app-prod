@@ -25,6 +25,7 @@ import { normalizeTask, generateSubtaskId, TASK_STATUS_DEFINITIONS, TASK_STATUS_
 const createBlankSubtask = () => ({
   id: generateSubtaskId(),
   title: '',
+  memo: '',
   completed: false,
 });
 
@@ -126,6 +127,7 @@ export function TaskDetailModal({
         const newSubtask = {
           id: templateId || generateSubtaskId(),
           title: templateTitle,
+          memo: typeof template?.memo === 'string' ? template.memo : '',
           completed: Boolean(template?.completed),
         };
         base.push(newSubtask);
@@ -171,6 +173,7 @@ export function TaskDetailModal({
       (subtask, index) => ({
         ...subtask,
         title: subtask.title?.trim() || '',
+        memo: typeof subtask.memo === 'string' ? subtask.memo.trim() : '',
         order: index,
       }),
     );
@@ -205,6 +208,15 @@ export function TaskDetailModal({
       ...prev,
       subtasks: (Array.isArray(prev.subtasks) ? prev.subtasks : []).map((subtask) =>
         subtask.id === subtaskId ? { ...subtask, title: value } : subtask,
+      ),
+    }));
+  };
+
+  const handleSubtaskMemoChange = (subtaskId, value) => {
+    setEditableTask((prev) => ({
+      ...prev,
+      subtasks: (Array.isArray(prev.subtasks) ? prev.subtasks : []).map((subtask) =>
+        subtask.id === subtaskId ? { ...subtask, memo: value } : subtask,
       ),
     }));
   };
@@ -381,11 +393,15 @@ export function TaskDetailModal({
                 sx={{
                   display: 'grid',
                   gridTemplateColumns: 'auto 1fr auto',
-                  alignItems: 'center',
+                  alignItems: 'flex-start',
                   gap: 1.5,
+                  p: 1,
+                  borderRadius: 1,
+                  border: '1px solid',
+                  borderColor: 'divider',
                 }}
               >
-                <DragIndicatorIcon fontSize="small" sx={{ color: 'text.disabled' }} />
+                <DragIndicatorIcon fontSize="small" sx={{ color: 'text.disabled', mt: 0.75 }} />
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Checkbox
                     checked={Boolean(subtask.completed)}
@@ -407,6 +423,17 @@ export function TaskDetailModal({
                 >
                   <DeleteIcon fontSize="small" />
                 </IconButton>
+                <TextField
+                  fullWidth
+                  multiline
+                  minRows={2}
+                  value={subtask.memo || ''}
+                  onChange={(event) => handleSubtaskMemoChange(subtask.id, event.target.value)}
+                  label={t('taskDetail.subtaskMemoLabel', { defaultValue: 'Memo' })}
+                  placeholder={t('taskDetail.subtaskMemoPlaceholder', { defaultValue: 'Add a memo' })}
+                  size="small"
+                  sx={{ gridColumn: { xs: '1 / -1', sm: '2 / span 2' } }}
+                />
               </Box>
             ))}
           </Stack>

@@ -150,6 +150,8 @@
     "footer": "表示内容は自動保存されます。ビューを切り替えてチームの状況を確認しましょう。"
   },
   "taskDetail": {
-    "statusLabel": "ステータス"
+    "statusLabel": "ステータス",
+    "subtaskMemoLabel": "メモ",
+    "subtaskMemoPlaceholder": "サブタスクのメモを入力"
   }
 }

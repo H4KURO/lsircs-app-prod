@@ -977,7 +977,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
                   key={subtask.id}
                   sx={{
                     display: 'flex',
-                    alignItems: 'center',
+                    alignItems: 'flex-start',
                     gap: 1,
                     p: 0.75,
                     borderRadius: 1,
@@ -991,16 +991,33 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
                     checkedIcon={<CheckCircleIcon fontSize="small" />}
                     size="small"
                   />
-                  <Typography
-                    variant="body2"
+                  <Box
                     sx={{
-                      textDecoration: subtask.completed ? 'line-through' : 'none',
-                      color: subtask.completed ? 'text.disabled' : 'text.primary',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 0.25,
                       flexGrow: 1,
                     }}
                   >
-                    {subtask.title || '未設定のサブタスク'}
-                  </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        textDecoration: subtask.completed ? 'line-through' : 'none',
+                        color: subtask.completed ? 'text.disabled' : 'text.primary',
+                      }}
+                    >
+                      {subtask.title || '未設定のサブタスク'}
+                    </Typography>
+                    {subtask.memo ? (
+                      <Typography
+                        variant="caption"
+                        color={subtask.completed ? 'text.disabled' : 'text.secondary'}
+                        sx={{ whiteSpace: 'pre-wrap' }}
+                      >
+                        {subtask.memo}
+                      </Typography>
+                    ) : null}
+                  </Box>
                 </Box>
               ))}
             </Stack>

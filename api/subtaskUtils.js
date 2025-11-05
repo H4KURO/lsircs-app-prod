@@ -17,6 +17,7 @@ function normalizeSubtasksInput(input) {
 
   input.forEach((rawItem, index) => {
     let title = '';
+    let memo = '';
     let completed = false;
     let providedId = null;
     let orderValue = Number.isFinite(rawItem?.order) ? rawItem.order : index;
@@ -25,6 +26,7 @@ function normalizeSubtasksInput(input) {
       title = rawItem.trim();
     } else if (rawItem && typeof rawItem === 'object') {
       title = toStringOrEmpty(rawItem.title);
+      memo = toStringOrEmpty(rawItem.memo);
       completed = Boolean(rawItem.completed);
       providedId = rawItem.id || rawItem.subtaskId || rawItem.key || null;
       if (Number.isFinite(rawItem.order)) {
@@ -41,6 +43,7 @@ function normalizeSubtasksInput(input) {
     normalized.push({
       id,
       title,
+      memo,
       completed,
       order: orderValue,
     });
@@ -48,9 +51,13 @@ function normalizeSubtasksInput(input) {
 
   return normalized
     .sort((a, b) => a.order - b.order)
-    .map((item, index) => ({ ...item, order: index }));
+    .map((item, index) => ({
+      ...item,
+      order: index,
+    }));
 }
 
 module.exports = {
   normalizeSubtasksInput,
 };
+

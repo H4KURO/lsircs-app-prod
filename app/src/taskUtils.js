@@ -37,6 +37,7 @@ const normalizeSubtask = (subtask, index) => {
       title: '',
       completed: false,
       order: index,
+      memo: '',
     };
   }
 
@@ -46,11 +47,13 @@ const normalizeSubtask = (subtask, index) => {
       title: subtask.trim(),
       completed: false,
       order: index,
+      memo: '',
     };
   }
 
   const title = typeof subtask.title === 'string' ? subtask.title.trim() : '';
   const completed = Boolean(subtask.completed);
+  const memo = typeof subtask.memo === 'string' ? subtask.memo.trim() : '';
   const identifier =
     subtask.id ||
     subtask.subtaskId ||
@@ -63,6 +66,7 @@ const normalizeSubtask = (subtask, index) => {
     title,
     completed,
     order: typeof subtask.order === 'number' ? subtask.order : index,
+    memo,
   };
 };
 

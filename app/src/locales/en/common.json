@@ -150,6 +150,8 @@
     "footer": "Your selections are saved automatically. Switch views to review your team’s progress."
   },
   "taskDetail": {
-    "statusLabel": "Status"
+    "statusLabel": "Status",
+    "subtaskMemoLabel": "Memo",
+    "subtaskMemoPlaceholder": "Add a memo"
   }
 }

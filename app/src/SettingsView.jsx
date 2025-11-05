@@ -36,9 +36,10 @@ function normalizeRuleForState(rule = {}) {
     ? rule.subtasks.map((subtask) => ({
         id: subtask?.id || generateSubtaskId(),
         title: typeof subtask?.title === 'string' ? subtask.title : '',
+        memo: typeof subtask?.memo === 'string' ? subtask.memo : '',
         completed: Boolean(subtask?.completed),
       }))
-    : [{ id: generateSubtaskId(), title: '', completed: false }];
+    : [{ id: generateSubtaskId(), title: '', memo: '', completed: false }];
 
   return {
     ...rule,
@@ -52,7 +53,7 @@ function createEmptyAutomationRule() {
   return {
     tag: '',
     enabled: true,
-    subtasks: [{ id: generateSubtaskId(), title: '', completed: false }],
+    subtasks: [{ id: generateSubtaskId(), title: '', memo: '', completed: false }],
   };
 }
 
@@ -177,6 +178,15 @@ export function SettingsView() {
     }));
   };
 
+  const handleRuleSubtaskMemoChange = (ruleId, subtaskId, value) => {
+    updateRuleState(ruleId, (rule) => ({
+      ...rule,
+      subtasks: rule.subtasks.map((subtask) =>
+        subtask.id === subtaskId ? { ...subtask, memo: value } : subtask,
+      ),
+    }));
+  };
+
   const handleRuleSubtaskCompletedChange = (ruleId, subtaskId, checked) => {
     updateRuleState(ruleId, (rule) => ({
       ...rule,
@@ -189,7 +199,7 @@ export function SettingsView() {
   const handleAddSubtaskToRule = (ruleId) => {
     updateRuleState(ruleId, (rule) => ({
       ...rule,
-      subtasks: [...rule.subtasks, { id: generateSubtaskId(), title: '', completed: false }],
+      subtasks: [...rule.subtasks, { id: generateSubtaskId(), title: '', memo: '', completed: false }],
     }));
   };
 
@@ -198,7 +208,7 @@ export function SettingsView() {
       const nextSubtasks = rule.subtasks.filter((subtask) => subtask.id !== subtaskId);
       return {
         ...rule,
-        subtasks: nextSubtasks.length > 0 ? nextSubtasks : [{ id: generateSubtaskId(), title: '', completed: false }],
+        subtasks: nextSubtasks.length > 0 ? nextSubtasks : [{ id: generateSubtaskId(), title: '', memo: '', completed: false }],
       };
     });
   };
@@ -216,6 +226,7 @@ export function SettingsView() {
       subtasks: rule.subtasks.map((subtask, index) => ({
         id: subtask.id,
         title: subtask.title?.trim() ?? '',
+        memo: typeof subtask.memo === 'string' ? subtask.memo.trim() : '',
         completed: Boolean(subtask.completed),
         order: index,
       })),
@@ -267,6 +278,15 @@ export function SettingsView() {
     }));
   };
 
+  const handleNewRuleSubtaskMemoChange = (subtaskId, value) => {
+    setNewRule((prev) => ({
+      ...prev,
+      subtasks: prev.subtasks.map((subtask) =>
+        subtask.id === subtaskId ? { ...subtask, memo: value } : subtask,
+      ),
+    }));
+  };
+
   const handleNewRuleSubtaskCompletedChange = (subtaskId, checked) => {
     setNewRule((prev) => ({
       ...prev,
@@ -279,7 +299,7 @@ export function SettingsView() {
   const handleAddSubtaskToNewRule = () => {
     setNewRule((prev) => ({
       ...prev,
-      subtasks: [...prev.subtasks, { id: generateSubtaskId(), title: '', completed: false }],
+      subtasks: [...prev.subtasks, { id: generateSubtaskId(), title: '', memo: '', completed: false }],
     }));
   };
 
@@ -288,7 +308,7 @@ export function SettingsView() {
       const nextSubtasks = prev.subtasks.filter((subtask) => subtask.id !== subtaskId);
       return {
         ...prev,
-        subtasks: nextSubtasks.length > 0 ? nextSubtasks : [{ id: generateSubtaskId(), title: '', completed: false }],
+        subtasks: nextSubtasks.length > 0 ? nextSubtasks : [{ id: generateSubtaskId(), title: '', memo: '', completed: false }],
       };
     });
   };
@@ -306,6 +326,7 @@ export function SettingsView() {
       subtasks: newRule.subtasks.map((subtask, index) => ({
         id: subtask.id,
         title: subtask.title?.trim() ?? '',
+        memo: typeof subtask.memo === 'string' ? subtask.memo.trim() : '',
         completed: Boolean(subtask.completed),
         order: index,
       })),
@@ -429,29 +450,38 @@ export function SettingsView() {
 
             <Stack spacing={1.5}>
               {newRule.subtasks.map((subtask) => (
-                <Stack
-                  key={subtask.id}
-                  direction={{ xs: 'column', md: 'row' }}
-                  spacing={1.5}
-                  alignItems={{ md: 'center' }}
-                >
-                  <Checkbox
-                    checked={Boolean(subtask.completed)}
-                    onChange={(event) => handleNewRuleSubtaskCompletedChange(subtask.id, event.target.checked)}
-                  />
-                  <TextField
-                    label="サブタスク名"
-                    value={subtask.title}
-                    onChange={(event) => handleNewRuleSubtaskTitleChange(subtask.id, event.target.value)}
-                    fullWidth
-                  />
-                  <IconButton
-                    edge="end"
-                    onClick={() => handleRemoveSubtaskFromNewRule(subtask.id)}
-                    disabled={newRule.subtasks.length === 1}
+                <Stack key={subtask.id} spacing={1}>
+                  <Stack
+                    direction={{ xs: 'column', md: 'row' }}
+                    spacing={1.5}
+                    alignItems={{ md: 'center' }}
                   >
-                    <DeleteIcon />
-                  </IconButton>
+                    <Checkbox
+                      checked={Boolean(subtask.completed)}
+                      onChange={(event) => handleNewRuleSubtaskCompletedChange(subtask.id, event.target.checked)}
+                    />
+                    <TextField
+                      label="サブタスク名"
+                      value={subtask.title}
+                      onChange={(event) => handleNewRuleSubtaskTitleChange(subtask.id, event.target.value)}
+                      fullWidth
+                    />
+                    <IconButton
+                      edge="end"
+                      onClick={() => handleRemoveSubtaskFromNewRule(subtask.id)}
+                      disabled={newRule.subtasks.length === 1}
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  </Stack>
+                  <TextField
+                    label="メモ"
+                    value={subtask.memo || ''}
+                    onChange={(event) => handleNewRuleSubtaskMemoChange(subtask.id, event.target.value)}
+                    fullWidth
+                    multiline
+                    minRows={2}
+                  />
                 </Stack>
               ))}
               <Button startIcon={<AddIcon />} onClick={handleAddSubtaskToNewRule} sx={{ alignSelf: 'flex-start' }}>
@@ -507,29 +537,38 @@ export function SettingsView() {
 
                     <Stack spacing={1.5}>
                       {rule.subtasks.map((subtask) => (
-                        <Stack
-                          key={subtask.id}
-                          direction={{ xs: 'column', md: 'row' }}
-                          spacing={1.5}
-                          alignItems={{ md: 'center' }}
-                        >
-                          <Checkbox
-                            checked={Boolean(subtask.completed)}
-                            onChange={(event) => handleRuleSubtaskCompletedChange(rule.id, subtask.id, event.target.checked)}
-                          />
-                          <TextField
-                            label="サブタスク名"
-                            value={subtask.title}
-                            onChange={(event) => handleRuleSubtaskTitleChange(rule.id, subtask.id, event.target.value)}
-                            fullWidth
-                          />
-                          <IconButton
-                            edge="end"
-                            onClick={() => handleRemoveSubtaskFromRule(rule.id, subtask.id)}
-                            disabled={rule.subtasks.length === 1}
+                        <Stack key={subtask.id} spacing={1}>
+                          <Stack
+                            direction={{ xs: 'column', md: 'row' }}
+                            spacing={1.5}
+                            alignItems={{ md: 'center' }}
                           >
-                            <DeleteIcon />
-                          </IconButton>
+                            <Checkbox
+                              checked={Boolean(subtask.completed)}
+                              onChange={(event) => handleRuleSubtaskCompletedChange(rule.id, subtask.id, event.target.checked)}
+                            />
+                            <TextField
+                              label="サブタスク名"
+                              value={subtask.title}
+                              onChange={(event) => handleRuleSubtaskTitleChange(rule.id, subtask.id, event.target.value)}
+                              fullWidth
+                            />
+                            <IconButton
+                              edge="end"
+                              onClick={() => handleRemoveSubtaskFromRule(rule.id, subtask.id)}
+                              disabled={rule.subtasks.length === 1}
+                            >
+                              <DeleteIcon />
+                            </IconButton>
+                          </Stack>
+                          <TextField
+                            label="メモ"
+                            value={subtask.memo || ''}
+                            onChange={(event) => handleRuleSubtaskMemoChange(rule.id, subtask.id, event.target.value)}
+                            fullWidth
+                            multiline
+                            minRows={2}
+                          />
                         </Stack>
                       ))}
                       <Button
