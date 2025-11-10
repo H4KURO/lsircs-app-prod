@@ -3,6 +3,7 @@
     "dashboard": "Dashboard",
     "tasks": "Task Management",
     "customers": "Customer Management",
+    "managedProperties": "Managed Properties",
     "invoices": "Invoice Management",
     "settings": "Settings",
     "profile": "Profile Settings"
@@ -69,6 +70,58 @@
       "title": "Customer List",
       "assignee": "Assignee: {{name}}",
       "unassigned": "Unassigned"
+    }
+  },
+  "managedPropertiesView": {
+    "title": "Managed Properties",
+    "description": "Register and review the properties your company manages.",
+    "fields": {
+      "owner": "Owner",
+      "propertyName": "Property",
+      "address": "Address",
+      "memo": "Memo"
+    },
+    "createSection": {
+      "title": "Register a Property",
+      "reset": "Clear",
+      "submit": "Register"
+    },
+    "photos": {
+      "add": "Add photos",
+      "helper": "Up to {{count}} photos ({{size}}MB max per file).",
+      "tooMany": "You can attach up to {{count}} photos.",
+      "tooLarge": "\"{{name}}\" exceeds the {{size}}MB limit.",
+      "readError": "Failed to read one or more photos. Please try again.",
+      "count": "Photos: {{count}}"
+    },
+    "list": {
+      "title": "Registered Properties",
+      "subtitle": "Search, edit, or delete existing properties.",
+      "filterPlaceholder": "Search by property or owner",
+      "empty": "No properties have been registered yet.",
+      "owner": "Owner: {{name}}",
+      "address": "Address: {{value}}"
+    },
+    "actions": {
+      "edit": "Edit",
+      "delete": "Delete",
+      "confirmDelete": "Delete \"{{name}}\"?",
+      "saving": "Saving...",
+      "loading": "Loading properties..."
+    },
+    "alerts": {
+      "loadFailed": "Failed to load managed properties.",
+      "createFailed": "Failed to create the property.",
+      "updateFailed": "Failed to update the property.",
+      "deleteFailed": "Failed to delete the property."
+    },
+    "detailModal": {
+      "title": "Edit property",
+      "titleWithName": "Edit \"{{name}}\"",
+      "save": "Save changes"
+    },
+    "validations": {
+      "propertyNameRequired": "Property name is required."
     }
   },
   "taskView": {

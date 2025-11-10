@@ -6,6 +6,7 @@ import { TaskView } from "./TaskView";
 import { CustomerView } from "./CustomerView";
 import { InvoiceView } from "./InvoiceView";
 import { DashboardView } from "./DashboardView";
+import { ManagedPropertiesView } from "./ManagedPropertiesView";
 import "./App.css";
 import {
   Box,
@@ -35,7 +36,15 @@ import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import { ProfileView } from "./ProfileView";
 import { useTranslation } from "react-i18next";
 
-const ALLOWED_VIEWS = new Set(["dashboard", "tasks", "customers", "invoices", "settings", "profile"]);
+const ALLOWED_VIEWS = new Set([
+  "dashboard",
+  "tasks",
+  "customers",
+  "managedProperties",
+  "invoices",
+  "settings",
+  "profile",
+]);
 
 const parseInitialLocation = () => {
   if (typeof window === "undefined") {
@@ -167,6 +176,7 @@ function App() {
       { text: t("nav.dashboard"), view: "dashboard" },
       { text: t("nav.tasks"), view: "tasks" },
       { text: t("nav.customers"), view: "customers" },
+      { text: t("nav.managedProperties"), view: "managedProperties" },
       { text: t("nav.invoices"), view: "invoices" },
       { text: t("nav.settings"), view: "settings", icon: <SettingsIcon /> },
     ],
@@ -254,6 +264,8 @@ function App() {
         return <TaskView initialTaskId={deepLinkTaskId} onSelectedTaskChange={handleTaskSelectionChange} />;
       case "customers":
         return <CustomerView />;
+      case "managedProperties":
+        return <ManagedPropertiesView />;
       case "invoices":
         return <InvoiceView />;
       case "profile":

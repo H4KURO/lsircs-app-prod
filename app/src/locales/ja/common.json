@@ -3,6 +3,7 @@
     "dashboard": "ダッシュボード",
     "tasks": "タスク管理",
     "customers": "顧客管理",
+    "managedProperties": "管理物件",
     "invoices": "請求書管理",
     "settings": "設定",
     "profile": "プロフィール設定"
@@ -69,6 +70,58 @@
       "title": "顧客一覧",
       "assignee": "担当者: {{name}}",
       "unassigned": "未担当"
+    }
+  },
+  "managedPropertiesView": {
+    "title": "管理物件",
+    "description": "自社で管理している物件情報を登録・確認できます。",
+    "fields": {
+      "owner": "オーナー",
+      "propertyName": "物件名",
+      "address": "住所",
+      "memo": "メモ"
+    },
+    "createSection": {
+      "title": "物件を登録",
+      "reset": "クリア",
+      "submit": "登録する"
+    },
+    "photos": {
+      "add": "写真を追加",
+      "helper": "1件につき最大{{count}}枚（1枚あたり{{size}}MBまで）",
+      "tooMany": "写真は最大{{count}}枚まで添付できます。",
+      "tooLarge": "「{{name}}」は{{size}}MBの制限を超えています。",
+      "readError": "写真の読み込みに失敗しました。もう一度お試しください。",
+      "count": "写真: {{count}}枚"
+    },
+    "list": {
+      "title": "登録済み物件",
+      "subtitle": "検索や編集・削除が行えます。",
+      "filterPlaceholder": "物件名・オーナー名で検索",
+      "empty": "まだ物件が登録されていません。",
+      "owner": "オーナー: {{name}}",
+      "address": "住所: {{value}}"
+    },
+    "actions": {
+      "edit": "編集",
+      "delete": "削除",
+      "confirmDelete": "「{{name}}」を削除しますか？",
+      "saving": "保存中...",
+      "loading": "物件情報を読み込み中..."
+    },
+    "alerts": {
+      "loadFailed": "管理物件の取得に失敗しました。",
+      "createFailed": "物件の登録に失敗しました。",
+      "updateFailed": "物件の更新に失敗しました。",
+      "deleteFailed": "物件の削除に失敗しました。"
+    },
+    "detailModal": {
+      "title": "物件情報を編集",
+      "titleWithName": "「{{name}}」を編集",
+      "save": "変更を保存"
+    },
+    "validations": {
+      "propertyNameRequired": "物件名は必須です。"
     }
   },
   "taskView": {
