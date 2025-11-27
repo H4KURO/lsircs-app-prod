@@ -63,6 +63,25 @@ function extractContentType(dataUrl) {
   return dataUrl.slice(5, semiColonIndex);
 }
 
+function normalisePhotosInput(input) {
+  if (Array.isArray(input)) {
+    return input;
+  }
+  if (input && typeof input === 'object') {
+    const values = Object.values(input).filter((value) => value != null);
+    return values;
+  }
+  if (typeof input === 'string') {
+    try {
+      const parsed = JSON.parse(input);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 function buildManagedProperty(payload = {}, { now = new Date().toISOString() } = {}) {
   const propertyName = requireNonEmpty(payload?.propertyName, 'Property name is required.');
 
@@ -107,18 +126,19 @@ function applyManagedPropertyUpdates(existing, updates = {}, { now = new Date().
 }
 
 function splitPhotosByUploadRequirement(rawPhotos = [], { now = new Date().toISOString() } = {}) {
-  if (!Array.isArray(rawPhotos) || rawPhotos.length === 0) {
+  const photosArray = normalisePhotosInput(rawPhotos);
+  if (photosArray.length === 0) {
     return { existingPhotos: [], newPhotos: [] };
   }
 
-  if (rawPhotos.length > MAX_PHOTO_COUNT) {
+  if (photosArray.length > MAX_PHOTO_COUNT) {
     throw validationError(`Up to ${MAX_PHOTO_COUNT} photos can be attached per property.`);
   }
 
   const existingPhotos = [];
   const newPhotos = [];
 
-  rawPhotos.forEach((photo, index) => {
+  photosArray.forEach((photo, index) => {
     const id = toTrimmedString(photo?.id) || uuidv4();
     const base = {
       id,
