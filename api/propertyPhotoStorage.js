@@ -1,4 +1,9 @@
-const { BlobServiceClient, BlobSASPermissions } = require('@azure/storage-blob');
+const {
+  BlobServiceClient,
+  BlobSASPermissions,
+  StorageSharedKeyCredential,
+  generateBlobSASQueryParameters,
+} = require('@azure/storage-blob');
 const { validationError } = require('./managedPropertyUtils');
 
 const CONNECTION_STRING_KEYS = [
@@ -34,6 +39,9 @@ const SAS_TTL_MINUTES = parseTtlMinutes(
 );
 
 let cachedContainerPromise;
+let cachedConnectionString = null;
+let cachedContainerName = null;
+let cachedSharedKeyCredential = null;
 
 async function getPhotoContainerClient() {
   if (!cachedContainerPromise) {
@@ -45,14 +53,43 @@ async function getPhotoContainerClient() {
           'MissingStorageConnection',
         );
       }
+      cachedConnectionString = connectionString;
       const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
       const containerName = resolveSetting(CONTAINER_NAME_KEYS, DEFAULT_CONTAINER);
+      cachedContainerName = containerName;
       const containerClient = blobServiceClient.getContainerClient(containerName);
       await containerClient.createIfNotExists({ access: 'private' });
       return containerClient;
     })();
   }
   return cachedContainerPromise;
+}
+
+function parseConnectionString(connectionString) {
+  return connectionString.split(';').reduce((acc, part) => {
+    const [key, value] = part.split('=');
+    if (key && value) {
+      acc[key.trim()] = value.trim();
+    }
+    return acc;
+  }, {});
+}
+
+function getSharedKeyCredential() {
+  if (cachedSharedKeyCredential) {
+    return cachedSharedKeyCredential;
+  }
+  if (!cachedConnectionString) {
+    return null;
+  }
+  const parts = parseConnectionString(cachedConnectionString);
+  const accountName = parts.AccountName;
+  const accountKey = parts.AccountKey;
+  if (!accountName || !accountKey) {
+    return null;
+  }
+  cachedSharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey);
+  return cachedSharedKeyCredential;
 }
 
 const CONTENT_TYPE_EXTENSION = new Map([
@@ -140,16 +177,28 @@ async function generatePhotoUrl(blobName) {
   const container = await getPhotoContainerClient();
   const blobClient = container.getBlobClient(blobName);
   const expiresOn = new Date(Date.now() + SAS_TTL_MINUTES * 60 * 1000);
+  const startsOn = new Date(Date.now() - 5 * 60 * 1000);
+  const credential = getSharedKeyCredential();
 
-  try {
-    const sasUrl = await blobClient.generateSasUrl({
-      expiresOn,
-      permissions: BlobSASPermissions.parse('r'),
-    });
-    return sasUrl;
-  } catch (error) {
-    return blobClient.url;
+  if (credential && cachedContainerName) {
+    try {
+      const sas = generateBlobSASQueryParameters(
+        {
+          containerName: cachedContainerName,
+          blobName,
+          permissions: BlobSASPermissions.parse('r'),
+          startsOn,
+          expiresOn,
+        },
+        credential,
+      );
+      return `${blobClient.url}?${sas.toString()}`;
+    } catch (error) {
+      // Fall back to unsigned URL if SAS generation fails.
+    }
   }
+
+  return blobClient.url;
 }
 
 async function attachPhotoUrls(photos = []) {
