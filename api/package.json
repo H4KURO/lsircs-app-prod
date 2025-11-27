@@ -5,6 +5,7 @@
   "dependencies": {
     "@azure/cosmos": "^4.5.0",
     "@azure/functions": "^4.4.0",
+    "@azure/storage-blob": "^12.29.1",
     "axios": "^1.11.0",
     "uuid": "^11.1.0"
   },
@@ -13,4 +14,3 @@
   },
   "main": "index.js"
 }
-

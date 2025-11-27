@@ -1,5 +1,6 @@
 const { app } = require('@azure/functions');
 const { managedPropertiesContainer } = require('./managedPropertiesStore');
+const { attachPhotoUrls } = require('./propertyPhotoStorage');
 
 app.http('GetManagedProperties', {
   methods: ['GET'],
@@ -13,7 +14,13 @@ app.http('GetManagedProperties', {
         const right = a?.updatedAt || a?.createdAt || '';
         return left.localeCompare(right);
       });
-      return { status: 200, jsonBody: sorted };
+      const enriched = await Promise.all(
+        sorted.map(async (property) => ({
+          ...property,
+          photos: await attachPhotoUrls(property.photos || []),
+        })),
+      );
+      return { status: 200, jsonBody: enriched };
     } catch (error) {
       const message = error?.message || 'Failed to fetch managed properties.';
       if (message.includes('connection string')) {

@@ -176,7 +176,7 @@ export function ManagedPropertyDetailModal({ open, property, onClose, onSave, sa
               <ImageList cols={3} gap={8} sx={{ mt: 2 }}>
                 {photos.map((photo) => (
                   <ImageListItem key={photo.id}>
-                    <img src={photo.dataUrl} alt={photo.name} loading="lazy" />
+                    <img src={photo.url || photo.dataUrl} alt={photo.name} loading="lazy" />
                     <ImageListItemBar
                       title={photo.name}
                       actionIcon={

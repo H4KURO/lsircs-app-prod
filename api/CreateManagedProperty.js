@@ -1,6 +1,7 @@
 const { app } = require('@azure/functions');
 const { managedPropertiesContainer } = require('./managedPropertiesStore');
-const { buildManagedProperty } = require('./managedPropertyUtils');
+const { buildManagedProperty, splitPhotosByUploadRequirement } = require('./managedPropertyUtils');
+const { uploadManagedPropertyPhoto, attachPhotoUrls } = require('./propertyPhotoStorage');
 
 app.http('CreateManagedProperty', {
   methods: ['POST'],
@@ -9,11 +10,29 @@ app.http('CreateManagedProperty', {
     try {
       const payload = await request.json();
       const managedProperty = buildManagedProperty(payload);
+      const { existingPhotos, newPhotos } = splitPhotosByUploadRequirement(payload?.photos);
+      if (existingPhotos.length > 0) {
+        return {
+          status: 400,
+          body: 'Existing photos cannot be reused when creating a property.',
+        };
+      }
+
+      const uploadedPhotos = [];
+      for (const photo of newPhotos) {
+        uploadedPhotos.push(await uploadManagedPropertyPhoto(managedProperty.id, photo));
+      }
+      managedProperty.photos = uploadedPhotos;
 
       const container = await managedPropertiesContainer();
       const { resource } = await container.items.create(managedProperty);
 
-      return { status: 201, jsonBody: resource };
+      const response = {
+        ...resource,
+        photos: await attachPhotoUrls(resource.photos || []),
+      };
+
+      return { status: 201, jsonBody: response };
     } catch (error) {
       if (error?.code === 'ValidationError') {
         return { status: 400, body: error.message };

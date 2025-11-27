@@ -1,6 +1,15 @@
 const { app } = require('@azure/functions');
 const { managedPropertiesContainer } = require('./managedPropertiesStore');
-const { applyManagedPropertyUpdates } = require('./managedPropertyUtils');
+const {
+  applyManagedPropertyUpdates,
+  splitPhotosByUploadRequirement,
+  validationError,
+} = require('./managedPropertyUtils');
+const {
+  uploadManagedPropertyPhoto,
+  deleteManagedPropertyPhotos,
+  attachPhotoUrls,
+} = require('./propertyPhotoStorage');
 
 async function readManagedProperty(container, id) {
   try {
@@ -33,9 +42,45 @@ app.http('UpdateManagedProperty', {
       }
 
       const updated = applyManagedPropertyUpdates(existing, payload);
-      const { resource } = await container.item(id, id).replace(updated);
+      let nextPhotos = existing.photos || [];
 
-      return { status: 200, jsonBody: resource };
+      if (Object.prototype.hasOwnProperty.call(payload, 'photos')) {
+        const { existingPhotos, newPhotos } = splitPhotosByUploadRequirement(payload.photos);
+        const existingPhotoMap = new Map((existing.photos || []).map((photo) => [photo.id, photo]));
+
+        const keptPhotos = existingPhotos.map((photo) => {
+          const stored = existingPhotoMap.get(photo.id);
+          if (!stored) {
+            throw validationError(`Photo "${photo.name}" no longer exists on the server.`);
+          }
+          return {
+            ...stored,
+            name: photo.name || stored.name,
+            description:
+              typeof photo.description === 'string' ? photo.description : stored.description,
+          };
+        });
+
+        const uploadedPhotos = [];
+        for (const photo of newPhotos) {
+          uploadedPhotos.push(await uploadManagedPropertyPhoto(existing.id, photo));
+        }
+
+        const incomingPhotos = [...keptPhotos, ...uploadedPhotos];
+        const incomingIds = new Set(incomingPhotos.map((photo) => photo.id));
+        const removedPhotos = (existing.photos || []).filter(
+          (photo) => !incomingIds.has(photo.id),
+        );
+        await deleteManagedPropertyPhotos(removedPhotos.map((photo) => photo.blobName));
+
+        nextPhotos = incomingPhotos;
+      }
+
+      updated.photos = nextPhotos;
+      const { resource } = await container.item(id, id).replace(updated);
+      const response = { ...resource, photos: await attachPhotoUrls(resource.photos || []) };
+
+      return { status: 200, jsonBody: response };
     } catch (error) {
       if (error?.code === 'ValidationError') {
         return { status: 400, body: error.message };

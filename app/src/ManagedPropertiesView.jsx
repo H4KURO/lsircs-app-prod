@@ -318,7 +318,7 @@ export function ManagedPropertiesView() {
               <ImageList cols={3} gap={8} sx={{ mt: 2 }}>
                 {formPhotos.map((photo) => (
                   <ImageListItem key={photo.id}>
-                    <img src={photo.dataUrl} alt={photo.name} loading="lazy" />
+                    <img src={photo.url || photo.dataUrl} alt={photo.name} loading="lazy" />
                     <ImageListItemBar
                       title={photo.name}
                       actionIcon={
@@ -408,7 +408,7 @@ export function ManagedPropertiesView() {
                           <ImageList cols={2} gap={6} sx={{ mt: 1 }}>
                             {property.photos.slice(0, 4).map((photo) => (
                               <ImageListItem key={photo.id}>
-                                <img src={photo.dataUrl} alt={photo.name} loading="lazy" />
+                                <img src={photo.url || photo.dataUrl} alt={photo.name} loading="lazy" />
                               </ImageListItem>
                             ))}
                           </ImageList>

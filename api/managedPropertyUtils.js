@@ -63,48 +63,6 @@ function extractContentType(dataUrl) {
   return dataUrl.slice(5, semiColonIndex);
 }
 
-function sanitizePhotos(rawPhotos = [], { now = new Date().toISOString() } = {}) {
-  if (!Array.isArray(rawPhotos) || rawPhotos.length === 0) {
-    return [];
-  }
-
-  if (rawPhotos.length > MAX_PHOTO_COUNT) {
-    throw validationError(`Up to ${MAX_PHOTO_COUNT} photos can be attached per property.`);
-  }
-
-  return rawPhotos.map((photo, index) => {
-    const dataUrl = toTrimmedString(photo?.dataUrl);
-    if (!dataUrl.startsWith('data:')) {
-      throw validationError(`Photo #${index + 1} is missing encoded data.`);
-    }
-
-    const estimatedBytes = estimateDataUrlBytes(dataUrl);
-    if (estimatedBytes > MAX_PHOTO_BYTES) {
-      throw validationError(
-        `Photo "${photo?.name || `#${index + 1}`}" exceeds the ${Math.floor(
-          MAX_PHOTO_BYTES / (1024 * 1024),
-        )}MB limit.`,
-      );
-    }
-
-    const id = toTrimmedString(photo?.id) || uuidv4();
-    const name = toTrimmedString(photo?.name) || `Photo ${index + 1}`;
-    const description = toTrimmedString(photo?.description);
-    const contentType = toTrimmedString(photo?.contentType) || extractContentType(dataUrl);
-    const uploadedAt = toTrimmedString(photo?.uploadedAt) || now;
-
-    return {
-      id,
-      name,
-      description,
-      dataUrl,
-      contentType,
-      size: estimatedBytes,
-      uploadedAt,
-    };
-  });
-}
-
 function buildManagedProperty(payload = {}, { now = new Date().toISOString() } = {}) {
   const propertyName = requireNonEmpty(payload?.propertyName, 'Property name is required.');
 
@@ -114,7 +72,7 @@ function buildManagedProperty(payload = {}, { now = new Date().toISOString() } =
     propertyName,
     address: toTrimmedString(payload?.address),
     memo: toTrimmedString(payload?.memo),
-    photos: sanitizePhotos(payload?.photos, { now }),
+    photos: [],
     createdAt: now,
     updatedAt: now,
   };
@@ -139,9 +97,6 @@ function applyManagedPropertyUpdates(existing, updates = {}, { now = new Date().
   if (Object.prototype.hasOwnProperty.call(updates, 'memo')) {
     next.memo = toTrimmedString(updates.memo);
   }
-  if (Object.prototype.hasOwnProperty.call(updates, 'photos')) {
-    next.photos = sanitizePhotos(updates.photos, { now });
-  }
 
   if (!toTrimmedString(next.propertyName)) {
     throw validationError('Property name is required.');
@@ -151,12 +106,68 @@ function applyManagedPropertyUpdates(existing, updates = {}, { now = new Date().
   return next;
 }
 
+function splitPhotosByUploadRequirement(rawPhotos = [], { now = new Date().toISOString() } = {}) {
+  if (!Array.isArray(rawPhotos) || rawPhotos.length === 0) {
+    return { existingPhotos: [], newPhotos: [] };
+  }
+
+  if (rawPhotos.length > MAX_PHOTO_COUNT) {
+    throw validationError(`Up to ${MAX_PHOTO_COUNT} photos can be attached per property.`);
+  }
+
+  const existingPhotos = [];
+  const newPhotos = [];
+
+  rawPhotos.forEach((photo, index) => {
+    const id = toTrimmedString(photo?.id) || uuidv4();
+    const base = {
+      id,
+      name: toTrimmedString(photo?.name) || `Photo ${index + 1}`,
+      description: toTrimmedString(photo?.description),
+      uploadedAt: toTrimmedString(photo?.uploadedAt) || now,
+    };
+
+    const blobName = toTrimmedString(photo?.blobName);
+    if (blobName) {
+      existingPhotos.push({
+        ...base,
+        blobName,
+        contentType: toTrimmedString(photo?.contentType),
+        size: Number.isFinite(Number(photo?.size)) ? Number(photo.size) : undefined,
+      });
+      return;
+    }
+
+    const dataUrl = toTrimmedString(photo?.dataUrl);
+    if (!dataUrl.startsWith('data:')) {
+      throw validationError(`Photo "${base.name}" is missing encoded data.`);
+    }
+
+    const estimatedBytes = estimateDataUrlBytes(dataUrl);
+    if (estimatedBytes > MAX_PHOTO_BYTES) {
+      throw validationError(
+        `Photo "${base.name}" exceeds the ${Math.floor(MAX_PHOTO_BYTES / (1024 * 1024))}MB limit.`,
+      );
+    }
+
+    const contentType = toTrimmedString(photo?.contentType) || extractContentType(dataUrl);
+    newPhotos.push({
+      ...base,
+      dataUrl,
+      contentType,
+      size: estimatedBytes,
+    });
+  });
+
+  return { existingPhotos, newPhotos };
+}
+
 module.exports = {
   MAX_PHOTO_BYTES,
   MAX_PHOTO_COUNT,
-  sanitizePhotos,
   buildManagedProperty,
   applyManagedPropertyUpdates,
+  splitPhotosByUploadRequirement,
   estimateDataUrlBytes,
   validationError,
 };
