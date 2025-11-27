@@ -61,20 +61,20 @@ export function ManagedPropertyDetailModal({ open, property, onClose, onSave, sa
   };
 
   const handleAddPhotos = async (event) => {
-    const files = event.target.files;
+    const fileArray = Array.from(event.target.files ?? []);
     event.target.value = '';
-    if (!files || files.length === 0) {
+    if (fileArray.length === 0) {
       return;
     }
 
-    if (files.length > remainingSlots) {
+    if (fileArray.length > remainingSlots) {
       setUploadError(
         t('managedPropertiesView.photos.tooMany', { count: MANAGED_PROPERTY_MAX_PHOTO_COUNT }),
       );
       return;
     }
 
-    const oversized = Array.from(files).find((file) => file.size > MANAGED_PROPERTY_MAX_PHOTO_BYTES);
+    const oversized = fileArray.find((file) => file.size > MANAGED_PROPERTY_MAX_PHOTO_BYTES);
     if (oversized) {
       setUploadError(
         t('managedPropertiesView.photos.tooLarge', {
@@ -87,7 +87,7 @@ export function ManagedPropertyDetailModal({ open, property, onClose, onSave, sa
 
     setIsUploading(true);
     try {
-      const newPhotos = await filesToPhotoPayloads(files);
+      const newPhotos = await filesToPhotoPayloads(fileArray);
       setPhotos((prev) => [...prev, ...newPhotos]);
       setUploadError('');
     } catch (error) {
