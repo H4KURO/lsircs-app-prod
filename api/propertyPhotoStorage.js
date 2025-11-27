@@ -67,9 +67,14 @@ async function getPhotoContainerClient() {
 
 function parseConnectionString(connectionString) {
   return connectionString.split(';').reduce((acc, part) => {
-    const [key, value] = part.split('=');
-    if (key && value) {
-      acc[key.trim()] = value.trim();
+    const separatorIndex = part.indexOf('=');
+    if (separatorIndex === -1) {
+      return acc;
+    }
+    const key = part.slice(0, separatorIndex).trim();
+    const value = part.slice(separatorIndex + 1).trim();
+    if (key) {
+      acc[key] = value;
     }
     return acc;
   }, {});
@@ -88,7 +93,12 @@ function getSharedKeyCredential() {
   if (!accountName || !accountKey) {
     return null;
   }
-  cachedSharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey);
+  try {
+    cachedSharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey);
+  } catch (error) {
+    cachedSharedKeyCredential = null;
+    return null;
+  }
   return cachedSharedKeyCredential;
 }
 
