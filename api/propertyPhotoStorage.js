@@ -58,7 +58,7 @@ async function getPhotoContainerClient() {
       const containerName = resolveSetting(CONTAINER_NAME_KEYS, DEFAULT_CONTAINER);
       cachedContainerName = containerName;
       const containerClient = blobServiceClient.getContainerClient(containerName);
-      await containerClient.createIfNotExists({ access: 'private' });
+      await containerClient.createIfNotExists();
       return containerClient;
     })();
   }
