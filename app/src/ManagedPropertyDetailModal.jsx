@@ -18,6 +18,8 @@ import {
 import AddAPhotoIcon from '@mui/icons-material/AddAPhoto';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import DownloadIcon from '@mui/icons-material/Download';
 import { useTranslation } from 'react-i18next';
 import {
   MANAGED_PROPERTY_MAX_PHOTO_BYTES,
@@ -25,7 +27,9 @@ import {
   filesToPhotoPayloads,
   formatBytesInMb,
   isDisplayableImage,
+  getAttachmentHref,
 } from './propertyPhotoUtils';
+import { AttachmentPreviewDialog } from './AttachmentPreviewDialog';
 
 export function ManagedPropertyDetailModal({ open, property, onClose, onSave, saving = false }) {
   const { t } = useTranslation();
@@ -38,6 +42,7 @@ export function ManagedPropertyDetailModal({ open, property, onClose, onSave, sa
   const [photos, setPhotos] = useState([]);
   const [uploadError, setUploadError] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [previewAttachment, setPreviewAttachment] = useState(null);
 
   const renderAttachmentPreview = (photo) => {
     if (isDisplayableImage(photo)) {
@@ -138,6 +143,10 @@ export function ManagedPropertyDetailModal({ open, property, onClose, onSave, sa
     onSave?.({ ...property, ...form, photos });
   };
 
+  const handlePreviewAttachment = (attachment) => {
+    setPreviewAttachment(attachment);
+  };
+
   const title = property?.propertyName
     ? t('managedPropertiesView.detailModal.titleWithName', { name: property.propertyName })
     : t('managedPropertiesView.detailModal.title');
@@ -210,19 +219,47 @@ export function ManagedPropertyDetailModal({ open, property, onClose, onSave, sa
             )}
             {photos.length > 0 && (
               <ImageList cols={3} gap={8} sx={{ mt: 2 }}>
-                {photos.map((photo) => (
-                  <ImageListItem key={photo.id}>
-                    {renderAttachmentPreview(photo)}
-                    <ImageListItemBar
-                      title={photo.name}
-                      actionIcon={
-                        <IconButton color="inherit" onClick={() => handleRemovePhoto(photo.id)}>
-                          <DeleteIcon />
-                        </IconButton>
-                      }
-                    />
-                  </ImageListItem>
-                ))}
+                {photos.map((photo) => {
+                  const downloadHref = getAttachmentHref(photo);
+                  return (
+                    <ImageListItem key={photo.id}>
+                      {renderAttachmentPreview(photo)}
+                      <ImageListItemBar
+                        title={photo.name}
+                        actionIcon={
+                          <Stack direction="row">
+                            <IconButton
+                              color="inherit"
+                              aria-label={t('managedPropertiesView.actions.preview')}
+                              onClick={() => handlePreviewAttachment(photo)}
+                            >
+                              <VisibilityIcon />
+                            </IconButton>
+                            <IconButton
+                              color="inherit"
+                              aria-label={t('managedPropertiesView.actions.download')}
+                              component="a"
+                              href={downloadHref || undefined}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              download={photo.name}
+                              disabled={!downloadHref}
+                            >
+                              <DownloadIcon />
+                            </IconButton>
+                            <IconButton
+                              color="inherit"
+                              aria-label={t('managedPropertiesView.actions.delete')}
+                              onClick={() => handleRemovePhoto(photo.id)}
+                            >
+                              <DeleteIcon />
+                            </IconButton>
+                          </Stack>
+                        }
+                      />
+                    </ImageListItem>
+                  );
+                })}
               </ImageList>
             )}
           </Box>
@@ -234,6 +271,11 @@ export function ManagedPropertyDetailModal({ open, property, onClose, onSave, sa
           {saving ? t('managedPropertiesView.actions.saving') : t('managedPropertiesView.detailModal.save')}
         </Button>
       </DialogActions>
+      <AttachmentPreviewDialog
+        attachment={previewAttachment}
+        open={Boolean(previewAttachment)}
+        onClose={() => setPreviewAttachment(null)}
+      />
     </Dialog>
   );
 }

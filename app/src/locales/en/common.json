@@ -41,7 +41,8 @@
   },
   "common": {
     "cancel": "Cancel",
-    "save": "Save"
+    "save": "Save",
+    "close": "Close"
   },
   "calendar": {
     "next": "Next",
@@ -107,7 +108,9 @@
       "delete": "Delete",
       "confirmDelete": "Delete \"{{name}}\"?",
       "saving": "Saving...",
-      "loading": "Loading properties..."
+      "loading": "Loading properties...",
+      "preview": "Preview",
+      "download": "Download"
     },
     "alerts": {
       "loadFailed": "Failed to load managed properties.",
@@ -119,6 +122,12 @@
       "title": "Edit property",
       "titleWithName": "Edit \"{{name}}\"",
       "save": "Save changes"
+    },
+    "preview": {
+      "title": "File preview",
+      "notAvailable": "Preview is not available for this file.",
+      "pdfFallback": "Preview is not available. Use the button below to open the PDF.",
+      "open": "Open in new tab"
     },
     "validations": {
       "propertyNameRequired": "Property name is required."

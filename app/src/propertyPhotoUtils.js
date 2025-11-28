@@ -52,3 +52,25 @@ export const isDisplayableImage = (photo) => {
   }
   return false;
 };
+
+export const isPdfAttachment = (photo) => {
+  const contentType = (photo?.contentType || '').toLowerCase();
+  if (contentType.includes('pdf')) {
+    return true;
+  }
+  const dataUrl = photo?.dataUrl;
+  if (typeof dataUrl === 'string') {
+    return dataUrl.startsWith('data:application/pdf');
+  }
+  return false;
+};
+
+export const getAttachmentHref = (photo) => {
+  if (typeof photo?.url === 'string' && photo.url.length > 0) {
+    return photo.url;
+  }
+  if (typeof photo?.dataUrl === 'string' && photo.dataUrl.length > 0) {
+    return photo.dataUrl;
+  }
+  return null;
+};

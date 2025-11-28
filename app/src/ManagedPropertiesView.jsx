@@ -25,14 +25,18 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import AddAPhotoIcon from '@mui/icons-material/AddAPhoto';
 import { useTranslation } from 'react-i18next';
 import { ManagedPropertyDetailModal } from './ManagedPropertyDetailModal';
+import { AttachmentPreviewDialog } from './AttachmentPreviewDialog';
 import {
   MANAGED_PROPERTY_MAX_PHOTO_BYTES,
   MANAGED_PROPERTY_MAX_PHOTO_COUNT,
   filesToPhotoPayloads,
   formatBytesInMb,
   isDisplayableImage,
+  getAttachmentHref,
 } from './propertyPhotoUtils';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import DownloadIcon from '@mui/icons-material/Download';
 
 const API_URL = '/api';
 
@@ -63,6 +67,7 @@ export function ManagedPropertiesView() {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalSaving, setModalSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [previewAttachment, setPreviewAttachment] = useState(null);
 
   const renderAttachmentPreview = (photo) => {
     if (isDisplayableImage(photo)) {
@@ -269,6 +274,10 @@ export function ManagedPropertiesView() {
     }
   };
 
+  const handlePreviewAttachment = (attachment) => {
+    setPreviewAttachment(attachment);
+  };
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       <Typography variant="h4" component="h1">
@@ -352,19 +361,47 @@ export function ManagedPropertiesView() {
             )}
             {formPhotos.length > 0 && (
               <ImageList cols={3} gap={8} sx={{ mt: 2 }}>
-                {formPhotos.map((photo) => (
-                  <ImageListItem key={photo.id}>
-                    {renderAttachmentPreview(photo)}
-                    <ImageListItemBar
-                      title={photo.name}
-                      actionIcon={
-                        <IconButton color="inherit" onClick={() => handleRemoveFormPhoto(photo.id)}>
-                          <DeleteIcon />
-                        </IconButton>
-                      }
-                    />
-                  </ImageListItem>
-                ))}
+                {formPhotos.map((photo) => {
+                  const downloadHref = getAttachmentHref(photo);
+                  return (
+                    <ImageListItem key={photo.id}>
+                      {renderAttachmentPreview(photo)}
+                      <ImageListItemBar
+                        title={photo.name}
+                        actionIcon={
+                          <Stack direction="row">
+                            <IconButton
+                              color="inherit"
+                              aria-label={t('managedPropertiesView.actions.preview')}
+                              onClick={() => handlePreviewAttachment(photo)}
+                            >
+                              <VisibilityIcon />
+                            </IconButton>
+                            <IconButton
+                              color="inherit"
+                              aria-label={t('managedPropertiesView.actions.download')}
+                              component="a"
+                              href={downloadHref || undefined}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              download={photo.name}
+                              disabled={!downloadHref}
+                            >
+                              <DownloadIcon />
+                            </IconButton>
+                            <IconButton
+                              color="inherit"
+                              aria-label={t('managedPropertiesView.actions.delete')}
+                              onClick={() => handleRemoveFormPhoto(photo.id)}
+                            >
+                              <DeleteIcon />
+                            </IconButton>
+                          </Stack>
+                        }
+                      />
+                    </ImageListItem>
+                  );
+                })}
               </ImageList>
             )}
           </Box>
@@ -442,11 +479,40 @@ export function ManagedPropertiesView() {
                             label={t('managedPropertiesView.photos.count', { count: property.photos.length })}
                           />
                           <ImageList cols={2} gap={6} sx={{ mt: 1 }}>
-                            {property.photos.slice(0, 4).map((photo) => (
-                              <ImageListItem key={photo.id}>
-                                {renderAttachmentPreview(photo)}
-                              </ImageListItem>
-                            ))}
+                            {property.photos.slice(0, 4).map((photo) => {
+                              const downloadHref = getAttachmentHref(photo);
+                              return (
+                                <ImageListItem key={photo.id}>
+                                  {renderAttachmentPreview(photo)}
+                                  <ImageListItemBar
+                                    title={photo.name}
+                                    actionIcon={
+                                      <Stack direction="row">
+                                        <IconButton
+                                          color="inherit"
+                                          aria-label={t('managedPropertiesView.actions.preview')}
+                                          onClick={() => handlePreviewAttachment(photo)}
+                                        >
+                                          <VisibilityIcon />
+                                        </IconButton>
+                                        <IconButton
+                                          color="inherit"
+                                          aria-label={t('managedPropertiesView.actions.download')}
+                                          component="a"
+                                          href={downloadHref || undefined}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          download={photo.name}
+                                          disabled={!downloadHref}
+                                        >
+                                          <DownloadIcon />
+                                        </IconButton>
+                                      </Stack>
+                                    }
+                                  />
+                                </ImageListItem>
+                              );
+                            })}
                           </ImageList>
                         </Box>
                       )}
@@ -477,6 +543,11 @@ export function ManagedPropertiesView() {
         onClose={handleModalClose}
         onSave={handleModalSave}
         saving={modalSaving}
+      />
+      <AttachmentPreviewDialog
+        attachment={previewAttachment}
+        open={Boolean(previewAttachment)}
+        onClose={() => setPreviewAttachment(null)}
       />
     </Box>
   );
