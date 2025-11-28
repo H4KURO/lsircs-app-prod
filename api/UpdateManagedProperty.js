@@ -93,8 +93,7 @@ app.http('UpdateManagedProperty', {
         return { status: 500, body: message };
       }
       context.log('UpdateManagedProperty failed', error);
-      const debugMessage = error?.stack || error?.message || 'Failed to update managed property.';
-      return { status: 500, body: debugMessage };
+      return { status: 500, body: 'Failed to update managed property.' };
     }
   },
 });

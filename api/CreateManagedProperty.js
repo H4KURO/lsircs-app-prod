@@ -42,8 +42,7 @@ app.http('CreateManagedProperty', {
         return { status: 500, body: message };
       }
       context.log('CreateManagedProperty failed', error);
-      const debugMessage = error?.stack || error?.message || 'Failed to create managed property.';
-      return { status: 500, body: debugMessage };
+      return { status: 500, body: 'Failed to create managed property.' };
     }
   },
 });
