@@ -1,5 +1,5 @@
 export const MANAGED_PROPERTY_MAX_PHOTO_COUNT = 10;
-export const MANAGED_PROPERTY_MAX_PHOTO_BYTES = 4 * 1024 * 1024; // 4MB
+export const MANAGED_PROPERTY_MAX_PHOTO_BYTES = 8 * 1024 * 1024; // 8MB
 
 const FALLBACK_RANDOM_ID = () => `photo_${Math.random().toString(36).slice(2, 10)}`;
 
@@ -39,4 +39,16 @@ export const filesToPhotoPayloads = async (fileList) => {
   );
 
   return photos;
+};
+
+export const isDisplayableImage = (photo) => {
+  const contentType = (photo?.contentType || '').toLowerCase();
+  if (contentType.startsWith('image/')) {
+    return true;
+  }
+  const dataUrl = photo?.dataUrl;
+  if (typeof dataUrl === 'string') {
+    return dataUrl.startsWith('data:image/');
+  }
+  return false;
 };

@@ -87,12 +87,12 @@
       "submit": "登録する"
     },
     "photos": {
-      "add": "写真を追加",
-      "helper": "1件につき最大{{count}}枚（1枚あたり{{size}}MBまで）",
-      "tooMany": "写真は最大{{count}}枚まで添付できます。",
+      "add": "ファイルを追加",
+      "helper": "1件につき最大{{count}}件（1件あたり{{size}}MBまで、PDFも可）",
+      "tooMany": "ファイルは最大{{count}}件まで添付できます。",
       "tooLarge": "「{{name}}」は{{size}}MBの制限を超えています。",
-      "readError": "写真の読み込みに失敗しました。もう一度お試しください。",
-      "count": "写真: {{count}}枚"
+      "readError": "ファイルの読み込みに失敗しました。もう一度お試しください。",
+      "count": "添付: {{count}}件"
     },
     "list": {
       "title": "登録済み物件",

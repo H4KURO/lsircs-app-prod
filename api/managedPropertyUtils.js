@@ -1,6 +1,6 @@
 const { v4: uuidv4 } = require('uuid');
 
-const DEFAULT_MAX_PHOTO_BYTES = 4 * 1024 * 1024; // 4MB
+const DEFAULT_MAX_PHOTO_BYTES = 8 * 1024 * 1024; // 8MB
 const DEFAULT_MAX_PHOTO_COUNT = 10;
 
 function parsePositiveInteger(value, fallback) {

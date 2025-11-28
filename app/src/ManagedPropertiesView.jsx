@@ -30,7 +30,9 @@ import {
   MANAGED_PROPERTY_MAX_PHOTO_COUNT,
   filesToPhotoPayloads,
   formatBytesInMb,
+  isDisplayableImage,
 } from './propertyPhotoUtils';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 
 const API_URL = '/api';
 
@@ -61,6 +63,34 @@ export function ManagedPropertiesView() {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalSaving, setModalSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+
+  const renderAttachmentPreview = (photo) => {
+    if (isDisplayableImage(photo)) {
+      return <img src={photo.url || photo.dataUrl} alt={photo.name} loading="lazy" />;
+    }
+    return (
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          p: 2,
+          height: 120,
+          backgroundColor: 'background.paper',
+          border: '1px dashed',
+          borderColor: 'divider',
+          textAlign: 'center',
+        }}
+      >
+        <Stack spacing={1} alignItems="center">
+          <PictureAsPdfIcon color="action" />
+          <Typography variant="caption" sx={{ wordBreak: 'break-all' }}>
+            {photo.name}
+          </Typography>
+        </Stack>
+      </Box>
+    );
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -300,7 +330,13 @@ export function ManagedPropertiesView() {
                 disabled={isUploading || formPhotos.length >= MANAGED_PROPERTY_MAX_PHOTO_COUNT}
               >
                 {t('managedPropertiesView.photos.add')}
-                <input type="file" hidden multiple accept="image/*" onChange={handleAddPhotosToForm} />
+                <input
+                  type="file"
+                  hidden
+                  multiple
+                  accept="image/*,.pdf,application/pdf"
+                  onChange={handleAddPhotosToForm}
+                />
               </Button>
               <Typography variant="body2" color="text.secondary">
                 {t('managedPropertiesView.photos.helper', {
@@ -318,7 +354,7 @@ export function ManagedPropertiesView() {
               <ImageList cols={3} gap={8} sx={{ mt: 2 }}>
                 {formPhotos.map((photo) => (
                   <ImageListItem key={photo.id}>
-                    <img src={photo.url || photo.dataUrl} alt={photo.name} loading="lazy" />
+                    {renderAttachmentPreview(photo)}
                     <ImageListItemBar
                       title={photo.name}
                       actionIcon={
@@ -408,7 +444,7 @@ export function ManagedPropertiesView() {
                           <ImageList cols={2} gap={6} sx={{ mt: 1 }}>
                             {property.photos.slice(0, 4).map((photo) => (
                               <ImageListItem key={photo.id}>
-                                <img src={photo.url || photo.dataUrl} alt={photo.name} loading="lazy" />
+                                {renderAttachmentPreview(photo)}
                               </ImageListItem>
                             ))}
                           </ImageList>

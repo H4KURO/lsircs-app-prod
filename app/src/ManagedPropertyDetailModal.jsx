@@ -17,12 +17,14 @@ import {
 } from '@mui/material';
 import AddAPhotoIcon from '@mui/icons-material/AddAPhoto';
 import DeleteIcon from '@mui/icons-material/Delete';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import { useTranslation } from 'react-i18next';
 import {
   MANAGED_PROPERTY_MAX_PHOTO_BYTES,
   MANAGED_PROPERTY_MAX_PHOTO_COUNT,
   filesToPhotoPayloads,
   formatBytesInMb,
+  isDisplayableImage,
 } from './propertyPhotoUtils';
 
 export function ManagedPropertyDetailModal({ open, property, onClose, onSave, saving = false }) {
@@ -36,6 +38,34 @@ export function ManagedPropertyDetailModal({ open, property, onClose, onSave, sa
   const [photos, setPhotos] = useState([]);
   const [uploadError, setUploadError] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+
+  const renderAttachmentPreview = (photo) => {
+    if (isDisplayableImage(photo)) {
+      return <img src={photo.url || photo.dataUrl} alt={photo.name} loading="lazy" />;
+    }
+    return (
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          p: 2,
+          height: 120,
+          backgroundColor: 'background.paper',
+          border: '1px dashed',
+          borderColor: 'divider',
+          textAlign: 'center',
+        }}
+      >
+        <Stack spacing={1} alignItems="center">
+          <PictureAsPdfIcon color="action" />
+          <Typography variant="caption" sx={{ wordBreak: 'break-all' }}>
+            {photo.name}
+          </Typography>
+        </Stack>
+      </Box>
+    );
+  };
 
   useEffect(() => {
     if (property) {
@@ -158,7 +188,13 @@ export function ManagedPropertyDetailModal({ open, property, onClose, onSave, sa
                 disabled={remainingSlots === 0 || isUploading}
               >
                 {t('managedPropertiesView.photos.add')}
-                <input type="file" multiple accept="image/*" hidden onChange={handleAddPhotos} />
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*,.pdf,application/pdf"
+                  hidden
+                  onChange={handleAddPhotos}
+                />
               </Button>
               <Typography variant="body2" color="text.secondary">
                 {t('managedPropertiesView.photos.helper', {
@@ -176,7 +212,7 @@ export function ManagedPropertyDetailModal({ open, property, onClose, onSave, sa
               <ImageList cols={3} gap={8} sx={{ mt: 2 }}>
                 {photos.map((photo) => (
                   <ImageListItem key={photo.id}>
-                    <img src={photo.url || photo.dataUrl} alt={photo.name} loading="lazy" />
+                    {renderAttachmentPreview(photo)}
                     <ImageListItemBar
                       title={photo.name}
                       actionIcon={

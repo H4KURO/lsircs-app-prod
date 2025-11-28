@@ -87,12 +87,12 @@
       "submit": "Register"
     },
     "photos": {
-      "add": "Add photos",
-      "helper": "Up to {{count}} photos ({{size}}MB max per file).",
-      "tooMany": "You can attach up to {{count}} photos.",
+      "add": "Add files",
+      "helper": "Up to {{count}} photos/PDFs ({{size}}MB max per file).",
+      "tooMany": "You can attach up to {{count}} files.",
       "tooLarge": "\"{{name}}\" exceeds the {{size}}MB limit.",
-      "readError": "Failed to read one or more photos. Please try again.",
-      "count": "Photos: {{count}}"
+      "readError": "Failed to read one or more files. Please try again.",
+      "count": "Files: {{count}}"
     },
     "list": {
       "title": "Registered Properties",
