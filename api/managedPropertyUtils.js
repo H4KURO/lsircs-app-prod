@@ -97,6 +97,9 @@ function buildManagedProperty(payload = {}, { now = new Date().toISOString() } =
     address: toTrimmedString(payload?.address),
     memo: toTrimmedString(payload?.memo),
     managementFee: parseNumber(payload?.managementFee, 0),
+    buildingArea: parseNumber(payload?.buildingArea, 0),
+    lotArea: parseNumber(payload?.lotArea, 0),
+    dwellingType: toTrimmedString(payload?.dwellingType),
     photos: [],
     createdAt: now,
     updatedAt: now,
@@ -124,6 +127,15 @@ function applyManagedPropertyUpdates(existing, updates = {}, { now = new Date().
   }
   if (Object.prototype.hasOwnProperty.call(updates, 'managementFee')) {
     next.managementFee = parseNumber(updates.managementFee, next.managementFee ?? 0);
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'buildingArea')) {
+    next.buildingArea = parseNumber(updates.buildingArea, next.buildingArea ?? 0);
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'lotArea')) {
+    next.lotArea = parseNumber(updates.lotArea, next.lotArea ?? 0);
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'dwellingType')) {
+    next.dwellingType = toTrimmedString(updates.dwellingType);
   }
 
   if (!toTrimmedString(next.propertyName)) {

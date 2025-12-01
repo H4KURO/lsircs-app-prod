@@ -94,7 +94,10 @@
       "propertyName": "物件名",
       "address": "住所",
       "memo": "メモ",
-      "managementFee": "管理費用（円）"
+      "managementFee": "管理費用（円）",
+      "buildingArea": "建物面積（㎡）",
+      "lotArea": "敷地面積（㎡）",
+      "dwellingType": "住居タイプ"
     },
     "createSection": {
       "title": "物件を登録",
@@ -116,7 +119,10 @@
       "empty": "まだ物件が登録されていません。",
       "owner": "オーナー: {{name}}",
       "address": "住所: {{value}}",
-      "managementFee": "管理費用: {{value}}"
+      "managementFee": "管理費用: {{value}}",
+      "buildingArea": "建物面積: {{value}}",
+      "lotArea": "敷地面積: {{value}}",
+      "dwellingType": "住居タイプ: {{value}}"
     },
     "actions": {
       "edit": "編集",
@@ -137,6 +143,11 @@
       "title": "物件情報を編集",
       "titleWithName": "「{{name}}」を編集",
       "save": "変更を保存"
+    },
+    "dwellingTypes": {
+      "house": "戸建て",
+      "apartment": "マンション",
+      "unset": "選択してください"
     },
     "preview": {
       "title": "ファイルプレビュー",

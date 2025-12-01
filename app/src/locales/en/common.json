@@ -94,7 +94,10 @@
       "propertyName": "Property",
       "address": "Address",
       "memo": "Memo",
-      "managementFee": "Management Fee (JPY)"
+      "managementFee": "Management Fee (JPY)",
+      "buildingArea": "Building Area (m²)",
+      "lotArea": "Lot Area (m²)",
+      "dwellingType": "Dwelling Type"
     },
     "createSection": {
       "title": "Register a Property",
@@ -116,7 +119,10 @@
       "empty": "No properties have been registered yet.",
       "owner": "Owner: {{name}}",
       "address": "Address: {{value}}",
-      "managementFee": "Management Fee: {{value}}"
+      "managementFee": "Management Fee: {{value}}",
+      "buildingArea": "Building area: {{value}}",
+      "lotArea": "Lot area: {{value}}",
+      "dwellingType": "Type: {{value}}"
     },
     "actions": {
       "edit": "Edit",
@@ -137,6 +143,11 @@
       "title": "Edit property",
       "titleWithName": "Edit \"{{name}}\"",
       "save": "Save changes"
+    },
+    "dwellingTypes": {
+      "house": "House",
+      "apartment": "Apartment",
+      "unset": "Select"
     },
     "preview": {
       "title": "File preview",

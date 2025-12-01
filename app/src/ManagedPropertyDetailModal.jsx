@@ -14,6 +14,7 @@ import {
   IconButton,
   Alert,
   Box,
+  MenuItem,
 } from '@mui/material';
 import AddAPhotoIcon from '@mui/icons-material/AddAPhoto';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -32,6 +33,11 @@ import {
 } from './propertyPhotoUtils';
 import { AttachmentPreviewDialog } from './AttachmentPreviewDialog';
 
+const DWELLING_TYPE_OPTIONS = [
+  { value: 'house', labelKey: 'managedPropertiesView.dwellingTypes.house' },
+  { value: 'apartment', labelKey: 'managedPropertiesView.dwellingTypes.apartment' },
+];
+
 export function ManagedPropertyDetailModal({ open, property, onClose, onSave, saving = false }) {
   const { t } = useTranslation();
   const [form, setForm] = useState(() => ({
@@ -40,11 +46,18 @@ export function ManagedPropertyDetailModal({ open, property, onClose, onSave, sa
     address: '',
     memo: '',
     managementFee: '',
+    buildingArea: '',
+    lotArea: '',
+    dwellingType: '',
   }));
   const [photos, setPhotos] = useState([]);
   const [uploadError, setUploadError] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [previewAttachment, setPreviewAttachment] = useState(null);
+  const dwellingTypeOptions = useMemo(
+    () => DWELLING_TYPE_OPTIONS.map((option) => ({ ...option, label: t(option.labelKey) })),
+    [t],
+  );
 
   const renderAttachmentPreview = (photo) => {
     if (isDisplayableImage(photo)) {
@@ -83,6 +96,11 @@ export function ManagedPropertyDetailModal({ open, property, onClose, onSave, sa
         memo: property.memo || '',
         managementFee:
           typeof property.managementFee === 'number' ? property.managementFee : property.managementFee || '',
+        buildingArea:
+          typeof property.buildingArea === 'number' ? property.buildingArea : property.buildingArea || '',
+        lotArea:
+          typeof property.lotArea === 'number' ? property.lotArea : property.lotArea || '',
+        dwellingType: property.dwellingType || '',
       });
       setPhotos(property.photos || []);
       setUploadError('');
@@ -191,6 +209,41 @@ export function ManagedPropertyDetailModal({ open, property, onClose, onSave, sa
             InputProps={{ inputProps: { min: 0 } }}
             fullWidth
           />
+          <TextField
+            label={t('managedPropertiesView.fields.buildingArea')}
+            name="buildingArea"
+            type="number"
+            value={form.buildingArea}
+            onChange={handleInputChange}
+            InputProps={{ inputProps: { min: 0 } }}
+            fullWidth
+          />
+          <TextField
+            label={t('managedPropertiesView.fields.lotArea')}
+            name="lotArea"
+            type="number"
+            value={form.lotArea}
+            onChange={handleInputChange}
+            InputProps={{ inputProps: { min: 0 } }}
+            fullWidth
+          />
+          <TextField
+            select
+            label={t('managedPropertiesView.fields.dwellingType')}
+            name="dwellingType"
+            value={form.dwellingType}
+            onChange={handleInputChange}
+            fullWidth
+          >
+            <MenuItem value="">
+              <em>{t('managedPropertiesView.dwellingTypes.unset')}</em>
+            </MenuItem>
+            {dwellingTypeOptions.map((option) => (
+              <MenuItem key={option.value} value={option.value}>
+                {option.label}
+              </MenuItem>
+            ))}
+          </TextField>
           <TextField
             label={t('managedPropertiesView.fields.memo')}
             name="memo"

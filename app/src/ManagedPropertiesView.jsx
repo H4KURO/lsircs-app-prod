@@ -19,6 +19,7 @@ import {
   Alert,
   CircularProgress,
   Divider,
+  MenuItem,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -40,6 +41,10 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import DownloadIcon from '@mui/icons-material/Download';
 
 const API_URL = '/api';
+const DWELLING_TYPE_OPTIONS = [
+  { value: 'house', labelKey: 'managedPropertiesView.dwellingTypes.house' },
+  { value: 'apartment', labelKey: 'managedPropertiesView.dwellingTypes.apartment' },
+];
 
 const extractErrorMessage = (error, fallback) => {
   const serverMessage = error?.response?.data;
@@ -70,6 +75,18 @@ export function ManagedPropertiesView() {
   const [modalSaving, setModalSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [previewAttachment, setPreviewAttachment] = useState(null);
+  const dwellingTypeOptions = useMemo(
+    () => DWELLING_TYPE_OPTIONS.map((option) => ({ ...option, label: t(option.labelKey) })),
+    [t],
+  );
+
+  const formatSquareMeters = (value) => {
+    const num = Number(value);
+    if (!Number.isFinite(num) || num <= 0) {
+      return null;
+    }
+    return `${num.toLocaleString()} m²`;
+  };
 
   const renderAttachmentPreview = (photo) => {
     if (isDisplayableImage(photo)) {
@@ -202,6 +219,9 @@ export function ManagedPropertiesView() {
       address: '',
       memo: '',
       managementFee: '',
+      buildingArea: '',
+      lotArea: '',
+      dwellingType: '',
     });
     setFormPhotos([]);
     setPhotoFeedback('');
@@ -332,6 +352,41 @@ export function ManagedPropertiesView() {
             InputProps={{ inputProps: { min: 0 } }}
             fullWidth
           />
+          <TextField
+            label={t('managedPropertiesView.fields.buildingArea')}
+            name="buildingArea"
+            type="number"
+            value={formValues.buildingArea}
+            onChange={handleInputChange}
+            InputProps={{ inputProps: { min: 0 } }}
+            fullWidth
+          />
+          <TextField
+            label={t('managedPropertiesView.fields.lotArea')}
+            name="lotArea"
+            type="number"
+            value={formValues.lotArea}
+            onChange={handleInputChange}
+            InputProps={{ inputProps: { min: 0 } }}
+            fullWidth
+          />
+          <TextField
+            select
+            label={t('managedPropertiesView.fields.dwellingType')}
+            name="dwellingType"
+            value={formValues.dwellingType}
+            onChange={handleInputChange}
+            fullWidth
+          >
+            <MenuItem value="">
+              <em>{t('managedPropertiesView.dwellingTypes.unset')}</em>
+            </MenuItem>
+            {dwellingTypeOptions.map((option) => (
+              <MenuItem key={option.value} value={option.value}>
+                {option.label}
+              </MenuItem>
+            ))}
+          </TextField>
           <TextField
             label={t('managedPropertiesView.fields.memo')}
             name="memo"
@@ -483,6 +538,30 @@ export function ManagedPropertiesView() {
                         <Typography variant="body2" color="text.secondary">
                           {t('managedPropertiesView.list.managementFee', {
                             value: formatYen(property.managementFee),
+                          })}
+                        </Typography>
+                      )}
+                      {formatSquareMeters(property.buildingArea) && (
+                        <Typography variant="body2" color="text.secondary">
+                          {t('managedPropertiesView.list.buildingArea', {
+                            value: formatSquareMeters(property.buildingArea),
+                          })}
+                        </Typography>
+                      )}
+                      {formatSquareMeters(property.lotArea) && (
+                        <Typography variant="body2" color="text.secondary">
+                          {t('managedPropertiesView.list.lotArea', {
+                            value: formatSquareMeters(property.lotArea),
+                          })}
+                        </Typography>
+                      )}
+                      {property.dwellingType && (
+                        <Typography variant="body2" color="text.secondary">
+                          {t('managedPropertiesView.list.dwellingType', {
+                            value: t(
+                              `managedPropertiesView.dwellingTypes.${property.dwellingType}`,
+                              property.dwellingType,
+                            ),
                           })}
                         </Typography>
                       )}
