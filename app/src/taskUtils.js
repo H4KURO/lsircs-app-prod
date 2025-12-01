@@ -128,6 +128,7 @@ export const normalizeTask = (task) => {
     assignee: assignees.length > 0 ? assignees[0] : null,
     tags,
     subtasks,
+    attachments: Array.isArray(task.attachments) ? task.attachments : [],
   };
 };
 

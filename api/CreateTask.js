@@ -4,6 +4,8 @@ const { getNamedContainer } = require('./cosmosClient');
 const { normalizeSubtasksInput } = require('./subtaskUtils');
 const { notifyTaskCreated } = require('./slackClient');
 const { normalizeAssigneesPayload, ensureAssigneesOnTask } = require('./assigneeUtils');
+const { splitAttachmentsByUploadRequirement } = require('./attachmentUtils');
+const { uploadAttachmentForEntity, attachAttachmentUrls } = require('./propertyPhotoStorage');
 const tasksContainer = () =>
   getNamedContainer('Tasks', ['COSMOS_TASKS_CONTAINER', 'CosmosTasksContainer']);
 const n8nSecretKey = process.env.N8N_SECRET_KEY;
@@ -47,6 +49,13 @@ app.http('CreateTask', {
       const container = tasksContainer();
       const now = new Date().toISOString();
       const assignees = normalizeAssigneesPayload(payload);
+      const { existingAttachments, newAttachments } = splitAttachmentsByUploadRequirement(
+        payload?.attachments,
+        { now },
+      );
+      if (existingAttachments.length > 0) {
+        return { status: 400, body: 'Existing attachments cannot be reused when creating a task.' };
+      }
 
       const baseTask = {
         id: uuidv4(),
@@ -60,14 +69,24 @@ app.http('CreateTask', {
         assignees,
         deadline: payload?.deadline ?? null,
         subtasks: normalizeSubtasksInput(payload?.subtasks),
+        attachments: [],
         createdAt: now,
         createdById: clientPrincipal.userId,
         createdByName: clientPrincipal.userDetails,
       };
 
+      if (newAttachments.length > 0) {
+        const uploaded = [];
+        for (const attachment of newAttachments) {
+          uploaded.push(await uploadAttachmentForEntity('task', baseTask.id, attachment));
+        }
+        baseTask.attachments = uploaded;
+      }
+
       const taskToCreate = ensureAssigneesOnTask(baseTask);
       const { resource } = await container.items.create(taskToCreate);
       const savedTask = ensureAssigneesOnTask(resource);
+      savedTask.attachments = await attachAttachmentUrls(savedTask.attachments || []);
 
       await notifyTaskCreated(savedTask, context, { actorName: clientPrincipal.userDetails });
 

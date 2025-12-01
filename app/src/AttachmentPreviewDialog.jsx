@@ -20,7 +20,7 @@ export function AttachmentPreviewDialog({ attachment, open, onClose }) {
     if (!href) {
       return (
         <Typography color="text.secondary">
-          {t('managedPropertiesView.preview.notAvailable')}
+          {t('attachments.notAvailable')}
         </Typography>
       );
     }
@@ -41,9 +41,9 @@ export function AttachmentPreviewDialog({ attachment, open, onClose }) {
         <Box sx={{ height: '70vh' }}>
           <object data={href} type="application/pdf" width="100%" height="100%">
             <Typography>
-              {t('managedPropertiesView.preview.pdfFallback')}{' '}
+              {t('attachments.notAvailable')}{' '}
               <Button component="a" href={href} target="_blank" rel="noopener noreferrer">
-                {t('managedPropertiesView.preview.open')}
+                {t('attachments.open')}
               </Button>
             </Typography>
           </object>
@@ -51,15 +51,13 @@ export function AttachmentPreviewDialog({ attachment, open, onClose }) {
       );
     }
     return (
-      <Typography color="text.secondary">
-        {t('managedPropertiesView.preview.notAvailable')}
-      </Typography>
+        <Typography color="text.secondary">{t('attachments.notAvailable')}</Typography>
     );
   };
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>{attachment?.name || t('managedPropertiesView.preview.title')}</DialogTitle>
+      <DialogTitle>{attachment?.name || t('attachments.previewTitle')}</DialogTitle>
       <DialogContent dividers>{renderContent()}</DialogContent>
       <DialogActions>
         {href && (

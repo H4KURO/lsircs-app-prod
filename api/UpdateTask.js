@@ -3,6 +3,12 @@ const { getNamedContainer } = require('./cosmosClient');
 const { normalizeSubtasksInput } = require('./subtaskUtils');
 const { notifyTaskStatusChanged } = require('./slackClient');
 const { normalizeAssigneesPayload, ensureAssigneesOnTask } = require('./assigneeUtils');
+const { validationError, splitAttachmentsByUploadRequirement } = require('./attachmentUtils');
+const {
+  uploadAttachmentForEntity,
+  deleteAttachments,
+  attachAttachmentUrls,
+} = require('./propertyPhotoStorage');
 
 const tasksContainer = () =>
   getNamedContainer('Tasks', ['COSMOS_TASKS_CONTAINER', 'CosmosTasksContainer']);
@@ -59,6 +65,41 @@ app.http('UpdateTask', {
       }
       const previousStatus = existingTask.status;
       let statusChanged = false;
+      let attachmentsToPersist = existingTask.attachments || [];
+
+      if (Object.prototype.hasOwnProperty.call(sanitizedUpdates, 'attachments')) {
+        const { existingAttachments, newAttachments } = splitAttachmentsByUploadRequirement(
+          sanitizedUpdates.attachments,
+        );
+        delete sanitizedUpdates.attachments;
+
+        const existingMap = new Map((existingTask.attachments || []).map((att) => [att.id, att]));
+        const kept = existingAttachments.map((attachment) => {
+          const stored = existingMap.get(attachment.id);
+          if (!stored) {
+            throw validationError(`Attachment "${attachment.name}" no longer exists on the server.`);
+          }
+          return {
+            ...stored,
+            name: attachment.name || stored.name,
+            description:
+              typeof attachment.description === 'string' ? attachment.description : stored.description,
+          };
+        });
+
+        const uploaded = [];
+        for (const attachment of newAttachments) {
+          uploaded.push(await uploadAttachmentForEntity('task', existingTask.id, attachment));
+        }
+
+        const combined = [...kept, ...uploaded];
+        const combinedIds = new Set(combined.map((attachment) => attachment.id));
+        const removed = (existingTask.attachments || []).filter(
+          (attachment) => !combinedIds.has(attachment.id),
+        );
+        await deleteAttachments(removed.map((attachment) => attachment.blobName));
+        attachmentsToPersist = combined;
+      }
 
       const lastUpdatedAt = new Date().toISOString();
       const baseTask = {
@@ -67,6 +108,7 @@ app.http('UpdateTask', {
         lastUpdatedAt,
         lastUpdatedById: clientPrincipal.userId,
         lastUpdatedByName: clientPrincipal.userDetails,
+        attachments: attachmentsToPersist,
       };
 
       if (Object.prototype.hasOwnProperty.call(sanitizedUpdates, 'status') &&
@@ -87,6 +129,7 @@ app.http('UpdateTask', {
       const updatedTask = ensureAssigneesOnTask(baseTask);
       const { resource } = await container.item(id, id).replace(updatedTask);
       const savedTask = ensureAssigneesOnTask(resource);
+      savedTask.attachments = await attachAttachmentUrls(savedTask.attachments || []);
 
       if (statusChanged) {
         await notifyTaskStatusChanged(savedTask, previousStatus, context, {

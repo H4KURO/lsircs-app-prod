@@ -1,57 +1,83 @@
-// app/src/CustomerDetailModal.jsx
+import { useEffect, useState } from 'react';
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Button,
+  Stack,
+} from '@mui/material';
+import { AttachmentManager } from './AttachmentManager';
 
-import { useState } from 'react';
+const OWNER_FIELD = '�S����';
 
 export function CustomerDetailModal({ customer, onSave, onClose }) {
   const [editableCustomer, setEditableCustomer] = useState(customer);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setEditableCustomer({ ...editableCustomer, [name]: value });
+  useEffect(() => {
+    setEditableCustomer(customer);
+  }, [customer]);
+
+  if (!customer) {
+    return null;
+  }
+
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+    setEditableCustomer((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSave = () => {
+    onSave?.(editableCustomer);
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-content" onClick={e => e.stopPropagation()}>
-        <h2>顧客詳細の編集</h2>
-
-        <label>顧客名:</label>
-        <input
-          type="text"
-          name="name"
-          value={editableCustomer.name || ''}
-          onChange={handleChange}
-        />
-
-        <label>所有物件:</label>
-        <input
-          type="text"
-          name="property"
-          value={editableCustomer.property || ''}
-          onChange={handleChange}
-        />
-
-        <label>購入価格:</label>
-        <input
-          type="number"
-          name="price"
-          value={editableCustomer.price || 0}
-          onChange={handleChange}
-        />
-
-        <label>担当者:</label>
-        <input
-          type="text"
-          name="担当者"
-          value={editableCustomer.担当者 || ''}
-          onChange={handleChange}
-        />
-
-        <div className="modal-buttons">
-          <button onClick={() => onSave(editableCustomer)}>保存</button>
-          <button onClick={onClose}>キャンセル</button>
-        </div>
-      </div>
-    </div>
+    <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>オーナー情報を編集</DialogTitle>
+      <DialogContent dividers>
+        <Stack spacing={2} sx={{ mt: 1 }}>
+          <TextField
+            label="オーナー名"
+            name="name"
+            value={editableCustomer?.name || ''}
+            onChange={handleChange}
+            fullWidth
+          />
+          <TextField
+            label="物件"
+            name="property"
+            value={editableCustomer?.property || ''}
+            onChange={handleChange}
+            fullWidth
+          />
+          <TextField
+            label="価格"
+            name="price"
+            type="number"
+            value={editableCustomer?.price || 0}
+            onChange={handleChange}
+            fullWidth
+          />
+          <TextField
+            label="担当者"
+            name={OWNER_FIELD}
+            value={editableCustomer?.[OWNER_FIELD] || ''}
+            onChange={handleChange}
+            fullWidth
+          />
+          <AttachmentManager
+            value={editableCustomer?.attachments || []}
+            onChange={(next) => setEditableCustomer((prev) => ({ ...prev, attachments: next }))}
+          />
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>キャンセル</Button>
+        <Button onClick={handleSave} variant="contained">
+          保存
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 }

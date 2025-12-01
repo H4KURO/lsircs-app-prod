@@ -44,6 +44,19 @@
     "save": "Save",
     "close": "Close"
   },
+  "attachments": {
+    "add": "Add files",
+    "helper": "Up to {{count}} files ({{size}}MB max per file, PDFs allowed).",
+    "tooMany": "You can attach up to {{count}} files.",
+    "tooLarge": "\"{{name}}\" exceeds the {{size}}MB limit.",
+    "readError": "Failed to read one or more files. Please try again.",
+    "preview": "Preview",
+    "download": "Download",
+    "delete": "Delete",
+    "notAvailable": "Preview is not available for this file.",
+    "previewTitle": "File preview",
+    "open": "Open in new tab"
+  },
   "calendar": {
     "next": "Next",
     "previous": "Prev",
@@ -214,6 +227,9 @@
   "taskDetail": {
     "statusLabel": "Status",
     "subtaskMemoLabel": "Memo",
-    "subtaskMemoPlaceholder": "Add a memo"
+    "subtaskMemoPlaceholder": "Add a memo",
+    "attachments": {
+      "title": "Attachments"
+    }
   }
 }

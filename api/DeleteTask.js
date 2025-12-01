@@ -1,5 +1,6 @@
 const { app } = require('@azure/functions');
 const { getNamedContainer } = require('./cosmosClient');
+const { deleteAttachments } = require('./propertyPhotoStorage');
 
 const tasksContainer = () =>
   getNamedContainer('Tasks', ['COSMOS_TASKS_CONTAINER', 'CosmosTasksContainer']);
@@ -16,7 +17,19 @@ app.http('DeleteTask', {
       }
 
       const container = tasksContainer();
+      let existing = null;
+      try {
+        const { resource } = await container.item(id, id).read();
+        existing = resource;
+      } catch (error) {
+        if (error?.code === 404) {
+          return { status: 404, body: 'Task not found.' };
+        }
+        throw error;
+      }
       await container.item(id, id).delete();
+      const blobs = (existing?.attachments || []).map((attachment) => attachment.blobName);
+      await deleteAttachments(blobs);
       return { status: 204 };
     } catch (error) {
       if (error?.code === 404) {

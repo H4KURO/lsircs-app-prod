@@ -4,7 +4,7 @@ const {
   StorageSharedKeyCredential,
   generateBlobSASQueryParameters,
 } = require('@azure/storage-blob');
-const { validationError } = require('./managedPropertyUtils');
+const { validationError } = require('./attachmentUtils');
 
 const CONNECTION_STRING_KEYS = [
   'PropertyPhotoStorageConnection',
@@ -136,15 +136,21 @@ function parseDataUrl(dataUrl) {
   };
 }
 
-async function uploadManagedPropertyPhoto(propertyId, photo) {
+function buildBlobName(entityType, entityId, photoId, contentType, { legacyPath = false } = {}) {
+  const extension = guessExtension(contentType);
+  if (legacyPath) {
+    return `${sanitizePathSegment(entityId)}/${sanitizePathSegment(photoId)}.${extension}`;
+  }
+  return `${sanitizePathSegment(entityType)}/${sanitizePathSegment(entityId)}/${sanitizePathSegment(photoId)}.${extension}`;
+}
+
+async function uploadAttachmentForEntity(entityType, entityId, photo, options = {}) {
   const container = await getPhotoContainerClient();
   const parsed = parseDataUrl(photo.dataUrl);
   const contentType = photo.contentType || parsed.contentType || 'application/octet-stream';
   const buffer = Buffer.from(parsed.base64, 'base64');
 
-  const blobName = `${sanitizePathSegment(propertyId)}/${sanitizePathSegment(photo.id)}.${guessExtension(
-    contentType,
-  )}`;
+  const blobName = buildBlobName(entityType, entityId, photo.id, contentType, options);
   const blockBlobClient = container.getBlockBlobClient(blobName);
 
   await blockBlobClient.uploadData(buffer, {
@@ -164,7 +170,11 @@ async function uploadManagedPropertyPhoto(propertyId, photo) {
   };
 }
 
-async function deleteManagedPropertyPhoto(blobName) {
+async function uploadManagedPropertyPhoto(propertyId, photo) {
+  return uploadAttachmentForEntity('managed-property', propertyId, photo, { legacyPath: true });
+}
+
+async function deleteAttachment(blobName) {
   if (!blobName) {
     return;
   }
@@ -176,8 +186,12 @@ async function deleteManagedPropertyPhoto(blobName) {
   }
 }
 
-async function deleteManagedPropertyPhotos(blobNames = []) {
-  await Promise.all(blobNames.map((blobName) => deleteManagedPropertyPhoto(blobName)));
+async function deleteManagedPropertyPhoto(blobName) {
+  await deleteAttachment(blobName);
+}
+
+async function deleteAttachments(blobNames = []) {
+  await Promise.all(blobNames.map((blobName) => deleteAttachment(blobName)));
 }
 
 async function generatePhotoUrl(blobName) {
@@ -211,7 +225,7 @@ async function generatePhotoUrl(blobName) {
   return blobClient.url;
 }
 
-async function attachPhotoUrls(photos = []) {
+async function attachAttachmentUrls(photos = []) {
   if (!Array.isArray(photos) || photos.length === 0) {
     return [];
   }
@@ -229,9 +243,17 @@ async function attachPhotoUrls(photos = []) {
   return enriched;
 }
 
+async function attachPhotoUrls(photos = []) {
+  return attachAttachmentUrls(photos);
+}
+
 module.exports = {
   uploadManagedPropertyPhoto,
   deleteManagedPropertyPhoto,
-  deleteManagedPropertyPhotos,
+  deleteManagedPropertyPhotos: (blobNames = []) => deleteAttachments(blobNames),
   attachPhotoUrls,
+  uploadAttachmentForEntity,
+  deleteAttachment,
+  deleteAttachments,
+  attachAttachmentUrls,
 };

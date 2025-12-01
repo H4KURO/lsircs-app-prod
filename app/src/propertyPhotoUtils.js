@@ -1,5 +1,6 @@
 export const MANAGED_PROPERTY_MAX_PHOTO_COUNT = 10;
 export const MANAGED_PROPERTY_MAX_PHOTO_BYTES = 8 * 1024 * 1024; // 8MB
+export const ATTACHMENT_ACCEPTED_TYPES = 'image/*,.pdf,application/pdf';
 
 const FALLBACK_RANDOM_ID = () => `photo_${Math.random().toString(36).slice(2, 10)}`;
 
@@ -40,6 +41,8 @@ export const filesToPhotoPayloads = async (fileList) => {
 
   return photos;
 };
+
+export const filesToAttachmentPayloads = filesToPhotoPayloads;
 
 export const isDisplayableImage = (photo) => {
   const contentType = (photo?.contentType || '').toLowerCase();

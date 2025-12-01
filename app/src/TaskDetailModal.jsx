@@ -21,6 +21,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import { useTranslation } from 'react-i18next';
 import { normalizeTask, generateSubtaskId, TASK_STATUS_DEFINITIONS, TASK_STATUS_VALUES } from './taskUtils';
+import { AttachmentManager } from './AttachmentManager';
 
 const createBlankSubtask = () => ({
   id: generateSubtaskId(),
@@ -377,6 +378,14 @@ export function TaskDetailModal({
           fullWidth
         />
 
+        <Divider />
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          <Typography variant="h6">{t('taskDetail.attachments.title')}</Typography>
+          <AttachmentManager
+            value={editableTask.attachments || []}
+            onChange={(next) => setEditableTask((prev) => ({ ...prev, attachments: next }))}
+          />
+        </Box>
         <Divider />
         <Box>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>

@@ -44,6 +44,19 @@
     "save": "保存",
     "close": "閉じる"
   },
+  "attachments": {
+    "add": "ファイルを追加",
+    "helper": "1件につき最大{{count}}件（1件あたり{{size}}MBまで、PDFも可）",
+    "tooMany": "ファイルは最大{{count}}件まで添付できます。",
+    "tooLarge": "「{{name}}」は{{size}}MBの制限を超えています。",
+    "readError": "ファイルの読み込みに失敗しました。もう一度お試しください。",
+    "preview": "プレビュー",
+    "download": "ダウンロード",
+    "delete": "削除",
+    "notAvailable": "このファイルはプレビューできません。",
+    "previewTitle": "ファイルプレビュー",
+    "open": "新しいタブで開く"
+  },
   "calendar": {
     "next": "次",
     "previous": "前",
@@ -214,6 +227,9 @@
   "taskDetail": {
     "statusLabel": "ステータス",
     "subtaskMemoLabel": "メモ",
-    "subtaskMemoPlaceholder": "サブタスクのメモを入力"
+    "subtaskMemoPlaceholder": "サブタスクのメモを入力",
+    "attachments": {
+      "title": "添付ファイル"
+    }
   }
 }

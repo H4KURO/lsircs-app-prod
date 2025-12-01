@@ -2,6 +2,7 @@ const { app } = require('@azure/functions');
 const { getNamedContainer } = require('./cosmosClient');
 const { ensureAssigneesOnTask } = require('./assigneeUtils');
 const { normalizeSubtasksInput } = require('./subtaskUtils');
+const { attachAttachmentUrls } = require('./propertyPhotoStorage');
 
 const tasksContainer = () =>
   getNamedContainer('Tasks', ['COSMOS_TASKS_CONTAINER', 'CosmosTasksContainer']);
@@ -13,13 +14,17 @@ app.http('GetTasks', {
     try {
       const container = tasksContainer();
       const { resources } = await container.items.readAll().fetchAll();
-      const normalizedTasks = resources.map((task) => {
-        const withAssignees = ensureAssigneesOnTask(task);
-        return {
-          ...withAssignees,
-          subtasks: normalizeSubtasksInput(withAssignees.subtasks),
-        };
-      });
+      const normalizedTasks = await Promise.all(
+        resources.map(async (task) => {
+          const withAssignees = ensureAssigneesOnTask(task);
+          const attachments = await attachAttachmentUrls(withAssignees.attachments || []);
+          return {
+            ...withAssignees,
+            attachments,
+            subtasks: normalizeSubtasksInput(withAssignees.subtasks),
+          };
+        }),
+      );
 
       return { status: 200, jsonBody: normalizedTasks };
     } catch (error) {
