@@ -77,3 +77,17 @@ export const getAttachmentHref = (photo) => {
   }
   return null;
 };
+
+const yenFormatter = new Intl.NumberFormat('ja-JP', {
+  style: 'currency',
+  currency: 'JPY',
+  maximumFractionDigits: 0,
+});
+
+export const formatYen = (value) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    return null;
+  }
+  return yenFormatter.format(num);
+};

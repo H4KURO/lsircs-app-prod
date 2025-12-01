@@ -93,7 +93,8 @@
       "owner": "Owner",
       "propertyName": "Property",
       "address": "Address",
-      "memo": "Memo"
+      "memo": "Memo",
+      "managementFee": "Management Fee (JPY)"
     },
     "createSection": {
       "title": "Register a Property",
@@ -114,7 +115,8 @@
       "filterPlaceholder": "Search by property or owner",
       "empty": "No properties have been registered yet.",
       "owner": "Owner: {{name}}",
-      "address": "Address: {{value}}"
+      "address": "Address: {{value}}",
+      "managementFee": "Management Fee: {{value}}"
     },
     "actions": {
       "edit": "Edit",

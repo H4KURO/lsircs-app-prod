@@ -28,6 +28,7 @@ import {
   formatBytesInMb,
   isDisplayableImage,
   getAttachmentHref,
+  formatYen,
 } from './propertyPhotoUtils';
 import { AttachmentPreviewDialog } from './AttachmentPreviewDialog';
 
@@ -38,6 +39,7 @@ export function ManagedPropertyDetailModal({ open, property, onClose, onSave, sa
     propertyName: '',
     address: '',
     memo: '',
+    managementFee: '',
   }));
   const [photos, setPhotos] = useState([]);
   const [uploadError, setUploadError] = useState('');
@@ -79,6 +81,8 @@ export function ManagedPropertyDetailModal({ open, property, onClose, onSave, sa
         propertyName: property.propertyName || '',
         address: property.address || '',
         memo: property.memo || '',
+        managementFee:
+          typeof property.managementFee === 'number' ? property.managementFee : property.managementFee || '',
       });
       setPhotos(property.photos || []);
       setUploadError('');
@@ -176,6 +180,15 @@ export function ManagedPropertyDetailModal({ open, property, onClose, onSave, sa
             name="address"
             value={form.address}
             onChange={handleInputChange}
+            fullWidth
+          />
+          <TextField
+            label={t('managedPropertiesView.fields.managementFee')}
+            name="managementFee"
+            type="number"
+            value={form.managementFee}
+            onChange={handleInputChange}
+            InputProps={{ inputProps: { min: 0 } }}
             fullWidth
           />
           <TextField

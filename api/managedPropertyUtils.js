@@ -11,6 +11,11 @@ function parsePositiveInteger(value, fallback) {
   return Math.floor(parsed);
 }
 
+function parseNumber(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 const MAX_PHOTO_BYTES = parsePositiveInteger(
   process.env.MANAGED_PROPERTY_MAX_PHOTO_BYTES,
   DEFAULT_MAX_PHOTO_BYTES,
@@ -91,6 +96,7 @@ function buildManagedProperty(payload = {}, { now = new Date().toISOString() } =
     propertyName,
     address: toTrimmedString(payload?.address),
     memo: toTrimmedString(payload?.memo),
+    managementFee: parseNumber(payload?.managementFee, 0),
     photos: [],
     createdAt: now,
     updatedAt: now,
@@ -115,6 +121,9 @@ function applyManagedPropertyUpdates(existing, updates = {}, { now = new Date().
   }
   if (Object.prototype.hasOwnProperty.call(updates, 'memo')) {
     next.memo = toTrimmedString(updates.memo);
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'managementFee')) {
+    next.managementFee = parseNumber(updates.managementFee, next.managementFee ?? 0);
   }
 
   if (!toTrimmedString(next.propertyName)) {
@@ -190,4 +199,5 @@ module.exports = {
   splitPhotosByUploadRequirement,
   estimateDataUrlBytes,
   validationError,
+  parseNumber,
 };

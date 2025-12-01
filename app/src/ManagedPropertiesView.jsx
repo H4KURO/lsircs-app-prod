@@ -33,6 +33,7 @@ import {
   formatBytesInMb,
   isDisplayableImage,
   getAttachmentHref,
+  formatYen,
 } from './propertyPhotoUtils';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -59,6 +60,7 @@ export function ManagedPropertiesView() {
     propertyName: '',
     address: '',
     memo: '',
+    managementFee: '',
   });
   const [formPhotos, setFormPhotos] = useState([]);
   const [photoFeedback, setPhotoFeedback] = useState('');
@@ -199,6 +201,7 @@ export function ManagedPropertiesView() {
       propertyName: '',
       address: '',
       memo: '',
+      managementFee: '',
     });
     setFormPhotos([]);
     setPhotoFeedback('');
@@ -318,6 +321,15 @@ export function ManagedPropertiesView() {
             name="address"
             value={formValues.address}
             onChange={handleInputChange}
+            fullWidth
+          />
+          <TextField
+            label={t('managedPropertiesView.fields.managementFee')}
+            name="managementFee"
+            type="number"
+            value={formValues.managementFee}
+            onChange={handleInputChange}
+            InputProps={{ inputProps: { min: 0 } }}
             fullWidth
           />
           <TextField
@@ -465,6 +477,13 @@ export function ManagedPropertiesView() {
                       {property.address && (
                         <Typography variant="body2" color="text.secondary">
                           {t('managedPropertiesView.list.address', { value: property.address })}
+                        </Typography>
+                      )}
+                      {formatYen(property.managementFee) && (
+                        <Typography variant="body2" color="text.secondary">
+                          {t('managedPropertiesView.list.managementFee', {
+                            value: formatYen(property.managementFee),
+                          })}
                         </Typography>
                       )}
                       {property.memo && (

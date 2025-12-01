@@ -93,7 +93,8 @@
       "owner": "オーナー",
       "propertyName": "物件名",
       "address": "住所",
-      "memo": "メモ"
+      "memo": "メモ",
+      "managementFee": "管理費用（円）"
     },
     "createSection": {
       "title": "物件を登録",
@@ -114,7 +115,8 @@
       "filterPlaceholder": "物件名・オーナー名で検索",
       "empty": "まだ物件が登録されていません。",
       "owner": "オーナー: {{name}}",
-      "address": "住所: {{value}}"
+      "address": "住所: {{value}}",
+      "managementFee": "管理費用: {{value}}"
     },
     "actions": {
       "edit": "編集",
