@@ -7,6 +7,7 @@ import { CustomerView } from "./CustomerView";
 import { InvoiceView } from "./InvoiceView";
 import { DashboardView } from "./DashboardView";
 import { ManagedPropertiesView } from "./ManagedPropertiesView";
+import { WeeklyLeasingReportView } from "./WeeklyLeasingReportView";
 import "./App.css";
 import {
   Box,
@@ -30,6 +31,7 @@ import MenuIcon from "@mui/icons-material/Menu";
 import GoogleIcon from "@mui/icons-material/Google";
 import MicrosoftIcon from "@mui/icons-material/Microsoft";
 import LogoutIcon from "@mui/icons-material/Logout";
+import AssessmentIcon from "@mui/icons-material/Assessment";
 import { SettingsView } from "./SettingsView";
 import SettingsIcon from "@mui/icons-material/Settings";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
@@ -41,6 +43,7 @@ const ALLOWED_VIEWS = new Set([
   "tasks",
   "customers",
   "managedProperties",
+  "weeklyReports",
   "invoices",
   "settings",
   "profile",
@@ -177,6 +180,7 @@ function App() {
       { text: t("nav.tasks"), view: "tasks" },
       { text: t("nav.customers"), view: "customers" },
       { text: t("nav.managedProperties"), view: "managedProperties" },
+      { text: t("nav.weeklyReports"), view: "weeklyReports", icon: <AssessmentIcon /> },
       { text: t("nav.invoices"), view: "invoices" },
       { text: t("nav.settings"), view: "settings", icon: <SettingsIcon /> },
     ],
@@ -266,6 +270,8 @@ function App() {
         return <CustomerView />;
       case "managedProperties":
         return <ManagedPropertiesView />;
+      case "weeklyReports":
+        return <WeeklyLeasingReportView />;
       case "invoices":
         return <InvoiceView />;
       case "profile":

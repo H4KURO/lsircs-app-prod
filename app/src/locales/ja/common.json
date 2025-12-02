@@ -4,6 +4,7 @@
     "tasks": "タスク管理",
     "customers": "顧客管理",
     "managedProperties": "管理物件",
+    "weeklyReports": "週間レポート",
     "invoices": "請求書管理",
     "settings": "設定",
     "profile": "プロフィール設定"
@@ -158,6 +159,43 @@
     "validations": {
       "propertyNameRequired": "物件名は必須です。"
     }
+  },
+  "weeklyLeasingReports": {
+    "title": "週間賃貸活動レポート",
+    "description": "AppFolio から出力した週間賃貸活動レポート（CSV）を取り込み、空室や賃料の状況を共有します。",
+    "upload": {
+      "title": "レポートの取り込み",
+      "helper": "AppFolio から「unit_vacancy_detail-YYYYMMDD.csv」をダウンロードし、そのままアップロードしてください。ファイル名の日付をレポート日として使用します。",
+      "button": "CSVをアップロード",
+      "success": "レポート {{reportDate}} を取り込みました（{{count}} 行）。",
+      "failed": "週間レポートのアップロードに失敗しました。",
+      "errors": "確認が必要な行",
+      "rowError": "行 {{row}}: {{message}}"
+    },
+    "filters": {
+      "reportDate": "レポート日",
+      "noReports": "利用可能なレポートがありません",
+      "noSelection": "未選択"
+    },
+    "actions": {
+      "refresh": "再読み込み"
+    },
+    "table": {
+      "unit": "ユニット",
+      "lastRent": "前回賃料",
+      "scheduledRent": "予定賃料",
+      "newRent": "新賃料",
+      "lastMoveOut": "最終退去日",
+      "availableOn": "入居可能日",
+      "nextMoveIn": "次回入居日",
+      "showing": "内覧",
+      "inquiry": "問い合わせ",
+      "application": "申込",
+      "status": "ステータス",
+      "onMarketDate": "募集開始日"
+    },
+    "fetchFailed": "週間レポートの取得に失敗しました。",
+    "empty": "選択したレポートにはデータがありません。"
   },
   "taskView": {
     "description": "カテゴリやタグごとにチームの状況を把握できます。表示ビューはユーザーごとに自動保存されます。",

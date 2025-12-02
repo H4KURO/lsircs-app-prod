@@ -4,6 +4,7 @@
     "tasks": "Task Management",
     "customers": "Customer Management",
     "managedProperties": "Managed Properties",
+    "weeklyReports": "Weekly Reports",
     "invoices": "Invoice Management",
     "settings": "Settings",
     "profile": "Profile Settings"
@@ -158,6 +159,43 @@
     "validations": {
       "propertyNameRequired": "Property name is required."
     }
+  },
+  "weeklyLeasingReports": {
+    "title": "Weekly Leasing Activity",
+    "description": "Upload the AppFolio weekly leasing report CSV to keep track of vacancies, rent amounts, and key milestones.",
+    "upload": {
+      "title": "Upload report",
+      "helper": "Use the \"unit_vacancy_detail-YYYYMMDD.csv\" file exported from AppFolio. The report date is taken from the file name.",
+      "button": "Upload CSV",
+      "success": "Report {{reportDate}} processed ({{count}} rows).",
+      "failed": "Failed to upload the weekly report.",
+      "errors": "Rows requiring attention",
+      "rowError": "Row {{row}}: {{message}}"
+    },
+    "filters": {
+      "reportDate": "Report date",
+      "noReports": "No reports available",
+      "noSelection": "No report selected"
+    },
+    "actions": {
+      "refresh": "Refresh"
+    },
+    "table": {
+      "unit": "Unit",
+      "lastRent": "Last Rent",
+      "scheduledRent": "Scheduled Rent",
+      "newRent": "New Rent",
+      "lastMoveOut": "Last Move Out",
+      "availableOn": "Available On",
+      "nextMoveIn": "Next Move In",
+      "showing": "Showing",
+      "inquiry": "Inquiry",
+      "application": "Application",
+      "status": "Status",
+      "onMarketDate": "On Market Date"
+    },
+    "fetchFailed": "Failed to load weekly reports.",
+    "empty": "No records found for the selected report."
   },
   "taskView": {
     "description": "Track your team by category and tag. Each user’s view is saved automatically.",
