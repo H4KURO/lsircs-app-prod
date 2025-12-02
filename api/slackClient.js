@@ -255,6 +255,12 @@ function buildWeeklyReportBlocks(record) {
   if (record.status) {
     fields.push({ type: 'mrkdwn', text: `*Status*: ${record.status}` });
   }
+  if (record.assigneeName) {
+    fields.push({ type: 'mrkdwn', text: `*Assignee*: ${record.assigneeName}` });
+  }
+  if (record.taskTitle) {
+    fields.push({ type: 'mrkdwn', text: `*Task*: ${record.taskTitle}` });
+  }
   if (record.memo) {
     fields.push({ type: 'mrkdwn', text: `*Memo*: ${record.memo}` });
   }

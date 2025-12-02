@@ -180,6 +180,17 @@
     "actions": {
       "refresh": "再読み込み"
     },
+    "fields": {
+      "task": "紐づくタスク",
+      "assignee": "担当者",
+      "noTask": "紐づくタスクなし",
+      "noAssignee": "未割り当て",
+      "untitledTask": "名称未設定のタスク"
+    },
+    "errors": {
+      "tasksLoadFailed": "タスクの取得に失敗しました。",
+      "usersLoadFailed": "ユーザーの取得に失敗しました。"
+    },
     "addRow": {
       "title": "手動追加",
       "helper": "選択中のレポート日に手動で行を追加します。必要事項を入力してください。",
@@ -193,6 +204,8 @@
     },
     "table": {
       "unit": "ユニット",
+      "task": "タスク",
+      "assignee": "担当者",
       "lastRent": "前回賃料",
       "scheduledRent": "予定賃料",
       "newRent": "新賃料",

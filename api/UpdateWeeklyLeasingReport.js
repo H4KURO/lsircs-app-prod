@@ -1,6 +1,7 @@
 const { app } = require('@azure/functions');
 const { weeklyLeasingReportContainer } = require('./weeklyLeasingReportStore');
 const { applyWeeklyReportUpdates } = require('./weeklyLeasingReportUtils');
+const { applyWeeklyAssociations } = require('./weeklyReportMetadata');
 const { notifyWeeklyReportRowUpdated } = require('./slackClient');
 
 async function readWeeklyReport(container, id, reportDate) {
@@ -48,6 +49,23 @@ app.http('UpdateWeeklyLeasingReport', {
       delete updates.reportDate;
 
       const next = applyWeeklyReportUpdates(existing, updates);
+      const associationPayload = {};
+      if (Object.prototype.hasOwnProperty.call(updates, 'assigneeUserId')) {
+        associationPayload.assigneeUserId = updates.assigneeUserId;
+      }
+      if (Object.prototype.hasOwnProperty.call(updates, 'assigneeName')) {
+        associationPayload.assigneeName = updates.assigneeName;
+      }
+      if (Object.prototype.hasOwnProperty.call(updates, 'taskId')) {
+        associationPayload.taskId = updates.taskId;
+      }
+      if (Object.prototype.hasOwnProperty.call(updates, 'taskTitle')) {
+        associationPayload.taskTitle = updates.taskTitle;
+      }
+      if (Object.keys(associationPayload).length > 0) {
+        await applyWeeklyAssociations(next, associationPayload, { syncTask: true, context });
+      }
+
       const { resource } = await container.item(id, reportDate).replace(next);
       notifyWeeklyReportRowUpdated(resource, context).catch(() => {});
       return { status: 200, jsonBody: resource };

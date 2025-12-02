@@ -84,6 +84,10 @@ const EMPTY_ROW_TEMPLATE = {
   status: '',
   onMarketDate: '',
   memo: '',
+  taskId: '',
+  taskTitle: '',
+  assigneeUserId: '',
+  assigneeName: '',
 };
 
 export function WeeklyLeasingReportView() {
@@ -107,6 +111,12 @@ export function WeeklyLeasingReportView() {
   const [addError, setAddError] = useState('');
   const [addingRow, setAddingRow] = useState(false);
   const [deletingRowId, setDeletingRowId] = useState(null);
+  const [taskOptions, setTaskOptions] = useState([]);
+  const [tasksLoading, setTasksLoading] = useState(false);
+  const [tasksError, setTasksError] = useState('');
+  const [userOptions, setUserOptions] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersError, setUsersError] = useState('');
   const [modalRecord, setModalRecord] = useState(null);
   const [modalValues, setModalValues] = useState({});
   const [modalSaving, setModalSaving] = useState(false);
@@ -115,6 +125,8 @@ export function WeeklyLeasingReportView() {
   const columns = useMemo(
     () => [
       { key: 'unit', label: t('weeklyLeasingReports.table.unit') },
+      { key: 'taskTitle', label: t('weeklyLeasingReports.table.task') },
+      { key: 'assigneeName', label: t('weeklyLeasingReports.table.assignee') },
       { key: 'lastRent', label: t('weeklyLeasingReports.table.lastRent'), formatter: formatCurrency },
       { key: 'scheduledRent', label: t('weeklyLeasingReports.table.scheduledRent'), formatter: formatCurrency },
       { key: 'newRent', label: t('weeklyLeasingReports.table.newRent'), formatter: formatCurrency },
@@ -170,7 +182,14 @@ export function WeeklyLeasingReportView() {
     status: record?.status || '',
     onMarketDate: record?.onMarketDate || '',
     memo: record?.memo || '',
+    taskId: record?.taskId || '',
+    taskTitle: record?.taskTitle || '',
+    assigneeUserId: record?.assigneeUserId || '',
+    assigneeName: record?.assigneeName || '',
   });
+
+  const findTaskOption = (taskId) => taskOptions.find((task) => task.id === taskId);
+  const findUserOption = (userId) => userOptions.find((user) => user.userId === userId);
 
   const addRowFields = useMemo(
     () => [{ key: 'unit', label: t('weeklyLeasingReports.table.unit'), required: true }, ...editableFields],
@@ -178,9 +197,61 @@ export function WeeklyLeasingReportView() {
   );
 
   const modalFields = useMemo(
-    () => [{ key: 'unit', label: t('weeklyLeasingReports.table.unit'), disabled: true }, ...editableFields],
+    () => [
+      { key: 'unit', label: t('weeklyLeasingReports.table.unit'), disabled: true },
+      { key: 'taskId', label: t('weeklyLeasingReports.fields.task'), type: 'task' },
+      { key: 'assigneeUserId', label: t('weeklyLeasingReports.fields.assignee'), type: 'user' },
+      ...editableFields,
+    ],
     [editableFields, t],
   );
+
+  useEffect(() => {
+    setTasksLoading(true);
+    axios
+      .get(`${API_URL}/GetTasks`)
+      .then(({ data }) => {
+        const mapped =
+          Array.isArray(data) && data.length > 0
+            ? data.map((task) => ({
+                id: task.id,
+                title: task.title || t('weeklyLeasingReports.fields.untitledTask'),
+                assignees: Array.isArray(task.assignees) ? task.assignees : [],
+              }))
+            : [];
+        setTaskOptions(mapped);
+        setTasksError('');
+      })
+      .catch(() => {
+        setTasksError(t('weeklyLeasingReports.errors.tasksLoadFailed'));
+      })
+      .finally(() => {
+        setTasksLoading(false);
+      });
+  }, [t]);
+
+  useEffect(() => {
+    setUsersLoading(true);
+    axios
+      .get(`${API_URL}/GetAllUsers`)
+      .then(({ data }) => {
+        const mapped =
+          Array.isArray(data) && data.length > 0
+            ? data.map((user) => ({
+                userId: user.userId || user.id,
+                displayName: user.displayName || user.userDetails || user.userId || '',
+              }))
+            : [];
+        setUserOptions(mapped);
+        setUsersError('');
+      })
+      .catch(() => {
+        setUsersError(t('weeklyLeasingReports.errors.usersLoadFailed'));
+      })
+      .finally(() => {
+        setUsersLoading(false);
+      });
+  }, [t]);
 
   const fetchReports = async (targetDate) => {
     setLoading(true);
@@ -206,7 +277,7 @@ export function WeeklyLeasingReportView() {
   };
 
   const handleCellClick = (record, columnKey) => {
-    if (!editableFieldMap[columnKey]) {
+    if (!editableFieldMap[columnKey] && columnKey !== 'assigneeName') {
       return;
     }
     if (!editingRow || editingRow.id !== record.id) {
@@ -475,6 +546,18 @@ export function WeeklyLeasingReportView() {
           </Alert>
         )}
 
+        {tasksError && (
+          <Alert severity="warning" onClose={() => setTasksError('')}>
+            {tasksError}
+          </Alert>
+        )}
+
+        {usersError && (
+          <Alert severity="warning" onClose={() => setUsersError('')}>
+            {usersError}
+          </Alert>
+        )}
+
         {rowErrors.length > 0 && (
           <Box>
             <Typography variant="subtitle2" gutterBottom>
@@ -563,6 +646,46 @@ export function WeeklyLeasingReportView() {
         {showAddForm && (
           <Paper variant="outlined" sx={{ p: 2 }}>
             <Grid container spacing={2}>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  select
+                  label={t('weeklyLeasingReports.fields.task')}
+                  fullWidth
+                  size="small"
+                  value={newRowValues.taskId || ''}
+                  onChange={(event) => handleNewRowTaskChange(event.target.value)}
+                  disabled={addingRow || tasksLoading}
+                >
+                  <MenuItem value="">
+                    <em>{t('weeklyLeasingReports.fields.noTask')}</em>
+                  </MenuItem>
+                  {taskOptions.map((task) => (
+                    <MenuItem key={task.id} value={task.id}>
+                      {task.title}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  select
+                  label={t('weeklyLeasingReports.fields.assignee')}
+                  fullWidth
+                  size="small"
+                  value={newRowValues.assigneeUserId || ''}
+                  onChange={(event) => handleNewRowAssigneeChange(event.target.value)}
+                  disabled={addingRow || usersLoading}
+                >
+                  <MenuItem value="">
+                    <em>{t('weeklyLeasingReports.fields.noAssignee')}</em>
+                  </MenuItem>
+                  {userOptions.map((user) => (
+                    <MenuItem key={user.userId} value={user.userId}>
+                      {user.displayName}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
               {addRowFields.map((field) => {
                 const fieldType =
                   field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : 'text';
@@ -644,7 +767,8 @@ export function WeeklyLeasingReportView() {
                       <TableRow key={record.id}>
                         {columns.map((column) => {
                           const fieldConfig = editableFieldMap[column.key];
-                          const isEditable = Boolean(fieldConfig);
+                          const isAssigneeColumn = column.key === 'assigneeName';
+                          const isEditable = Boolean(fieldConfig) || isAssigneeColumn;
                           const value = record[column.key];
                           const formatter = column.formatter || ((val) => (val == null || val === '' ? '—' : val));
                           return (
@@ -657,7 +781,25 @@ export function WeeklyLeasingReportView() {
                                 whiteSpace: 'nowrap',
                               }}
                             >
-                              {isEditing && isEditable ? (
+                              {isEditing && isAssigneeColumn ? (
+                                <Select
+                                  value={editValues.assigneeUserId || ''}
+                                  onChange={(event) => handleInlineAssigneeChange(event.target.value)}
+                                  fullWidth
+                                  size="small"
+                                  autoFocus={activeFieldKey === column.key}
+                                  displayEmpty
+                                >
+                                  <MenuItem value="">
+                                    <em>{t('weeklyLeasingReports.fields.noAssignee')}</em>
+                                  </MenuItem>
+                                  {userOptions.map((user) => (
+                                    <MenuItem key={user.userId} value={user.userId}>
+                                      {user.displayName}
+                                    </MenuItem>
+                                  ))}
+                                </Select>
+                              ) : isEditing && fieldConfig ? (
                                 <TextField
                                   value={editValues[column.key] ?? ''}
                                   onChange={(event) => handleEditFieldChange(column.key, event.target.value)}
@@ -742,26 +884,73 @@ export function WeeklyLeasingReportView() {
             {modalRecord ? t('weeklyLeasingReports.edit.subtitle', { date: modalRecord.reportDate }) : ''}
           </Typography>
           <Grid container spacing={2}>
-            {modalFields.map((field) => (
-              <Grid
-                item
-                xs={12}
-                md={field.key === 'memo' ? 12 : field.type === 'date' || field.type === 'number' ? 6 : 12}
-                key={field.key}
-              >
-                <TextField
-                  label={field.label}
-                  fullWidth
-                  value={modalValues[field.key] ?? ''}
-                  onChange={(event) => handleModalFieldChange(field.key, event.target.value)}
-                  type={field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : 'text'}
-                  InputLabelProps={field.type === 'date' ? { shrink: true } : undefined}
-                  multiline={Boolean(field.multiline)}
-                  minRows={field.rows}
-                  disabled={field.disabled || modalSaving}
-                />
-              </Grid>
-            ))}
+            {modalFields.map((field) => {
+              const gridColumns =
+                field.key === 'memo' ? 12 : field.type === 'date' || field.type === 'number' ? 6 : 12;
+              if (field.type === 'task') {
+                return (
+                  <Grid item xs={12} md={6} key={field.key}>
+                    <TextField
+                      select
+                      label={field.label}
+                      fullWidth
+                      size="small"
+                      value={modalValues.taskId || ''}
+                      onChange={(event) => handleModalTaskChange(event.target.value)}
+                      disabled={modalSaving || tasksLoading}
+                    >
+                      <MenuItem value="">
+                        <em>{t('weeklyLeasingReports.fields.noTask')}</em>
+                      </MenuItem>
+                      {taskOptions.map((task) => (
+                        <MenuItem key={task.id} value={task.id}>
+                          {task.title}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                );
+              }
+              if (field.type === 'user') {
+                return (
+                  <Grid item xs={12} md={6} key={field.key}>
+                    <TextField
+                      select
+                      label={field.label}
+                      fullWidth
+                      size="small"
+                      value={modalValues.assigneeUserId || ''}
+                      onChange={(event) => handleModalAssigneeChange(event.target.value)}
+                      disabled={modalSaving || usersLoading}
+                    >
+                      <MenuItem value="">
+                        <em>{t('weeklyLeasingReports.fields.noAssignee')}</em>
+                      </MenuItem>
+                      {userOptions.map((user) => (
+                        <MenuItem key={user.userId} value={user.userId}>
+                          {user.displayName}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                );
+              }
+              return (
+                <Grid item xs={12} md={gridColumns} key={field.key}>
+                  <TextField
+                    label={field.label}
+                    fullWidth
+                    value={modalValues[field.key] ?? ''}
+                    onChange={(event) => handleModalFieldChange(field.key, event.target.value)}
+                    type={field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : 'text'}
+                    InputLabelProps={field.type === 'date' ? { shrink: true } : undefined}
+                    multiline={Boolean(field.multiline)}
+                    minRows={field.rows}
+                    disabled={field.disabled || modalSaving}
+                  />
+                </Grid>
+              );
+            })}
           </Grid>
           {modalError && (
             <Alert severity="error" sx={{ mt: 2 }} onClose={() => setModalError('')}>
@@ -781,3 +970,47 @@ export function WeeklyLeasingReportView() {
     </Box>
   );
 }
+  const handleInlineAssigneeChange = (userId) => {
+    const selected = findUserOption(userId);
+    setEditValues((prev) => ({
+      ...prev,
+      assigneeUserId: userId,
+      assigneeName: selected?.displayName || '',
+    }));
+  };
+
+  const handleNewRowAssigneeChange = (userId) => {
+    const selected = findUserOption(userId);
+    setNewRowValues((prev) => ({
+      ...prev,
+      assigneeUserId: userId,
+      assigneeName: selected?.displayName || '',
+    }));
+  };
+
+  const handleModalAssigneeChange = (userId) => {
+    const selected = findUserOption(userId);
+    setModalValues((prev) => ({
+      ...prev,
+      assigneeUserId: userId,
+      assigneeName: selected?.displayName || '',
+    }));
+  };
+
+  const handleNewRowTaskChange = (taskId) => {
+    const selected = findTaskOption(taskId);
+    setNewRowValues((prev) => ({
+      ...prev,
+      taskId,
+      taskTitle: selected?.title || '',
+    }));
+  };
+
+  const handleModalTaskChange = (taskId) => {
+    const selected = findTaskOption(taskId);
+    setModalValues((prev) => ({
+      ...prev,
+      taskId,
+      taskTitle: selected?.title || '',
+    }));
+  };

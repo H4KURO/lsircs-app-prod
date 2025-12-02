@@ -119,6 +119,10 @@ function buildManualWeeklyReport(payload = {}, { now = new Date().toISOString() 
     status: normaliseText(payload?.status),
     onMarketDate: parseDateValue(payload?.onMarketDate),
     memo: normaliseText(payload?.memo),
+    taskId: normaliseText(payload?.taskId),
+    taskTitle: normaliseText(payload?.taskTitle),
+    assigneeUserId: normaliseText(payload?.assigneeUserId),
+    assigneeName: normaliseText(payload?.assigneeName),
     sourceFileName: normaliseText(payload?.sourceFileName) || 'manual-entry',
     uploadedAt: now,
     updatedAt: now,
@@ -166,6 +170,10 @@ function applyWeeklyReportUpdates(existing, updates = {}, { now = new Date().toI
   assignText('application');
   assignText('status');
   assignText('memo');
+  assignText('taskId');
+  assignText('taskTitle');
+  assignText('assigneeUserId');
+  assignText('assigneeName');
 
   next.updatedAt = now;
   return next;

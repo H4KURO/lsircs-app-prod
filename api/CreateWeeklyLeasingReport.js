@@ -1,6 +1,7 @@
 const { app } = require('@azure/functions');
 const { weeklyLeasingReportContainer } = require('./weeklyLeasingReportStore');
 const { buildManualWeeklyReport } = require('./weeklyLeasingReportUtils');
+const { applyWeeklyAssociations } = require('./weeklyReportMetadata');
 const { notifyWeeklyReportRowAdded } = require('./slackClient');
 
 async function recordExists(container, id, reportDate) {
@@ -33,6 +34,17 @@ app.http('CreateWeeklyLeasingReport', {
       } catch (validationError) {
         return { status: 400, jsonBody: { message: validationError.message || 'Invalid payload.' } };
       }
+      await applyWeeklyAssociations(
+        document,
+        {
+          assigneeUserId: payload?.assigneeUserId,
+          assigneeName: payload?.assigneeName,
+          taskId: payload?.taskId,
+          taskTitle: payload?.taskTitle,
+        },
+        { syncTask: true, context },
+      );
+
       const container = await weeklyLeasingReportContainer();
 
       const alreadyExists = await recordExists(container, document.id, document.reportDate);

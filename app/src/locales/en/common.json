@@ -177,12 +177,23 @@
       "noReports": "No reports available",
       "noSelection": "No report selected"
     },
-    "actions": {
-      "refresh": "Refresh"
-    },
-    "addRow": {
-      "title": "Manual entry",
-      "helper": "Fill out the fields to insert an additional row for the selected report date.",
+      "actions": {
+        "refresh": "Refresh"
+      },
+      "fields": {
+        "task": "Linked Task",
+        "assignee": "Assignee",
+        "noTask": "No linked task",
+        "noAssignee": "Unassigned",
+        "untitledTask": "Untitled task"
+      },
+      "errors": {
+        "tasksLoadFailed": "Failed to load tasks for assignment.",
+        "usersLoadFailed": "Failed to load users for assignment."
+      },
+      "addRow": {
+        "title": "Manual entry",
+        "helper": "Fill out the fields to insert an additional row for the selected report date.",
       "button": "Add row",
       "hide": "Hide form",
       "submit": "Add",
@@ -191,8 +202,10 @@
       "success": "\"{{unit}}\" has been added.",
       "failed": "Failed to add the row."
     },
-    "table": {
-      "unit": "Unit",
+      "table": {
+        "unit": "Unit",
+        "task": "Task",
+        "assignee": "Assignee",
       "lastRent": "Last Rent",
       "scheduledRent": "Scheduled Rent",
       "newRent": "New Rent",
