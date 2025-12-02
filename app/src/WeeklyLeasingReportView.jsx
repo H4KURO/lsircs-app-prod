@@ -19,6 +19,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableContainer,
   TableHead,
   TableRow,
   TextField,
@@ -385,83 +386,93 @@ export function WeeklyLeasingReportView() {
         {records.length > 0 && (
           <>
             <Divider />
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  {columns.map((column) => (
-                    <TableCell key={column.key}>{column.label}</TableCell>
-                  ))}
-                  <TableCell align="right">{t('weeklyLeasingReports.table.actions')}</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {records.map((record) => {
-                  const isEditing = editingRow?.id === record.id;
-                  return (
-                    <TableRow key={record.id}>
-                      {columns.map((column) => {
-                        const fieldConfig = editableFieldMap[column.key];
-                        const isEditable = Boolean(fieldConfig);
-                        const value = record[column.key];
-                        const formatter = column.formatter || ((val) => (val == null || val === '' ? '—' : val));
-                        return (
-                          <TableCell
-                            key={column.key}
-                            onClick={() => handleCellClick(record, column.key)}
-                            sx={{ cursor: isEditable ? 'text' : 'default', minWidth: 140 }}
-                          >
-                            {isEditing && isEditable ? (
-                              <TextField
-                                value={editValues[column.key] ?? ''}
-                                onChange={(event) => handleEditFieldChange(column.key, event.target.value)}
-                                type={fieldConfig.type === 'date' ? 'date' : fieldConfig.type === 'number' ? 'number' : 'text'}
-                                size="small"
-                                fullWidth
-                                autoFocus={activeFieldKey === column.key}
-                                InputLabelProps={fieldConfig.type === 'date' ? { shrink: true } : undefined}
-                                multiline={Boolean(fieldConfig.multiline)}
-                                minRows={fieldConfig.rows}
-                                inputProps={fieldConfig.type === 'number' ? { inputMode: 'decimal', step: '0.01' } : undefined}
-                              />
-                            ) : (
-                              formatter(value)
-                            )}
-                          </TableCell>
-                        );
-                      })}
-                      <TableCell align="right">
-                        {isEditing ? (
-                          <Stack spacing={1} alignItems="flex-end">
-                            <Stack direction="row" spacing={1}>
-                              <Button size="small" onClick={handleCancelEdit} disabled={savingRowId === record.id}>
-                                {t('common.cancel')}
-                              </Button>
-                              <Button
-                                size="small"
-                                variant="contained"
-                                onClick={handleSaveRow}
-                                disabled={savingRowId === record.id}
-                              >
-                                {t('common.save')}
-                              </Button>
-                            </Stack>
-                            {editError && (
-                              <Typography variant="caption" color="error">
-                                {editError}
-                              </Typography>
-                            )}
-                          </Stack>
-                        ) : (
-                          <Typography variant="caption" color="text.secondary">
-                            {t('weeklyLeasingReports.table.clickToEdit')}
-                          </Typography>
-                        )}
+            <TableContainer sx={{ maxHeight: 600, overflowX: 'auto' }}>
+              <Table size="small" stickyHeader sx={{ minWidth: 1000 }}>
+                <TableHead>
+                  <TableRow>
+                    {columns.map((column) => (
+                      <TableCell key={column.key} sx={{ whiteSpace: 'nowrap' }}>
+                        {column.label}
                       </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                    ))}
+                    <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                      {t('weeklyLeasingReports.table.actions')}
+                    </TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {records.map((record) => {
+                    const isEditing = editingRow?.id === record.id;
+                    return (
+                      <TableRow key={record.id}>
+                        {columns.map((column) => {
+                          const fieldConfig = editableFieldMap[column.key];
+                          const isEditable = Boolean(fieldConfig);
+                          const value = record[column.key];
+                          const formatter = column.formatter || ((val) => (val == null || val === '' ? '—' : val));
+                          return (
+                            <TableCell
+                              key={column.key}
+                              onClick={() => handleCellClick(record, column.key)}
+                              sx={{
+                                cursor: isEditable ? 'text' : 'default',
+                                minWidth: 150,
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {isEditing && isEditable ? (
+                                <TextField
+                                  value={editValues[column.key] ?? ''}
+                                  onChange={(event) => handleEditFieldChange(column.key, event.target.value)}
+                                  type={fieldConfig.type === 'date' ? 'date' : fieldConfig.type === 'number' ? 'number' : 'text'}
+                                  size="small"
+                                  fullWidth
+                                  autoFocus={activeFieldKey === column.key}
+                                  InputLabelProps={fieldConfig.type === 'date' ? { shrink: true } : undefined}
+                                  multiline={Boolean(fieldConfig.multiline)}
+                                  minRows={fieldConfig.rows}
+                                  inputProps={fieldConfig.type === 'number' ? { inputMode: 'decimal', step: '0.01' } : undefined}
+                                />
+                              ) : (
+                                formatter(value)
+                              )}
+                            </TableCell>
+                          );
+                        })}
+                        <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                          {isEditing ? (
+                            <Stack spacing={1} alignItems="flex-end">
+                              <Stack direction="row" spacing={1}>
+                                <Button size="small" onClick={handleCancelEdit} disabled={savingRowId === record.id}>
+                                  {t('common.cancel')}
+                                </Button>
+                                <Button
+                                  size="small"
+                                  variant="contained"
+                                  onClick={handleSaveRow}
+                                  disabled={savingRowId === record.id}
+                                >
+                                  {t('common.save')}
+                                </Button>
+                              </Stack>
+                              {editError && (
+                                <Typography variant="caption" color="error">
+                                  {editError}
+                                </Typography>
+                              )}
+                            </Stack>
+                          ) : (
+                            <Typography variant="caption" color="text.secondary">
+                              {t('weeklyLeasingReports.table.clickToEdit')}
+                            </Typography>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
           </>
         )}
       </Paper>
