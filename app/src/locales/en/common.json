@@ -180,6 +180,17 @@
     "actions": {
       "refresh": "Refresh"
     },
+    "addRow": {
+      "title": "Manual entry",
+      "helper": "Fill out the fields to insert an additional row for the selected report date.",
+      "button": "Add row",
+      "hide": "Hide form",
+      "submit": "Add",
+      "reportDateRequired": "Select a report date before adding a row.",
+      "unitRequired": "Unit is required.",
+      "success": "\"{{unit}}\" has been added.",
+      "failed": "Failed to add the row."
+    },
     "table": {
       "unit": "Unit",
       "lastRent": "Last Rent",

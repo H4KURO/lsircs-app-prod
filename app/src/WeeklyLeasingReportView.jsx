@@ -27,6 +27,7 @@ import {
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import { useTranslation } from 'react-i18next';
 
 const API_URL = '/api';
@@ -62,6 +63,22 @@ const formatDate = (value) => {
   return value;
 };
 
+const EMPTY_ROW_TEMPLATE = {
+  unit: '',
+  lastRent: '',
+  scheduledRent: '',
+  newRent: '',
+  lastMoveOut: '',
+  availableOn: '',
+  nextMoveIn: '',
+  showing: '',
+  inquiry: '',
+  application: '',
+  status: '',
+  onMarketDate: '',
+  memo: '',
+};
+
 export function WeeklyLeasingReportView() {
   const { t } = useTranslation();
   const fileInputRef = useRef(null);
@@ -78,6 +95,10 @@ export function WeeklyLeasingReportView() {
   const [activeFieldKey, setActiveFieldKey] = useState('');
   const [savingRowId, setSavingRowId] = useState(null);
   const [editError, setEditError] = useState('');
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newRowValues, setNewRowValues] = useState(() => ({ ...EMPTY_ROW_TEMPLATE }));
+  const [addError, setAddError] = useState('');
+  const [addingRow, setAddingRow] = useState(false);
 
   const columns = useMemo(
     () => [
@@ -138,6 +159,11 @@ export function WeeklyLeasingReportView() {
     onMarketDate: record?.onMarketDate || '',
     memo: record?.memo || '',
   });
+
+  const addRowFields = useMemo(
+    () => [{ key: 'unit', label: t('weeklyLeasingReports.table.unit'), required: true }, ...editableFields],
+    [editableFields, t],
+  );
 
   const fetchReports = async (targetDate) => {
     setLoading(true);
@@ -215,6 +241,46 @@ export function WeeklyLeasingReportView() {
       setEditError(extractErrorMessage(error, t('weeklyLeasingReports.edit.failed')));
     } finally {
       setSavingRowId(null);
+    }
+  };
+
+  const resetNewRowForm = () => {
+    setNewRowValues({ ...EMPTY_ROW_TEMPLATE });
+    setAddError('');
+  };
+
+  const handleNewRowFieldChange = (field, value) => {
+    setNewRowValues((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleCreateRow = async () => {
+    if (!selectedReportDate) {
+      setAddError(t('weeklyLeasingReports.addRow.reportDateRequired'));
+      return;
+    }
+    if (!newRowValues.unit.trim()) {
+      setAddError(t('weeklyLeasingReports.addRow.unitRequired'));
+      return;
+    }
+    setAddingRow(true);
+    setAddError('');
+    try {
+      const payload = {
+        reportDate: selectedReportDate,
+        ...newRowValues,
+      };
+      const { data } = await axios.post(`${API_URL}/CreateWeeklyLeasingReport`, payload);
+      setUploadStatus({
+        severity: 'success',
+        message: t('weeklyLeasingReports.addRow.success', { unit: data.unit }),
+      });
+      await fetchReports(data?.reportDate || selectedReportDate);
+      resetNewRowForm();
+      setShowAddForm(false);
+    } catch (error) {
+      setAddError(extractErrorMessage(error, t('weeklyLeasingReports.addRow.failed')));
+    } finally {
+      setAddingRow(false);
     }
   };
 
@@ -370,6 +436,79 @@ export function WeeklyLeasingReportView() {
             </Button>
           </Stack>
         </Stack>
+
+        <Stack
+          direction={{ xs: 'column', md: 'row' }}
+          spacing={2}
+          alignItems={{ xs: 'flex-start', md: 'center' }}
+          justifyContent="space-between"
+        >
+          <Box>
+            <Typography variant="subtitle1">{t('weeklyLeasingReports.addRow.title')}</Typography>
+            <Typography variant="body2" color="text.secondary">
+              {t('weeklyLeasingReports.addRow.helper')}
+            </Typography>
+          </Box>
+          <Button
+            variant="outlined"
+            startIcon={<AddCircleOutlineIcon />}
+            onClick={() => {
+              setShowAddForm((prev) => !prev);
+              setAddError('');
+            }}
+            disabled={!selectedReportDate}
+          >
+            {showAddForm ? t('weeklyLeasingReports.addRow.hide') : t('weeklyLeasingReports.addRow.button')}
+          </Button>
+        </Stack>
+
+        {showAddForm && (
+          <Paper variant="outlined" sx={{ p: 2 }}>
+            <Grid container spacing={2}>
+              {addRowFields.map((field) => {
+                const fieldType =
+                  field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : 'text';
+                const gridColumns =
+                  field.key === 'memo' ? 12 : field.type === 'date' || field.type === 'number' ? 6 : 12;
+                return (
+                  <Grid item xs={12} md={gridColumns} key={field.key}>
+                    <TextField
+                      label={field.label}
+                      type={fieldType}
+                      fullWidth
+                      value={newRowValues[field.key] ?? ''}
+                      onChange={(event) => handleNewRowFieldChange(field.key, event.target.value)}
+                      InputLabelProps={field.type === 'date' ? { shrink: true } : undefined}
+                      multiline={Boolean(field.multiline)}
+                      minRows={field.rows}
+                      required={Boolean(field.required)}
+                      disabled={addingRow}
+                    />
+                  </Grid>
+                );
+              })}
+            </Grid>
+            {addError && (
+              <Alert severity="error" sx={{ mt: 2 }} onClose={() => setAddError('')}>
+                {addError}
+              </Alert>
+            )}
+            <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ mt: 2 }}>
+              <Button
+                onClick={() => {
+                  resetNewRowForm();
+                  setShowAddForm(false);
+                }}
+                disabled={addingRow}
+              >
+                {t('common.cancel')}
+              </Button>
+              <Button variant="contained" onClick={handleCreateRow} disabled={addingRow}>
+                {t('weeklyLeasingReports.addRow.submit')}
+              </Button>
+            </Stack>
+          </Paper>
+        )}
 
         {loading && <LinearProgress />}
 

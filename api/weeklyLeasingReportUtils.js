@@ -93,6 +93,39 @@ function createDocumentId(reportDate, unit) {
   return `${reportDate}:${hash}`;
 }
 
+function buildManualWeeklyReport(payload = {}, { now = new Date().toISOString() } = {}) {
+  const reportDate = normaliseReportDateInput(payload?.reportDate);
+  if (!reportDate) {
+    throw new Error('reportDate is required and must be in YYYY-MM-DD format.');
+  }
+  const unit = normaliseText(payload?.unit);
+  if (!unit) {
+    throw new Error('Unit is required.');
+  }
+
+  return {
+    id: createDocumentId(reportDate, unit),
+    reportDate,
+    unit,
+    lastRent: parseCurrencyValue(payload?.lastRent),
+    scheduledRent: parseCurrencyValue(payload?.scheduledRent),
+    newRent: parseCurrencyValue(payload?.newRent),
+    lastMoveOut: parseDateValue(payload?.lastMoveOut),
+    availableOn: parseDateValue(payload?.availableOn),
+    nextMoveIn: parseDateValue(payload?.nextMoveIn),
+    showing: normaliseText(payload?.showing),
+    inquiry: normaliseText(payload?.inquiry),
+    application: normaliseText(payload?.application),
+    status: normaliseText(payload?.status),
+    onMarketDate: parseDateValue(payload?.onMarketDate),
+    memo: normaliseText(payload?.memo),
+    sourceFileName: normaliseText(payload?.sourceFileName) || 'manual-entry',
+    uploadedAt: now,
+    updatedAt: now,
+    manuallyAdded: true,
+  };
+}
+
 function applyWeeklyReportUpdates(existing, updates = {}, { now = new Date().toISOString() } = {}) {
   if (!existing) {
     throw new Error('Weekly leasing report record not found.');
@@ -145,5 +178,6 @@ module.exports = {
   parseCurrencyValue,
   parseDateValue,
   createDocumentId,
+  buildManualWeeklyReport,
   applyWeeklyReportUpdates,
 };
