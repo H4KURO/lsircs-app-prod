@@ -8,6 +8,7 @@ import {
   Divider,
   FormControl,
   Grid,
+  IconButton,
   LinearProgress,
   List,
   ListItem,
@@ -28,6 +29,7 @@ import {
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { useTranslation } from 'react-i18next';
 
 const API_URL = '/api';
@@ -99,6 +101,7 @@ export function WeeklyLeasingReportView() {
   const [newRowValues, setNewRowValues] = useState(() => ({ ...EMPTY_ROW_TEMPLATE }));
   const [addError, setAddError] = useState('');
   const [addingRow, setAddingRow] = useState(false);
+  const [deletingRowId, setDeletingRowId] = useState(null);
 
   const columns = useMemo(
     () => [
@@ -281,6 +284,37 @@ export function WeeklyLeasingReportView() {
       setAddError(extractErrorMessage(error, t('weeklyLeasingReports.addRow.failed')));
     } finally {
       setAddingRow(false);
+    }
+  };
+
+  const handleDeleteRow = async (record) => {
+    if (!record?.id || !record?.reportDate) {
+      return;
+    }
+    const confirmed = window.confirm(
+      t('weeklyLeasingReports.delete.confirm', { unit: record.unit, date: record.reportDate }),
+    );
+    if (!confirmed) {
+      return;
+    }
+    setDeletingRowId(record.id);
+    setUploadStatus(null);
+    try {
+      await axios.delete(`${API_URL}/DeleteWeeklyLeasingReport/${record.id}`, {
+        params: { reportDate: record.reportDate },
+      });
+      setRecords((prev) => prev.filter((item) => item.id !== record.id));
+      setUploadStatus({
+        severity: 'success',
+        message: t('weeklyLeasingReports.delete.success', { unit: record.unit }),
+      });
+    } catch (error) {
+      setUploadStatus({
+        severity: 'error',
+        message: extractErrorMessage(error, t('weeklyLeasingReports.delete.failed')),
+      });
+    } finally {
+      setDeletingRowId(null);
     }
   };
 
@@ -579,32 +613,43 @@ export function WeeklyLeasingReportView() {
                           );
                         })}
                         <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                          {isEditing ? (
-                            <Stack spacing={1} alignItems="flex-end">
-                              <Stack direction="row" spacing={1}>
-                                <Button size="small" onClick={handleCancelEdit} disabled={savingRowId === record.id}>
-                                  {t('common.cancel')}
-                                </Button>
-                                <Button
-                                  size="small"
-                                  variant="contained"
-                                  onClick={handleSaveRow}
-                                  disabled={savingRowId === record.id}
-                                >
-                                  {t('common.save')}
-                                </Button>
+                          <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end">
+                            {isEditing ? (
+                              <Stack spacing={1} alignItems="flex-end">
+                                <Stack direction="row" spacing={1}>
+                                  <Button size="small" onClick={handleCancelEdit} disabled={savingRowId === record.id}>
+                                    {t('common.cancel')}
+                                  </Button>
+                                  <Button
+                                    size="small"
+                                    variant="contained"
+                                    onClick={handleSaveRow}
+                                    disabled={savingRowId === record.id}
+                                  >
+                                    {t('common.save')}
+                                  </Button>
+                                </Stack>
+                                {editError && (
+                                  <Typography variant="caption" color="error">
+                                    {editError}
+                                  </Typography>
+                                )}
                               </Stack>
-                              {editError && (
-                                <Typography variant="caption" color="error">
-                                  {editError}
-                                </Typography>
-                              )}
-                            </Stack>
-                          ) : (
-                            <Typography variant="caption" color="text.secondary">
-                              {t('weeklyLeasingReports.table.clickToEdit')}
-                            </Typography>
-                          )}
+                            ) : (
+                              <Typography variant="caption" color="text.secondary">
+                                {t('weeklyLeasingReports.table.clickToEdit')}
+                              </Typography>
+                            )}
+                            <IconButton
+                              color="error"
+                              aria-label={t('weeklyLeasingReports.delete.label')}
+                              onClick={() => handleDeleteRow(record)}
+                              disabled={deletingRowId === record.id}
+                              size="small"
+                            >
+                              <DeleteOutlineIcon fontSize="small" />
+                            </IconButton>
+                          </Stack>
                         </TableCell>
                       </TableRow>
                     );

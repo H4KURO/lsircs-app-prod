@@ -215,6 +215,12 @@
       "subtitle": "Report date: {{date}}",
       "success": "\"{{unit}}\" has been updated.",
       "failed": "Failed to update the record."
+    },
+    "delete": {
+      "label": "Delete",
+      "confirm": "Delete \"{{unit}}\" from {{date}}?",
+      "success": "\"{{unit}}\" has been deleted.",
+      "failed": "Failed to delete the row."
     }
   },
   "taskView": {

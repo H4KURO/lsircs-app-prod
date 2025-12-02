@@ -215,6 +215,12 @@
       "subtitle": "レポート日: {{date}}",
       "success": "「{{unit}}」を更新しました。",
       "failed": "レコードの更新に失敗しました。"
+    },
+    "delete": {
+      "label": "削除",
+      "confirm": "レポート日 {{date}} から「{{unit}}」を削除しますか？",
+      "success": "「{{unit}}」を削除しました。",
+      "failed": "行の削除に失敗しました。"
     }
   },
   "taskView": {
