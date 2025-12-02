@@ -194,7 +194,8 @@
       "status": "ステータス",
       "onMarketDate": "募集開始日",
       "memo": "メモ",
-      "actions": "操作"
+      "actions": "操作",
+      "clickToEdit": "セルをクリックして編集"
     },
     "fetchFailed": "週間レポートの取得に失敗しました。",
     "empty": "選択したレポートにはデータがありません。",

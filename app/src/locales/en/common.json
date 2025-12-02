@@ -194,7 +194,8 @@
       "status": "Status",
       "onMarketDate": "On Market Date",
       "memo": "Memo",
-      "actions": "Actions"
+      "actions": "Actions",
+      "clickToEdit": "Click a field to edit"
     },
     "fetchFailed": "Failed to load weekly reports.",
     "empty": "No records found for the selected report.",

@@ -5,14 +5,9 @@ import {
   Box,
   Button,
   Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   Divider,
   FormControl,
   Grid,
-  IconButton,
   LinearProgress,
   List,
   ListItem,
@@ -31,7 +26,6 @@ import {
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import EditIcon from '@mui/icons-material/Edit';
 import { useTranslation } from 'react-i18next';
 
 const API_URL = '/api';
@@ -78,9 +72,10 @@ export function WeeklyLeasingReportView() {
   const [errorMessage, setErrorMessage] = useState('');
   const [uploadStatus, setUploadStatus] = useState(null);
   const [rowErrors, setRowErrors] = useState([]);
-  const [editingRecord, setEditingRecord] = useState(null);
+  const [editingRow, setEditingRow] = useState(null);
   const [editValues, setEditValues] = useState({});
-  const [savingEdit, setSavingEdit] = useState(false);
+  const [activeFieldKey, setActiveFieldKey] = useState('');
+  const [savingRowId, setSavingRowId] = useState(null);
   const [editError, setEditError] = useState('');
 
   const columns = useMemo(
@@ -120,6 +115,29 @@ export function WeeklyLeasingReportView() {
     [t],
   );
 
+  const editableFieldMap = useMemo(() => {
+    const map = {};
+    editableFields.forEach((field) => {
+      map[field.key] = field;
+    });
+    return map;
+  }, [editableFields]);
+
+  const buildEditValues = (record) => ({
+    lastRent: record?.lastRent ?? '',
+    scheduledRent: record?.scheduledRent ?? '',
+    newRent: record?.newRent ?? '',
+    lastMoveOut: record?.lastMoveOut || '',
+    availableOn: record?.availableOn || '',
+    nextMoveIn: record?.nextMoveIn || '',
+    showing: record?.showing || '',
+    inquiry: record?.inquiry || '',
+    application: record?.application || '',
+    status: record?.status || '',
+    onMarketDate: record?.onMarketDate || '',
+    memo: record?.memo || '',
+  });
+
   const fetchReports = async (targetDate) => {
     setLoading(true);
     setErrorMessage('');
@@ -136,31 +154,28 @@ export function WeeklyLeasingReportView() {
     }
   };
 
-  const openEditor = (record) => {
-    setEditingRecord(record);
+  const beginEditingRow = (record, fieldKey) => {
+    setEditingRow(record);
+    setEditValues(buildEditValues(record));
+    setActiveFieldKey(fieldKey || '');
     setEditError('');
-    setEditValues({
-      lastRent: record.lastRent ?? '',
-      scheduledRent: record.scheduledRent ?? '',
-      newRent: record.newRent ?? '',
-      lastMoveOut: record.lastMoveOut || '',
-      availableOn: record.availableOn || '',
-      nextMoveIn: record.nextMoveIn || '',
-      showing: record.showing || '',
-      inquiry: record.inquiry || '',
-      application: record.application || '',
-      status: record.status || '',
-      onMarketDate: record.onMarketDate || '',
-      memo: record.memo || '',
-    });
   };
 
-  const closeEditor = () => {
-    if (savingEdit) {
+  const handleCellClick = (record, columnKey) => {
+    if (!editableFieldMap[columnKey]) {
       return;
     }
-    setEditingRecord(null);
+    if (!editingRow || editingRow.id !== record.id) {
+      beginEditingRow(record, columnKey);
+      return;
+    }
+    setActiveFieldKey(columnKey);
+  };
+
+  const resetEditingState = () => {
+    setEditingRow(null);
     setEditValues({});
+    setActiveFieldKey('');
     setEditError('');
   };
 
@@ -168,18 +183,25 @@ export function WeeklyLeasingReportView() {
     setEditValues((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleSaveEdit = async () => {
-    if (!editingRecord) {
+  const handleCancelEdit = () => {
+    if (savingRowId) {
       return;
     }
-    setSavingEdit(true);
+    resetEditingState();
+  };
+
+  const handleSaveRow = async () => {
+    if (!editingRow) {
+      return;
+    }
+    setSavingRowId(editingRow.id);
     setEditError('');
     try {
       const payload = {
-        reportDate: editingRecord.reportDate,
+        reportDate: editingRow.reportDate,
         ...editValues,
       };
-      const { data } = await axios.put(`${API_URL}/UpdateWeeklyLeasingReport/${editingRecord.id}`, payload);
+      const { data } = await axios.put(`${API_URL}/UpdateWeeklyLeasingReport/${editingRow.id}`, payload);
       setRecords((prev) => prev.map((item) => (item.id === data.id ? data : item)));
       setUploadStatus({
         severity: 'success',
@@ -187,11 +209,11 @@ export function WeeklyLeasingReportView() {
           unit: data.unit,
         }),
       });
-      closeEditor();
+      resetEditingState();
     } catch (error) {
       setEditError(extractErrorMessage(error, t('weeklyLeasingReports.edit.failed')));
     } finally {
-      setSavingEdit(false);
+      setSavingRowId(null);
     }
   };
 
@@ -373,67 +395,76 @@ export function WeeklyLeasingReportView() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {records.map((record) => (
-                  <TableRow key={record.id}>
-                    {columns.map((column) => {
-                      const value = record[column.key];
-                      const formatter = column.formatter || ((val) => (val == null || val === '' ? '—' : val));
-                      return <TableCell key={column.key}>{formatter(value)}</TableCell>;
-                    })}
-                    <TableCell align="right">
-                      <IconButton aria-label={t('weeklyLeasingReports.table.actions')} onClick={() => openEditor(record)}>
-                        <EditIcon />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {records.map((record) => {
+                  const isEditing = editingRow?.id === record.id;
+                  return (
+                    <TableRow key={record.id}>
+                      {columns.map((column) => {
+                        const fieldConfig = editableFieldMap[column.key];
+                        const isEditable = Boolean(fieldConfig);
+                        const value = record[column.key];
+                        const formatter = column.formatter || ((val) => (val == null || val === '' ? '—' : val));
+                        return (
+                          <TableCell
+                            key={column.key}
+                            onClick={() => handleCellClick(record, column.key)}
+                            sx={{ cursor: isEditable ? 'text' : 'default', minWidth: 140 }}
+                          >
+                            {isEditing && isEditable ? (
+                              <TextField
+                                value={editValues[column.key] ?? ''}
+                                onChange={(event) => handleEditFieldChange(column.key, event.target.value)}
+                                type={fieldConfig.type === 'date' ? 'date' : fieldConfig.type === 'number' ? 'number' : 'text'}
+                                size="small"
+                                fullWidth
+                                autoFocus={activeFieldKey === column.key}
+                                InputLabelProps={fieldConfig.type === 'date' ? { shrink: true } : undefined}
+                                multiline={Boolean(fieldConfig.multiline)}
+                                minRows={fieldConfig.rows}
+                                inputProps={fieldConfig.type === 'number' ? { inputMode: 'decimal', step: '0.01' } : undefined}
+                              />
+                            ) : (
+                              formatter(value)
+                            )}
+                          </TableCell>
+                        );
+                      })}
+                      <TableCell align="right">
+                        {isEditing ? (
+                          <Stack spacing={1} alignItems="flex-end">
+                            <Stack direction="row" spacing={1}>
+                              <Button size="small" onClick={handleCancelEdit} disabled={savingRowId === record.id}>
+                                {t('common.cancel')}
+                              </Button>
+                              <Button
+                                size="small"
+                                variant="contained"
+                                onClick={handleSaveRow}
+                                disabled={savingRowId === record.id}
+                              >
+                                {t('common.save')}
+                              </Button>
+                            </Stack>
+                            {editError && (
+                              <Typography variant="caption" color="error">
+                                {editError}
+                              </Typography>
+                            )}
+                          </Stack>
+                        ) : (
+                          <Typography variant="caption" color="text.secondary">
+                            {t('weeklyLeasingReports.table.clickToEdit')}
+                          </Typography>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </>
         )}
       </Paper>
-
-      <Dialog open={Boolean(editingRecord)} onClose={closeEditor} fullWidth maxWidth="md">
-        <DialogTitle>
-          {t('weeklyLeasingReports.edit.title', {
-            unit: editingRecord?.unit ?? '',
-          })}
-        </DialogTitle>
-        <DialogContent dividers>
-          <Typography variant="subtitle2" gutterBottom>
-            {editingRecord ? t('weeklyLeasingReports.edit.subtitle', { date: editingRecord.reportDate }) : ''}
-          </Typography>
-          <Grid container spacing={2} sx={{ mt: 1 }}>
-            {editableFields.map((field) => (
-              <Grid item xs={12} md={field.type === 'date' || field.type === 'number' ? 6 : 12} key={field.key}>
-                <TextField
-                  label={field.label}
-                  type={field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : 'text'}
-                  fullWidth
-                  value={editValues[field.key] ?? ''}
-                  onChange={(event) => handleEditFieldChange(field.key, event.target.value)}
-                  InputLabelProps={field.type === 'date' ? { shrink: true } : undefined}
-                  multiline={Boolean(field.multiline)}
-                  minRows={field.rows}
-                />
-              </Grid>
-            ))}
-          </Grid>
-          {editError && (
-            <Alert severity="error" sx={{ mt: 2 }} onClose={() => setEditError('')}>
-              {editError}
-            </Alert>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={closeEditor} disabled={savingEdit}>
-            {t('common.cancel')}
-          </Button>
-          <Button onClick={handleSaveEdit} variant="contained" disabled={savingEdit}>
-            {t('common.save')}
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 }
