@@ -1,5 +1,6 @@
 const { app } = require('@azure/functions');
 const { weeklyLeasingReportContainer } = require('./weeklyLeasingReportStore');
+const { notifyWeeklyReportRowDeleted } = require('./slackClient');
 
 function getQueryParam(request, key) {
   if (request?.query?.get) {
@@ -28,7 +29,21 @@ app.http('DeleteWeeklyLeasingReport', {
       }
 
       const container = await weeklyLeasingReportContainer();
+      let existing;
+      try {
+        const { resource } = await container.item(id, reportDate).read();
+        existing = resource;
+      } catch (error) {
+        if (error?.code === 404 || error?.code === 'NotFound') {
+          return { status: 404, jsonBody: { message: 'Weekly report record not found.' } };
+        }
+        throw error;
+      }
+
       await container.item(id, reportDate).delete();
+      if (existing) {
+        notifyWeeklyReportRowDeleted(existing, context).catch(() => {});
+      }
 
       return { status: 204 };
     } catch (error) {

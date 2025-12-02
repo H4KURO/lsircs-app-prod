@@ -3,6 +3,8 @@ const axios = require('axios');
 const slackBotToken = process.env.SLACK_BOT_TOKEN;
 const defaultChannel = process.env.SLACK_CHANNEL_ID;
 const slackThreadTs = process.env.SLACK_THREAD_TS || null;
+const weeklyChannelOverride = process.env.SLACK_WEEKLY_CHANNEL_ID || defaultChannel;
+const weeklyThreadTs = process.env.SLACK_WEEKLY_THREAD_TS || null;
 const appBaseUrl = process.env.APP_BASE_URL || null;
 const SLACK_ENABLED = Boolean(slackBotToken && defaultChannel);
 
@@ -53,6 +55,39 @@ const buildTaskLink = (taskId) => {
     return null;
   }
 };
+
+const buildWeeklyReportLink = (reportDate) => {
+  if (!appBaseUrl) {
+    return null;
+  }
+  try {
+    const url = new URL(appBaseUrl);
+    url.searchParams.set('view', 'weeklyReports');
+    if (reportDate) {
+      url.searchParams.set('reportDate', reportDate);
+    }
+    return url.toString();
+  } catch (error) {
+    return null;
+  }
+};
+
+const formatCurrencyValue = (value) => {
+  if (value == null) {
+    return '—';
+  }
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return String(value);
+  }
+  return numeric.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+};
+
+const buildWeeklyOverrides = (metadata = {}) => ({
+  ...metadata,
+  channel: metadata.channel || weeklyChannelOverride,
+  threadTs: metadata.threadTs || weeklyThreadTs,
+});
 
 async function postToSlack(payload, context, overrides = {}) {
   if (!SLACK_ENABLED) {
@@ -202,9 +237,109 @@ async function notifyTaskStatusChanged(task, previousStatus, context, metadata =
   return postToSlack({ text, blocks }, context, metadata);
 }
 
+function buildWeeklyReportBlocks(record) {
+  const fields = [
+    { type: 'mrkdwn', text: `*Unit*: ${record.unit || 'n/a'}` },
+    { type: 'mrkdwn', text: `*Report*: ${record.reportDate || 'n/a'}` },
+  ];
+
+  if (record.lastRent != null) {
+    fields.push({ type: 'mrkdwn', text: `*Last Rent*: ¥${formatCurrencyValue(record.lastRent)}` });
+  }
+  if (record.newRent != null) {
+    fields.push({ type: 'mrkdwn', text: `*New Rent*: ¥${formatCurrencyValue(record.newRent)}` });
+  }
+  if (record.nextMoveIn) {
+    fields.push({ type: 'mrkdwn', text: `*Next Move In*: ${formatDate(record.nextMoveIn)}` });
+  }
+  if (record.status) {
+    fields.push({ type: 'mrkdwn', text: `*Status*: ${record.status}` });
+  }
+  if (record.memo) {
+    fields.push({ type: 'mrkdwn', text: `*Memo*: ${record.memo}` });
+  }
+
+  return [{ type: 'section', fields }];
+}
+
+async function notifyWeeklyReportRowAdded(record, context, metadata = {}) {
+  if (!SLACK_ENABLED) {
+    return false;
+  }
+  const actor = resolveUsername(metadata.actorName, 'System');
+  const text = `:inbox_tray: Weekly report row added for ${record.unit || 'n/a'} (${record.reportDate})`;
+  const blocks = buildWeeklyReportBlocks(record);
+  blocks.unshift({
+    type: 'context',
+    elements: [{ type: 'mrkdwn', text: `Added by *${actor}*` }],
+  });
+
+  const link = buildWeeklyReportLink(record.reportDate);
+  if (link) {
+    blocks.push({
+      type: 'actions',
+      elements: [
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: 'Open report' },
+          url: link,
+        },
+      ],
+    });
+  }
+
+  return postToSlack({ text, blocks }, context, buildWeeklyOverrides(metadata));
+}
+
+async function notifyWeeklyReportRowUpdated(record, context, metadata = {}) {
+  if (!SLACK_ENABLED) {
+    return false;
+  }
+  const actor = resolveUsername(metadata.actorName, 'System');
+  const text = `:pencil2: Weekly report row updated for ${record.unit || 'n/a'} (${record.reportDate})`;
+  const blocks = buildWeeklyReportBlocks(record);
+  blocks.unshift({
+    type: 'context',
+    elements: [{ type: 'mrkdwn', text: `Updated by *${actor}*` }],
+  });
+
+  const link = buildWeeklyReportLink(record.reportDate);
+  if (link) {
+    blocks.push({
+      type: 'actions',
+      elements: [
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: 'Open report' },
+          url: link,
+        },
+      ],
+    });
+  }
+
+  return postToSlack({ text, blocks }, context, buildWeeklyOverrides(metadata));
+}
+
+async function notifyWeeklyReportRowDeleted(record, context, metadata = {}) {
+  if (!SLACK_ENABLED) {
+    return false;
+  }
+  const actor = resolveUsername(metadata.actorName, 'System');
+  const text = `:wastebasket: Weekly report row deleted for ${record.unit || 'n/a'} (${record.reportDate})`;
+  const blocks = buildWeeklyReportBlocks(record);
+  blocks.unshift({
+    type: 'context',
+    elements: [{ type: 'mrkdwn', text: `Deleted by *${actor}*` }],
+  });
+  return postToSlack({ text, blocks }, context, buildWeeklyOverrides(metadata));
+}
+
 module.exports = {
   notifyTaskCreated,
   notifyTaskStatusChanged,
   buildTaskLink,
+  notifyWeeklyReportRowAdded,
+  notifyWeeklyReportRowUpdated,
+  notifyWeeklyReportRowDeleted,
   SLACK_ENABLED,
 };

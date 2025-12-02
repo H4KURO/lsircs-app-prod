@@ -1,6 +1,7 @@
 const { app } = require('@azure/functions');
 const { weeklyLeasingReportContainer } = require('./weeklyLeasingReportStore');
 const { applyWeeklyReportUpdates } = require('./weeklyLeasingReportUtils');
+const { notifyWeeklyReportRowUpdated } = require('./slackClient');
 
 async function readWeeklyReport(container, id, reportDate) {
   try {
@@ -48,6 +49,7 @@ app.http('UpdateWeeklyLeasingReport', {
 
       const next = applyWeeklyReportUpdates(existing, updates);
       const { resource } = await container.item(id, reportDate).replace(next);
+      notifyWeeklyReportRowUpdated(resource, context).catch(() => {});
       return { status: 200, jsonBody: resource };
     } catch (error) {
       context.log('UpdateWeeklyLeasingReport failed', error);

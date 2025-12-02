@@ -1,6 +1,7 @@
 const { app } = require('@azure/functions');
 const { weeklyLeasingReportContainer } = require('./weeklyLeasingReportStore');
 const { buildManualWeeklyReport } = require('./weeklyLeasingReportUtils');
+const { notifyWeeklyReportRowAdded } = require('./slackClient');
 
 async function recordExists(container, id, reportDate) {
   try {
@@ -45,6 +46,7 @@ app.http('CreateWeeklyLeasingReport', {
       }
 
       const { resource } = await container.items.create(document);
+      notifyWeeklyReportRowAdded(resource, context).catch(() => {});
       return { status: 201, jsonBody: resource };
     } catch (error) {
       const message = error?.message || 'Failed to add weekly leasing report row.';
