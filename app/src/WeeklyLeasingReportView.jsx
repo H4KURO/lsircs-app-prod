@@ -5,6 +5,10 @@ import {
   Box,
   Button,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Divider,
   FormControl,
   Grid,
@@ -30,6 +34,7 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import { useTranslation } from 'react-i18next';
 
 const API_URL = '/api';
@@ -102,6 +107,10 @@ export function WeeklyLeasingReportView() {
   const [addError, setAddError] = useState('');
   const [addingRow, setAddingRow] = useState(false);
   const [deletingRowId, setDeletingRowId] = useState(null);
+  const [modalRecord, setModalRecord] = useState(null);
+  const [modalValues, setModalValues] = useState({});
+  const [modalSaving, setModalSaving] = useState(false);
+  const [modalError, setModalError] = useState('');
 
   const columns = useMemo(
     () => [
@@ -165,6 +174,11 @@ export function WeeklyLeasingReportView() {
 
   const addRowFields = useMemo(
     () => [{ key: 'unit', label: t('weeklyLeasingReports.table.unit'), required: true }, ...editableFields],
+    [editableFields, t],
+  );
+
+  const modalFields = useMemo(
+    () => [{ key: 'unit', label: t('weeklyLeasingReports.table.unit'), disabled: true }, ...editableFields],
     [editableFields, t],
   );
 
@@ -315,6 +329,56 @@ export function WeeklyLeasingReportView() {
       });
     } finally {
       setDeletingRowId(null);
+    }
+  };
+
+  const openModalEditor = (record) => {
+    setModalRecord(record);
+    setModalValues({
+      unit: record.unit || '',
+      ...buildEditValues(record),
+    });
+    setModalError('');
+  };
+
+  const closeModalEditor = () => {
+    if (modalSaving) {
+      return;
+    }
+    setModalRecord(null);
+    setModalValues({});
+    setModalError('');
+  };
+
+  const handleModalFieldChange = (field, value) => {
+    setModalValues((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleModalSave = async () => {
+    if (!modalRecord) {
+      return;
+    }
+    setModalSaving(true);
+    setModalError('');
+    try {
+      const payload = {
+        reportDate: modalRecord.reportDate,
+        ...modalValues,
+      };
+      delete payload.unit;
+      const { data } = await axios.put(`${API_URL}/UpdateWeeklyLeasingReport/${modalRecord.id}`, payload);
+      setRecords((prev) => prev.map((item) => (item.id === data.id ? data : item)));
+      setUploadStatus({
+        severity: 'success',
+        message: t('weeklyLeasingReports.edit.success', {
+          unit: data.unit,
+        }),
+      });
+      closeModalEditor();
+    } catch (error) {
+      setModalError(extractErrorMessage(error, t('weeklyLeasingReports.edit.failed')));
+    } finally {
+      setModalSaving(false);
     }
   };
 
@@ -641,6 +705,14 @@ export function WeeklyLeasingReportView() {
                               </Typography>
                             )}
                             <IconButton
+                              color="primary"
+                              aria-label={t('weeklyLeasingReports.table.openDialog')}
+                              onClick={() => openModalEditor(record)}
+                              size="small"
+                            >
+                              <EditOutlinedIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
                               color="error"
                               aria-label={t('weeklyLeasingReports.delete.label')}
                               onClick={() => handleDeleteRow(record)}
@@ -660,6 +732,52 @@ export function WeeklyLeasingReportView() {
           </>
         )}
       </Paper>
+
+      <Dialog open={Boolean(modalRecord)} onClose={closeModalEditor} fullWidth maxWidth="md">
+        <DialogTitle>
+          {t('weeklyLeasingReports.edit.title')} — {modalRecord?.unit || ''}
+        </DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            {modalRecord ? t('weeklyLeasingReports.edit.subtitle', { date: modalRecord.reportDate }) : ''}
+          </Typography>
+          <Grid container spacing={2}>
+            {modalFields.map((field) => (
+              <Grid
+                item
+                xs={12}
+                md={field.key === 'memo' ? 12 : field.type === 'date' || field.type === 'number' ? 6 : 12}
+                key={field.key}
+              >
+                <TextField
+                  label={field.label}
+                  fullWidth
+                  value={modalValues[field.key] ?? ''}
+                  onChange={(event) => handleModalFieldChange(field.key, event.target.value)}
+                  type={field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : 'text'}
+                  InputLabelProps={field.type === 'date' ? { shrink: true } : undefined}
+                  multiline={Boolean(field.multiline)}
+                  minRows={field.rows}
+                  disabled={field.disabled || modalSaving}
+                />
+              </Grid>
+            ))}
+          </Grid>
+          {modalError && (
+            <Alert severity="error" sx={{ mt: 2 }} onClose={() => setModalError('')}>
+              {modalError}
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeModalEditor} disabled={modalSaving}>
+            {t('common.cancel')}
+          </Button>
+          <Button variant="contained" onClick={handleModalSave} disabled={modalSaving}>
+            {t('common.save')}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
