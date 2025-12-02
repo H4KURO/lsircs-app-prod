@@ -23,6 +23,7 @@ const COLUMN_ALIASES = {
   application: ['application', 'applications'],
   status: ['status'],
   onMarketDate: ['onmarketdate', 'marketdate'],
+  memo: ['memo'],
 };
 
 function detectDelimiter(csvText = '') {
@@ -76,8 +77,10 @@ function buildDocument(row, { reportDate, fileName, now }) {
     application: normaliseText(getValue(row, COLUMN_ALIASES.application)),
     status: normaliseText(getValue(row, COLUMN_ALIASES.status)),
     onMarketDate: parseDateValue(getValue(row, COLUMN_ALIASES.onMarketDate)),
+    memo: normaliseText(getValue(row, COLUMN_ALIASES.memo)),
     sourceFileName: fileName,
     uploadedAt: now,
+    updatedAt: now,
   };
 }
 

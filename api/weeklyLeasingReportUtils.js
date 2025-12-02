@@ -93,6 +93,51 @@ function createDocumentId(reportDate, unit) {
   return `${reportDate}:${hash}`;
 }
 
+function applyWeeklyReportUpdates(existing, updates = {}, { now = new Date().toISOString() } = {}) {
+  if (!existing) {
+    throw new Error('Weekly leasing report record not found.');
+  }
+
+  const next = { ...existing };
+  const hasProp = (key) => Object.prototype.hasOwnProperty.call(updates, key);
+
+  const assignCurrency = (key) => {
+    if (hasProp(key)) {
+      next[key] = parseCurrencyValue(updates[key]);
+    }
+  };
+
+  const assignDate = (key) => {
+    if (hasProp(key)) {
+      next[key] = parseDateValue(updates[key]);
+    }
+  };
+
+  const assignText = (key) => {
+    if (hasProp(key)) {
+      next[key] = normaliseText(updates[key]);
+    }
+  };
+
+  assignCurrency('lastRent');
+  assignCurrency('scheduledRent');
+  assignCurrency('newRent');
+
+  assignDate('lastMoveOut');
+  assignDate('availableOn');
+  assignDate('nextMoveIn');
+  assignDate('onMarketDate');
+
+  assignText('showing');
+  assignText('inquiry');
+  assignText('application');
+  assignText('status');
+  assignText('memo');
+
+  next.updatedAt = now;
+  return next;
+}
+
 module.exports = {
   parseReportDateFromFileName,
   normaliseReportDateInput,
@@ -100,4 +145,5 @@ module.exports = {
   parseCurrencyValue,
   parseDateValue,
   createDocumentId,
+  applyWeeklyReportUpdates,
 };

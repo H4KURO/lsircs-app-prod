@@ -192,10 +192,18 @@
       "inquiry": "問い合わせ",
       "application": "申込",
       "status": "ステータス",
-      "onMarketDate": "募集開始日"
+      "onMarketDate": "募集開始日",
+      "memo": "メモ",
+      "actions": "操作"
     },
     "fetchFailed": "週間レポートの取得に失敗しました。",
-    "empty": "選択したレポートにはデータがありません。"
+    "empty": "選択したレポートにはデータがありません。",
+    "edit": {
+      "title": "レコードの編集",
+      "subtitle": "レポート日: {{date}}",
+      "success": "「{{unit}}」を更新しました。",
+      "failed": "レコードの更新に失敗しました。"
+    }
   },
   "taskView": {
     "description": "カテゴリやタグごとにチームの状況を把握できます。表示ビューはユーザーごとに自動保存されます。",

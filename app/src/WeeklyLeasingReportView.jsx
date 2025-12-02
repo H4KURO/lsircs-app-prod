@@ -5,8 +5,14 @@ import {
   Box,
   Button,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Divider,
   FormControl,
+  Grid,
+  IconButton,
   LinearProgress,
   List,
   ListItem,
@@ -20,10 +26,12 @@ import {
   TableCell,
   TableHead,
   TableRow,
+  TextField,
   Typography,
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import EditIcon from '@mui/icons-material/Edit';
 import { useTranslation } from 'react-i18next';
 
 const API_URL = '/api';
@@ -70,6 +78,10 @@ export function WeeklyLeasingReportView() {
   const [errorMessage, setErrorMessage] = useState('');
   const [uploadStatus, setUploadStatus] = useState(null);
   const [rowErrors, setRowErrors] = useState([]);
+  const [editingRecord, setEditingRecord] = useState(null);
+  const [editValues, setEditValues] = useState({});
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState('');
 
   const columns = useMemo(
     () => [
@@ -85,6 +97,25 @@ export function WeeklyLeasingReportView() {
       { key: 'application', label: t('weeklyLeasingReports.table.application') },
       { key: 'status', label: t('weeklyLeasingReports.table.status') },
       { key: 'onMarketDate', label: t('weeklyLeasingReports.table.onMarketDate'), formatter: formatDate },
+      { key: 'memo', label: t('weeklyLeasingReports.table.memo') },
+    ],
+    [t],
+  );
+
+  const editableFields = useMemo(
+    () => [
+      { key: 'lastRent', label: t('weeklyLeasingReports.table.lastRent'), type: 'number' },
+      { key: 'scheduledRent', label: t('weeklyLeasingReports.table.scheduledRent'), type: 'number' },
+      { key: 'newRent', label: t('weeklyLeasingReports.table.newRent'), type: 'number' },
+      { key: 'lastMoveOut', label: t('weeklyLeasingReports.table.lastMoveOut'), type: 'date' },
+      { key: 'availableOn', label: t('weeklyLeasingReports.table.availableOn'), type: 'date' },
+      { key: 'nextMoveIn', label: t('weeklyLeasingReports.table.nextMoveIn'), type: 'date' },
+      { key: 'showing', label: t('weeklyLeasingReports.table.showing') },
+      { key: 'inquiry', label: t('weeklyLeasingReports.table.inquiry') },
+      { key: 'application', label: t('weeklyLeasingReports.table.application') },
+      { key: 'status', label: t('weeklyLeasingReports.table.status') },
+      { key: 'onMarketDate', label: t('weeklyLeasingReports.table.onMarketDate'), type: 'date' },
+      { key: 'memo', label: t('weeklyLeasingReports.table.memo'), multiline: true, rows: 3 },
     ],
     [t],
   );
@@ -102,6 +133,65 @@ export function WeeklyLeasingReportView() {
       setErrorMessage(extractErrorMessage(error, t('weeklyLeasingReports.fetchFailed')));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openEditor = (record) => {
+    setEditingRecord(record);
+    setEditError('');
+    setEditValues({
+      lastRent: record.lastRent ?? '',
+      scheduledRent: record.scheduledRent ?? '',
+      newRent: record.newRent ?? '',
+      lastMoveOut: record.lastMoveOut || '',
+      availableOn: record.availableOn || '',
+      nextMoveIn: record.nextMoveIn || '',
+      showing: record.showing || '',
+      inquiry: record.inquiry || '',
+      application: record.application || '',
+      status: record.status || '',
+      onMarketDate: record.onMarketDate || '',
+      memo: record.memo || '',
+    });
+  };
+
+  const closeEditor = () => {
+    if (savingEdit) {
+      return;
+    }
+    setEditingRecord(null);
+    setEditValues({});
+    setEditError('');
+  };
+
+  const handleEditFieldChange = (field, value) => {
+    setEditValues((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingRecord) {
+      return;
+    }
+    setSavingEdit(true);
+    setEditError('');
+    try {
+      const payload = {
+        reportDate: editingRecord.reportDate,
+        ...editValues,
+      };
+      const { data } = await axios.put(`${API_URL}/UpdateWeeklyLeasingReport/${editingRecord.id}`, payload);
+      setRecords((prev) => prev.map((item) => (item.id === data.id ? data : item)));
+      setUploadStatus({
+        severity: 'success',
+        message: t('weeklyLeasingReports.edit.success', {
+          unit: data.unit,
+        }),
+      });
+      closeEditor();
+    } catch (error) {
+      setEditError(extractErrorMessage(error, t('weeklyLeasingReports.edit.failed')));
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -279,23 +369,71 @@ export function WeeklyLeasingReportView() {
                   {columns.map((column) => (
                     <TableCell key={column.key}>{column.label}</TableCell>
                   ))}
+                  <TableCell align="right">{t('weeklyLeasingReports.table.actions')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                    {records.map((record) => (
-                      <TableRow key={record.id}>
-                        {columns.map((column) => {
-                          const value = record[column.key];
-                          const formatter = column.formatter || ((val) => (val == null || val === '' ? '—' : val));
-                          return <TableCell key={column.key}>{formatter(value)}</TableCell>;
-                        })}
-                      </TableRow>
-                    ))}
+                {records.map((record) => (
+                  <TableRow key={record.id}>
+                    {columns.map((column) => {
+                      const value = record[column.key];
+                      const formatter = column.formatter || ((val) => (val == null || val === '' ? '—' : val));
+                      return <TableCell key={column.key}>{formatter(value)}</TableCell>;
+                    })}
+                    <TableCell align="right">
+                      <IconButton aria-label={t('weeklyLeasingReports.table.actions')} onClick={() => openEditor(record)}>
+                        <EditIcon />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           </>
         )}
       </Paper>
+
+      <Dialog open={Boolean(editingRecord)} onClose={closeEditor} fullWidth maxWidth="md">
+        <DialogTitle>
+          {t('weeklyLeasingReports.edit.title', {
+            unit: editingRecord?.unit ?? '',
+          })}
+        </DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="subtitle2" gutterBottom>
+            {editingRecord ? t('weeklyLeasingReports.edit.subtitle', { date: editingRecord.reportDate }) : ''}
+          </Typography>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            {editableFields.map((field) => (
+              <Grid item xs={12} md={field.type === 'date' || field.type === 'number' ? 6 : 12} key={field.key}>
+                <TextField
+                  label={field.label}
+                  type={field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : 'text'}
+                  fullWidth
+                  value={editValues[field.key] ?? ''}
+                  onChange={(event) => handleEditFieldChange(field.key, event.target.value)}
+                  InputLabelProps={field.type === 'date' ? { shrink: true } : undefined}
+                  multiline={Boolean(field.multiline)}
+                  minRows={field.rows}
+                />
+              </Grid>
+            ))}
+          </Grid>
+          {editError && (
+            <Alert severity="error" sx={{ mt: 2 }} onClose={() => setEditError('')}>
+              {editError}
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeEditor} disabled={savingEdit}>
+            {t('common.cancel')}
+          </Button>
+          <Button onClick={handleSaveEdit} variant="contained" disabled={savingEdit}>
+            {t('common.save')}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
