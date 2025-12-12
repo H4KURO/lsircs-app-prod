@@ -97,13 +97,14 @@ async function parseWorkbook(buffer, projectId, blobName, fileName, overrideKeyC
 }
 
 async function upsertDocuments(docs) {
-  if (!Array.isArray(docs) || docs.length === 0) {
-    return { processed: 0 };
-  }
   const container = await ensureNamedContainer(DEFAULT_CONTAINER, {
     overrideKeys: ['COSMOS_PROJECT_CUSTOMERS_CONTAINER', 'CosmosProjectCustomersContainer'],
     partitionKey: DEFAULT_PARTITION_KEY,
   });
+
+  if (!Array.isArray(docs) || docs.length === 0) {
+    return { processed: 0 };
+  }
 
   let success = 0;
   for (const doc of docs) {
