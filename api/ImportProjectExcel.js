@@ -116,7 +116,7 @@ async function upsertDocuments(docs) {
 
   app.http('ImportProjectExcel', {
     methods: ['POST'],
-    authLevel: 'function',
+    authLevel: 'anonymous',
     handler: async (request, context) => {
       try {
         const body = await request.json();
