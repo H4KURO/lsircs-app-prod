@@ -5,8 +5,6 @@ const { ensureNamedContainer } = require('./cosmosClient');
 
 const DEFAULT_CONTAINER = 'ProjectCustomers';
 const DEFAULT_PARTITION_KEY = '/projectId';
-const STORAGE_CONNECTION = process.env.BOX_IMPORT_STORAGE_CONNECTION || 'AzureWebJobsStorage';
-const BLOB_CONTAINER = process.env.BOX_IMPORT_CONTAINER || 'box-import';
 const DEFAULT_KEY_COLUMN = Number(process.env.BOX_IMPORT_KEY_COLUMN || 2);
 
 function toStringValue(cell) {
@@ -28,8 +26,8 @@ function deriveProjectId(blobName) {
   return withoutExt || 'default';
 }
 
-function getKeyColumnIndex() {
-  const parsed = Number(process.env.BOX_IMPORT_KEY_COLUMN || DEFAULT_KEY_COLUMN);
+function getKeyColumnIndex(overrideIndex) {
+  const parsed = Number(overrideIndex ?? process.env.BOX_IMPORT_KEY_COLUMN ?? DEFAULT_KEY_COLUMN);
   if (!Number.isFinite(parsed) || parsed < 1) {
     return DEFAULT_KEY_COLUMN;
   }
@@ -71,7 +69,7 @@ function buildDocument(projectId, headers, row, keyColumnIndex, blobName, fileNa
   };
 }
 
-async function parseWorkbook(buffer, projectId, blobName, fileName) {
+async function parseWorkbook(buffer, projectId, blobName, fileName, overrideKeyColumnIndex) {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
   const worksheet = workbook.worksheets[0];
@@ -84,7 +82,7 @@ async function parseWorkbook(buffer, projectId, blobName, fileName) {
     .slice(1)
     .map((value, idx) => normaliseHeader(value, idx + 1));
 
-  const keyColumnIndex = getKeyColumnIndex();
+  const keyColumnIndex = getKeyColumnIndex(overrideKeyColumnIndex);
   const documents = [];
 
   worksheet.eachRow((row, rowNumber) => {
@@ -115,23 +113,35 @@ async function upsertDocuments(docs) {
   return { processed: success };
 }
 
-app.storageBlob('ImportProjectExcel', {
-  path: `${BLOB_CONTAINER}/{blobName}`,
-  connection: STORAGE_CONNECTION,
-  handler: async (blob, context) => {
-    const blobName = context.bindingData.blobName;
-    const projectId = deriveProjectId(blobName);
-    const fileName = path.basename(blobName);
+  app.http('ImportProjectExcel', {
+    methods: ['POST'],
+    authLevel: 'function',
+    handler: async (request, context) => {
+      try {
+        const body = await request.json();
+        const base64 = body.fileBase64 || body.fileContentBase64 || body.data;
+        if (!base64) {
+          return { status: 400, body: 'fileBase64 is required in the request body.' };
+        }
+        const fileName = body.fileName || body.blobName || 'upload.xlsx';
+        const blobName = body.blobName || fileName;
+        const projectId = body.projectId || deriveProjectId(blobName);
+        const keyColumnIndex = body.keyColumnIndex;
 
-    try {
-      const docs = await parseWorkbook(blob, projectId, blobName, fileName);
-      const { processed } = await upsertDocuments(docs);
-      context.log(
-        `ImportProjectExcel processed ${processed} rows for project ${projectId} from ${blobName}`,
-      );
-    } catch (error) {
-      context.log.error('ImportProjectExcel failed', error);
-      throw error;
-    }
-  },
-});
+        const buffer = Buffer.from(base64, 'base64');
+        const docs = await parseWorkbook(buffer, projectId, blobName, fileName, keyColumnIndex);
+        const { processed } = await upsertDocuments(docs);
+
+        context.log(
+          `ImportProjectExcel processed ${processed} rows for project ${projectId} from ${blobName}`,
+        );
+        return {
+          status: 200,
+          jsonBody: { processed, projectId, fileName, blobName, count: docs.length },
+        };
+      } catch (error) {
+        context.log.error('ImportProjectExcel failed', error);
+        return { status: 500, body: 'Failed to import Excel file.' };
+      }
+    },
+  });
