@@ -8,6 +8,7 @@ import { InvoiceView } from "./InvoiceView";
 import { DashboardView } from "./DashboardView";
 import { ManagedPropertiesView } from "./ManagedPropertiesView";
 import { WeeklyLeasingReportView } from "./WeeklyLeasingReportView";
+import { ProjectTMView } from "./ProjectTMView";
 import "./App.css";
 import {
   Box,
@@ -45,6 +46,7 @@ const ALLOWED_VIEWS = new Set([
   "managedProperties",
   "weeklyReports",
   "invoices",
+  "projectTm",
   "settings",
   "profile",
 ]);
@@ -180,6 +182,7 @@ function App() {
       { text: t("nav.tasks"), view: "tasks" },
       { text: t("nav.customers"), view: "customers" },
       { text: t("nav.managedProperties"), view: "managedProperties" },
+      { text: t("nav.projectTm"), view: "projectTm" },
       { text: t("nav.weeklyReports"), view: "weeklyReports", icon: <AssessmentIcon /> },
       { text: t("nav.invoices"), view: "invoices" },
       { text: t("nav.settings"), view: "settings", icon: <SettingsIcon /> },
@@ -278,6 +281,8 @@ function App() {
         return <ProfileView />;
       case "settings":
         return <SettingsView />;
+      case "projectTm":
+        return <ProjectTMView />;
       default:
         return <DashboardView user={user} />;
     }

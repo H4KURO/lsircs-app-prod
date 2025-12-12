@@ -4,6 +4,7 @@
     "tasks": "Task Management",
     "customers": "Customer Management",
     "managedProperties": "Managed Properties",
+    "projectTm": "Project TM",
     "weeklyReports": "Weekly Reports",
     "invoices": "Invoice Management",
     "settings": "Settings",
@@ -322,5 +323,16 @@
     "attachments": {
       "title": "Attachments"
     }
+  },
+  "projectTm": {
+    "title": "Project TM",
+    "projectId": "Project ID",
+    "projectPlaceholder": "Enter or select a project ID",
+    "reload": "Load data",
+    "selectedProject": "Project: {{projectId}}",
+    "noProject": "Select a project to view data",
+    "rowCount": "{{count}} rows",
+    "empty": "No data for this project.",
+    "keyColumn": "Key"
   }
 }

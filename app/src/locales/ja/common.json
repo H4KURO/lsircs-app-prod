@@ -4,6 +4,7 @@
     "tasks": "タスク管理",
     "customers": "顧客管理",
     "managedProperties": "管理物件",
+    "projectTm": "プロジェクトTM",
     "weeklyReports": "週間レポート",
     "invoices": "請求書管理",
     "settings": "設定",
@@ -322,5 +323,16 @@
     "attachments": {
       "title": "添付ファイル"
     }
+  },
+  "projectTm": {
+    "title": "プロジェクトTM",
+    "projectId": "プロジェクトID",
+    "projectPlaceholder": "プロジェクトIDを入力または選択してください",
+    "reload": "データ取得",
+    "selectedProject": "プロジェクト: {{projectId}}",
+    "noProject": "プロジェクトを選択してください",
+    "rowCount": "{{count}} 行",
+    "empty": "このプロジェクトのデータはありません。",
+    "keyColumn": "キー"
   }
 }
