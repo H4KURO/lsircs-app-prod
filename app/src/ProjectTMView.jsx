@@ -144,22 +144,31 @@ export function ProjectTMView({ initialProjectId = "TPWV" }) {
         ) : rows.length === 0 ? (
           <Typography color="text.secondary">{t("projectTm.empty")}</Typography>
         ) : (
-          <TableContainer>
-            <Table size="small">
+          <TableContainer sx={{ maxHeight: 600, overflowX: "auto" }}>
+            <Table size="small" stickyHeader>
               <TableHead>
                 <TableRow>
-                  <TableCell>{t("projectTm.keyColumn")}</TableCell>
+                  <TableCell sx={{ minWidth: 120, backgroundColor: "background.default" }}>
+                    {t("projectTm.keyColumn")}
+                  </TableCell>
                   {columns.map((col) => (
-                    <TableCell key={col.id}>{col.label}</TableCell>
+                    <TableCell
+                      key={col.id}
+                      sx={{ minWidth: 180, backgroundColor: "background.default" }}
+                    >
+                      {col.label}
+                    </TableCell>
                   ))}
                 </TableRow>
               </TableHead>
               <TableBody>
                 {rows.map((row) => (
                   <TableRow key={row.id || row.key}>
-                    <TableCell>{row.key || row.id}</TableCell>
+                    <TableCell sx={{ minWidth: 120 }}>{row.key || row.id}</TableCell>
                     {columns.map((col) => (
-                      <TableCell key={col.id}>{row.data?.[col.id] ?? ""}</TableCell>
+                      <TableCell key={col.id} sx={{ minWidth: 180 }}>
+                        {row.data?.[col.id] ?? ""}
+                      </TableCell>
                     ))}
                   </TableRow>
                 ))}

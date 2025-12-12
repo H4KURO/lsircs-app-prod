@@ -6,6 +6,8 @@ const { ensureNamedContainer } = require('./cosmosClient');
 const DEFAULT_CONTAINER = 'ProjectCustomers';
 const DEFAULT_PARTITION_KEY = '/projectId';
 const DEFAULT_KEY_COLUMN = Number(process.env.BOX_IMPORT_KEY_COLUMN || 2);
+const DEFAULT_HEADER_ROW = Number(process.env.BOX_IMPORT_HEADER_ROW_INDEX || 1);
+const DEFAULT_DATA_START_ROW = Number(process.env.BOX_IMPORT_DATA_START_ROW || DEFAULT_HEADER_ROW + 1);
 
 function toStringValue(cell) {
   if (cell === null || cell === undefined) return '';
@@ -69,7 +71,14 @@ function buildDocument(projectId, headers, row, keyColumnIndex, blobName, fileNa
   };
 }
 
-async function parseWorkbook(buffer, projectId, blobName, fileName, overrideKeyColumnIndex) {
+async function parseWorkbook(
+  buffer,
+  projectId,
+  blobName,
+  fileName,
+  overrideKeyColumnIndex,
+  { headerRowIndex = DEFAULT_HEADER_ROW, dataStartRow = DEFAULT_DATA_START_ROW } = {},
+) {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
   const worksheet = workbook.worksheets[0];
@@ -77,7 +86,7 @@ async function parseWorkbook(buffer, projectId, blobName, fileName, overrideKeyC
     return [];
   }
 
-  const headerRow = worksheet.getRow(1);
+  const headerRow = worksheet.getRow(headerRowIndex);
   const headers = headerRow.values
     .slice(1)
     .map((value, idx) => normaliseHeader(value, idx + 1));
@@ -86,7 +95,7 @@ async function parseWorkbook(buffer, projectId, blobName, fileName, overrideKeyC
   const documents = [];
 
   worksheet.eachRow((row, rowNumber) => {
-    if (rowNumber === 1) return;
+    if (rowNumber < dataStartRow) return;
     const doc = buildDocument(projectId, headers, row, keyColumnIndex, blobName, fileName);
     if (doc) {
       documents.push(doc);
@@ -128,9 +137,14 @@ async function upsertDocuments(docs) {
         const blobName = body.blobName || fileName;
         const projectId = body.projectId || deriveProjectId(blobName);
         const keyColumnIndex = body.keyColumnIndex;
+        const headerRowIndex = body.headerRowIndex || DEFAULT_HEADER_ROW;
+        const dataStartRow = body.dataStartRow || DEFAULT_DATA_START_ROW;
 
         const buffer = Buffer.from(base64, 'base64');
-        const docs = await parseWorkbook(buffer, projectId, blobName, fileName, keyColumnIndex);
+        const docs = await parseWorkbook(buffer, projectId, blobName, fileName, keyColumnIndex, {
+          headerRowIndex,
+          dataStartRow,
+        });
         const { processed } = await upsertDocuments(docs);
 
         context.log(
