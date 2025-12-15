@@ -329,10 +329,13 @@
     "projectId": "Project ID",
     "projectPlaceholder": "Enter or select a project ID",
     "reload": "Load data",
+    "save": "Save to Excel",
+    "saving": "Saving...",
     "selectedProject": "Project: {{projectId}}",
     "noProject": "Select a project to view data",
     "rowCount": "{{count}} rows",
     "empty": "No data for this project.",
-    "keyColumn": "Key"
+    "keyColumn": "Key",
+    "noDataToExport": "No data to export."
   }
 }

@@ -329,10 +329,13 @@
     "projectId": "プロジェクトID",
     "projectPlaceholder": "プロジェクトIDを入力または選択してください",
     "reload": "データ取得",
+    "save": "Excelに保存",
+    "saving": "保存中...",
     "selectedProject": "プロジェクト: {{projectId}}",
     "noProject": "プロジェクトを選択してください",
     "rowCount": "{{count}} 行",
     "empty": "このプロジェクトのデータはありません。",
-    "keyColumn": "キー"
+    "keyColumn": "キー",
+    "noDataToExport": "出力するデータがありません。"
   }
 }

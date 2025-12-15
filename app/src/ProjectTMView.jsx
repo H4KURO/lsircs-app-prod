@@ -18,6 +18,7 @@ import {
   Typography,
 } from "@mui/material";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import SaveIcon from "@mui/icons-material/Save";
 import { useTranslation } from "react-i18next";
 
 const API_URL = "/api";
@@ -50,6 +51,7 @@ export function ProjectTMView({ initialProjectId = "TPWV" }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const columns = useMemo(() => buildColumns(rows), [rows]);
 
@@ -90,6 +92,37 @@ export function ProjectTMView({ initialProjectId = "TPWV" }) {
     fetchData(projectId);
   };
 
+  const handleSave = async () => {
+    if (!projectId) return;
+    setSaving(true);
+    setError("");
+    try {
+      const response = await axios.get(`${API_URL}/ExportProjectExcel`, {
+        params: { projectId },
+        responseType: "json",
+      });
+      const { fileBase64, fileName } = response.data || {};
+      if (!fileBase64) {
+        setError(t("projectTm.noDataToExport"));
+        return;
+      }
+      const blob = Uint8Array.from(atob(fileBase64), (c) => c.charCodeAt(0));
+      const file = new Blob([blob], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(file);
+      link.download = fileName || `${projectId}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      setError(err?.response?.data || err?.message || "Failed to export data");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
       <Paper sx={{ p: 2, display: "flex", flexDirection: "column", gap: 2 }}>
@@ -118,7 +151,16 @@ export function ProjectTMView({ initialProjectId = "TPWV" }) {
           >
             {t("projectTm.reload")}
           </Button>
+          <Button
+            variant="outlined"
+            startIcon={<SaveIcon />}
+            onClick={handleSave}
+            disabled={!projectId || loading || saving}
+          >
+            {saving ? t("projectTm.saving") : t("projectTm.save")}
+          </Button>
           {loading && <CircularProgress size={24} />}
+          {saving && !loading && <CircularProgress size={24} />}
         </Stack>
         {error && (
           <Alert severity="error" sx={{ whiteSpace: "pre-line" }}>
