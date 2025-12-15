@@ -2,7 +2,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const API_KEY_KEYS = ['GEMINI_API_KEY', 'GOOGLE_GENAI_API_KEY', 'GENAI_API_KEY'];
 const MODEL_KEYS = ['GEMINI_MODEL', 'GEMINI_MODEL_ID'];
-const DEFAULT_MODEL = 'gemini-pro'; // broad availability across v1
+const DEFAULT_MODEL = 'gemini-2.5-flash-lite';
 const API_VERSION_KEYS = ['GEMINI_API_VERSION', 'GENAI_API_VERSION'];
 const DEFAULT_API_VERSION = 'v1'; // v1beta can be used if explicitly needed
 
