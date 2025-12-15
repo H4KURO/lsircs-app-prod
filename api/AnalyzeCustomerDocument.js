@@ -152,14 +152,18 @@ app.http('AnalyzeCustomerDocument', {
       };
     } catch (error) {
       const message = error?.message || 'Failed to analyze document.';
+      const safeDetails = typeof message === 'string' ? message.slice(0, 500) : 'Unknown error';
       if (error?.code === 'ValidationError') {
-        return { status: 400, body: message };
+        return { status: 400, body: safeDetails };
       }
       if (error?.code === 'MissingGeminiApiKey' || message.includes('Gemini API key')) {
-        return { status: 500, body: message };
+        return { status: 500, body: safeDetails };
       }
       context.log('AnalyzeCustomerDocument failed', error);
-      return { status: 500, body: 'Failed to analyze document.' };
+      return {
+        status: 500,
+        body: safeDetails || 'Failed to analyze document.',
+      };
     }
   },
 });
