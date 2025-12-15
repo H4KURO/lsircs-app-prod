@@ -336,6 +336,7 @@
     "rowCount": "{{count}} rows",
     "empty": "No data for this project.",
     "keyColumn": "Key",
-    "noDataToExport": "No data to export."
+    "noDataToExport": "No data to export.",
+    "readyForPa": "Data is ready. Run the Power Automate flow to update Box. (file: {{fileName}})"
   }
 }

@@ -336,6 +336,7 @@
     "rowCount": "{{count}} 行",
     "empty": "このプロジェクトのデータはありません。",
     "keyColumn": "キー",
-    "noDataToExport": "出力するデータがありません。"
+    "noDataToExport": "出力するデータがありません。",
+    "readyForPa": "データを準備しました。Power Automateのフローを実行してBoxを更新してください。（ファイル: {{fileName}}）"
   }
 }

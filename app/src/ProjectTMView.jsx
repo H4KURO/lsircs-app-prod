@@ -52,6 +52,7 @@ export function ProjectTMView({ initialProjectId = "TPWV" }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [info, setInfo] = useState("");
 
   const columns = useMemo(() => buildColumns(rows), [rows]);
 
@@ -62,6 +63,7 @@ export function ProjectTMView({ initialProjectId = "TPWV" }) {
     }
     setLoading(true);
     setError("");
+    setInfo("");
     try {
       const response = await axios.get(`${API_URL}/GetProjectCustomers`, {
         params: { projectId: id },
@@ -96,6 +98,7 @@ export function ProjectTMView({ initialProjectId = "TPWV" }) {
     if (!projectId) return;
     setSaving(true);
     setError("");
+    setInfo("");
     try {
       const response = await axios.get(`${API_URL}/ExportProjectExcel`, {
         params: { projectId },
@@ -106,16 +109,11 @@ export function ProjectTMView({ initialProjectId = "TPWV" }) {
         setError(t("projectTm.noDataToExport"));
         return;
       }
-      const blob = Uint8Array.from(atob(fileBase64), (c) => c.charCodeAt(0));
-      const file = new Blob([blob], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(file);
-      link.download = fileName || `${projectId}.xlsx`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+      setInfo(
+        t("projectTm.readyForPa", {
+          fileName: fileName || `${projectId}.xlsx`,
+        }),
+      );
     } catch (err) {
       setError(err?.response?.data || err?.message || "Failed to export data");
     } finally {
@@ -165,6 +163,11 @@ export function ProjectTMView({ initialProjectId = "TPWV" }) {
         {error && (
           <Alert severity="error" sx={{ whiteSpace: "pre-line" }}>
             {error}
+          </Alert>
+        )}
+        {info && (
+          <Alert severity="info" sx={{ whiteSpace: "pre-line" }}>
+            {info}
           </Alert>
         )}
       </Paper>
