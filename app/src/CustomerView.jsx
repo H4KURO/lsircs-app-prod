@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { CustomerDetailModal } from './CustomerDetailModal';
+import { CustomerAiImport } from './CustomerAiImport';
 import { Box, TextField, Button, List, ListItem, ListItemText, IconButton, Typography, Paper } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -95,6 +96,8 @@ export function CustomerView() {
       <Typography variant="h4" component="h1" gutterBottom>
         {t('customerView.title')}
       </Typography>
+
+      <CustomerAiImport onCreated={(customer) => setCustomers((prev) => [...prev, customer])} />
 
       <Paper elevation={2} sx={{ p: 2 }}>
         <Typography variant="h6" gutterBottom>

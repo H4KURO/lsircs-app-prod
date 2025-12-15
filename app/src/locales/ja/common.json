@@ -86,6 +86,32 @@
       "title": "顧客一覧",
       "assignee": "担当者: {{name}}",
       "unassigned": "未担当"
+    },
+    "aiImport": {
+      "title": "AIで書類から顧客登録",
+      "description": "PDFや写真をアップロードすると、Geminiが文字起こし・要約し、顧客登録に必要な項目を抽出します。",
+      "analyze": "AIで解析",
+      "create": "抽出結果で顧客登録",
+      "summaryTitle": "AI要約",
+      "notesTitle": "AIメモ",
+      "fieldsTitle": "抽出された項目",
+      "fields": {
+        "name": "顧客名",
+        "property": "物件名 / 住所",
+        "price": "金額（円）",
+        "owner": "担当者"
+      },
+      "missingFields": "不足している項目: {{fields}}",
+      "model": "モデル: {{model}}",
+      "summaryFallback": "要約を取得できませんでした。",
+      "validation": {
+        "attachments": "PDFまたは画像をアップロードしてください。",
+        "name": "顧客名を入力してください。"
+      },
+      "errors": {
+        "analyzeFailed": "AI解析に失敗しました。",
+        "createFailed": "顧客の作成に失敗しました。"
+      }
     }
   },
   "managedPropertiesView": {

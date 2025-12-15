@@ -86,6 +86,32 @@
       "title": "Customer List",
       "assignee": "Assignee: {{name}}",
       "unassigned": "Unassigned"
+    },
+    "aiImport": {
+      "title": "AI capture from documents",
+      "description": "Upload PDFs or photos and Gemini will transcribe, summarize, and extract the fields needed to register a customer.",
+      "analyze": "Analyze with AI",
+      "create": "Create customer from result",
+      "summaryTitle": "AI summary",
+      "notesTitle": "AI notes",
+      "fieldsTitle": "Extracted fields",
+      "fields": {
+        "name": "Customer name",
+        "property": "Property / address",
+        "price": "Price (JPY)",
+        "owner": "Owner / assignee"
+      },
+      "missingFields": "Fields to fill: {{fields}}",
+      "model": "Model: {{model}}",
+      "summaryFallback": "No summary was returned.",
+      "validation": {
+        "attachments": "Please upload at least one PDF or image.",
+        "name": "Enter a customer name before saving."
+      },
+      "errors": {
+        "analyzeFailed": "Failed to analyze the document.",
+        "createFailed": "Failed to create the customer."
+      }
     }
   },
   "managedPropertiesView": {
