@@ -69,6 +69,11 @@ export function ProjectTMView({ initialProjectId = "TPWV" }) {
   const [editRowIndex, setEditRowIndex] = useState(null);
   const [editError, setEditError] = useState("");
   const [editSaving, setEditSaving] = useState(false);
+  const [cellDialogOpen, setCellDialogOpen] = useState(false);
+  const [cellEditRow, setCellEditRow] = useState(null);
+  const [cellEditColumn, setCellEditColumn] = useState(null);
+  const [cellEditValue, setCellEditValue] = useState("");
+  const [cellSaving, setCellSaving] = useState(false);
 
   const columns = useMemo(() => buildColumns(rows), [rows]);
 
@@ -213,6 +218,41 @@ export function ProjectTMView({ initialProjectId = "TPWV" }) {
     }
   };
 
+  const openCellDialog = (row, col) => {
+    if (!row || !col) return;
+    setCellEditRow(row);
+    setCellEditColumn(col);
+    setCellEditValue(row.data?.[col.id] ?? "");
+    setCellDialogOpen(true);
+  };
+
+  const handleCellSave = async () => {
+    if (!cellEditRow || !cellEditColumn) return;
+    const row = cellEditRow;
+    const col = cellEditColumn;
+    setCellSaving(true);
+    try {
+      const nextData = { ...(row.data || {}), [col.id]: cellEditValue };
+      const payload = {
+        data: nextData,
+        rowIndex: row.rowIndex ?? rows.length + 1,
+      };
+      const { data } = await axios.put(
+        `${API_URL}/ProjectCustomers/${projectId}/${encodeURIComponent(row.key || row.id)}`,
+        payload,
+      );
+      setRows((prev) => {
+        const next = prev.map((r) => (r.id === data.id ? data : r));
+        return next.sort((a, b) => (a.rowIndex ?? 0) - (b.rowIndex ?? 0));
+      });
+      setCellDialogOpen(false);
+    } catch (err) {
+      setEditError(err?.response?.data || err?.message || t("projectTm.saveFailed"));
+    } finally {
+      setCellSaving(false);
+    }
+  };
+
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
       <Paper sx={{ p: 2, display: "flex", flexDirection: "column", gap: 2 }}>
@@ -312,12 +352,16 @@ export function ProjectTMView({ initialProjectId = "TPWV" }) {
               <TableBody>
                 {rows.map((row) => (
                   <TableRow key={row.id || row.key}>
-                    <TableCell sx={{ minWidth: 120 }}>{row.key || row.id}</TableCell>
-                    {columns.map((col) => (
-                      <TableCell key={col.id} sx={{ minWidth: 180 }}>
-                        {row.data?.[col.id] ?? ""}
-                      </TableCell>
-                    ))}
+                  <TableCell sx={{ minWidth: 120 }}>{row.key || row.id}</TableCell>
+                  {columns.map((col) => (
+                    <TableCell
+                      key={col.id}
+                      sx={{ minWidth: 180, cursor: "pointer" }}
+                      onClick={() => openCellDialog(row, col)}
+                    >
+                      {row.data?.[col.id] ?? ""}
+                    </TableCell>
+                  ))}
                     <TableCell>
                       <Stack direction="row" spacing={1}>
                         <Tooltip title={t("projectTm.edit")}>
@@ -394,6 +438,35 @@ export function ProjectTMView({ initialProjectId = "TPWV" }) {
           </Button>
           <Button variant="contained" onClick={handleEditSave} disabled={editSaving}>
             {editSaving ? t("projectTm.saving") : t("projectTm.save")}
+          </Button>
+        </DialogActions>
+          </Dialog>
+      <Dialog open={cellDialogOpen} onClose={() => setCellDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          {cellEditColumn ? t("projectTm.editFieldTitle", { field: cellEditColumn.label }) : ""}
+        </DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            <TextField
+              label={cellEditColumn?.label || ""}
+              value={cellEditValue}
+              onChange={(e) => setCellEditValue(e.target.value)}
+              fullWidth
+              autoFocus
+            />
+            {editError && (
+              <Alert severity="error" sx={{ whiteSpace: "pre-line" }}>
+                {editError}
+              </Alert>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCellDialogOpen(false)} disabled={cellSaving}>
+            {t("projectTm.cancel")}
+          </Button>
+          <Button variant="contained" onClick={handleCellSave} disabled={cellSaving}>
+            {cellSaving ? t("projectTm.saving") : t("projectTm.save")}
           </Button>
         </DialogActions>
       </Dialog>

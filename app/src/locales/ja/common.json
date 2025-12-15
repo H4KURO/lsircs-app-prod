@@ -349,6 +349,7 @@
     "deleteFailed": "行の削除に失敗しました。",
     "confirmDelete": "キー「{{key}}」の行を削除しますか？",
     "keyRequired": "キーは必須です。",
-    "noColumns": "列情報がありません。先にデータを取り込んでください。"
+    "noColumns": "列情報がありません。先にデータを取り込んでください。",
+    "editFieldTitle": "編集: {{field}}"
   }
 }

@@ -349,6 +349,7 @@
     "deleteFailed": "Failed to delete row.",
     "confirmDelete": "Delete row with key \"{{key}}\"?",
     "keyRequired": "Key is required.",
-    "noColumns": "No columns available. Please import data first."
+    "noColumns": "No columns available. Please import data first.",
+    "editFieldTitle": "Edit: {{field}}"
   }
 }
