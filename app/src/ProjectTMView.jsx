@@ -6,6 +6,10 @@ import {
   Box,
   Button,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Paper,
   Stack,
   Table,
@@ -16,9 +20,14 @@ import {
   TableRow,
   TextField,
   Typography,
+  IconButton,
+  Tooltip,
 } from "@mui/material";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SaveIcon from "@mui/icons-material/Save";
+import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import { useTranslation } from "react-i18next";
 
 const API_URL = "/api";
@@ -53,6 +62,13 @@ export function ProjectTMView({ initialProjectId = "TPWV" }) {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [info, setInfo] = useState("");
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editMode, setEditMode] = useState("edit");
+  const [editKey, setEditKey] = useState("");
+  const [editValues, setEditValues] = useState({});
+  const [editRowIndex, setEditRowIndex] = useState(null);
+  const [editError, setEditError] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
 
   const columns = useMemo(() => buildColumns(rows), [rows]);
 
@@ -92,6 +108,82 @@ export function ProjectTMView({ initialProjectId = "TPWV" }) {
 
   const handleReload = () => {
     fetchData(projectId);
+  };
+
+  const openEditDialog = (mode, row = null) => {
+    setEditMode(mode);
+    setEditError("");
+    if (mode === "edit" && row) {
+      setEditKey(row.key || "");
+      setEditValues({ ...(row.data || {}) });
+      setEditRowIndex(row.rowIndex ?? null);
+    } else {
+      if (columns.length === 0) {
+        setError(t("projectTm.noColumns"));
+        return;
+      }
+      const initialValues = {};
+      columns.forEach((c) => {
+        initialValues[c.id] = "";
+      });
+      setEditKey("");
+      setEditValues(initialValues);
+      setEditRowIndex(rows.length + 1);
+    }
+    setEditDialogOpen(true);
+  };
+
+  const handleEditSave = async () => {
+    const trimmedKey = (editKey || "").trim();
+    if (!projectId) {
+      setEditError(t("projectTm.noProject"));
+      return;
+    }
+    if (!trimmedKey) {
+      setEditError(t("projectTm.keyRequired"));
+      return;
+    }
+    setEditSaving(true);
+    setEditError("");
+    try {
+      const payload = {
+        data: editValues,
+        rowIndex: editRowIndex ?? rows.length + 1,
+      };
+      const { data } = await axios.put(
+        `${API_URL}/ProjectCustomers/${projectId}/${encodeURIComponent(trimmedKey)}`,
+        payload,
+      );
+      setRows((prev) => {
+        const next = [...prev];
+        const idx = next.findIndex((r) => r.id === data.id);
+        if (idx >= 0) {
+          next[idx] = data;
+        } else {
+          next.push(data);
+        }
+        return next.sort((a, b) => (a.rowIndex ?? 0) - (b.rowIndex ?? 0));
+      });
+      setEditDialogOpen(false);
+    } catch (err) {
+      setEditError(err?.response?.data || err?.message || t("projectTm.saveFailed"));
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const handleDelete = async (row) => {
+    if (!row?.key || !projectId) return;
+    const confirmed = window.confirm(t("projectTm.confirmDelete", { key: row.key }));
+    if (!confirmed) return;
+    try {
+      await axios.delete(
+        `${API_URL}/ProjectCustomers/${projectId}/${encodeURIComponent(row.key)}`,
+      );
+      setRows((prev) => prev.filter((r) => r.id !== row.id));
+    } catch (err) {
+      setError(err?.response?.data || err?.message || t("projectTm.deleteFailed"));
+    }
   };
 
   const handleSave = async () => {
@@ -157,6 +249,14 @@ export function ProjectTMView({ initialProjectId = "TPWV" }) {
           >
             {saving ? t("projectTm.saving") : t("projectTm.save")}
           </Button>
+          <Button
+            variant="outlined"
+            startIcon={<AddCircleOutlineIcon />}
+            onClick={() => openEditDialog("add")}
+            disabled={!projectId || loading || saving}
+          >
+            {t("projectTm.addRow")}
+          </Button>
           {loading && <CircularProgress size={24} />}
           {saving && !loading && <CircularProgress size={24} />}
         </Stack>
@@ -204,6 +304,9 @@ export function ProjectTMView({ initialProjectId = "TPWV" }) {
                       {col.label}
                     </TableCell>
                   ))}
+                  <TableCell sx={{ minWidth: 140, backgroundColor: "background.default" }}>
+                    {t("projectTm.actions")}
+                  </TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -215,6 +318,32 @@ export function ProjectTMView({ initialProjectId = "TPWV" }) {
                         {row.data?.[col.id] ?? ""}
                       </TableCell>
                     ))}
+                    <TableCell>
+                      <Stack direction="row" spacing={1}>
+                        <Tooltip title={t("projectTm.edit")}>
+                          <span>
+                            <IconButton
+                              size="small"
+                              onClick={() => openEditDialog("edit", row)}
+                              disabled={saving || loading}
+                            >
+                              <EditOutlinedIcon fontSize="small" />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                        <Tooltip title={t("projectTm.delete")}>
+                          <span>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleDelete(row)}
+                              disabled={saving || loading}
+                            >
+                              <DeleteOutlineIcon fontSize="small" />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                      </Stack>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -222,6 +351,52 @@ export function ProjectTMView({ initialProjectId = "TPWV" }) {
           </TableContainer>
         )}
       </Paper>
+
+      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>
+          {editMode === "edit" ? t("projectTm.editRowTitle") : t("projectTm.addRowTitle")}
+        </DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            <TextField
+              label={t("projectTm.keyColumn")}
+              value={editKey}
+              onChange={(e) => setEditKey(e.target.value)}
+              disabled={editMode === "edit"}
+              fullWidth
+            />
+            <Stack spacing={2}>
+              {columns.map((col) => (
+                <TextField
+                  key={col.id}
+                  label={col.label}
+                  value={editValues[col.id] ?? ""}
+                  onChange={(e) =>
+                    setEditValues((prev) => ({
+                      ...prev,
+                      [col.id]: e.target.value,
+                    }))
+                  }
+                  fullWidth
+                />
+              ))}
+            </Stack>
+            {editError && (
+              <Alert severity="error" sx={{ whiteSpace: "pre-line" }}>
+                {editError}
+              </Alert>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditDialogOpen(false)} disabled={editSaving}>
+            {t("projectTm.cancel")}
+          </Button>
+          <Button variant="contained" onClick={handleEditSave} disabled={editSaving}>
+            {editSaving ? t("projectTm.saving") : t("projectTm.save")}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

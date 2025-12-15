@@ -337,6 +337,18 @@
     "empty": "このプロジェクトのデータはありません。",
     "keyColumn": "キー",
     "noDataToExport": "出力するデータがありません。",
-    "readyForPa": "データを準備しました。Power Automateのフローを実行してBoxを更新してください。（ファイル: {{fileName}}）"
+    "readyForPa": "データを準備しました。Power Automateのフローを実行してBoxを更新してください。（ファイル: {{fileName}}）",
+    "addRow": "行を追加",
+    "edit": "編集",
+    "delete": "削除",
+    "actions": "操作",
+    "editRowTitle": "行を編集",
+    "addRowTitle": "行を追加",
+    "cancel": "キャンセル",
+    "saveFailed": "行の保存に失敗しました。",
+    "deleteFailed": "行の削除に失敗しました。",
+    "confirmDelete": "キー「{{key}}」の行を削除しますか？",
+    "keyRequired": "キーは必須です。",
+    "noColumns": "列情報がありません。先にデータを取り込んでください。"
   }
 }

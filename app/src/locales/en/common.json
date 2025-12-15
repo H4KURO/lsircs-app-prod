@@ -337,6 +337,18 @@
     "empty": "No data for this project.",
     "keyColumn": "Key",
     "noDataToExport": "No data to export.",
-    "readyForPa": "Data is ready. Run the Power Automate flow to update Box. (file: {{fileName}})"
+    "readyForPa": "Data is ready. Run the Power Automate flow to update Box. (file: {{fileName}})",
+    "addRow": "Add row",
+    "edit": "Edit",
+    "delete": "Delete",
+    "actions": "Actions",
+    "editRowTitle": "Edit row",
+    "addRowTitle": "Add row",
+    "cancel": "Cancel",
+    "saveFailed": "Failed to save row.",
+    "deleteFailed": "Failed to delete row.",
+    "confirmDelete": "Delete row with key \"{{key}}\"?",
+    "keyRequired": "Key is required.",
+    "noColumns": "No columns available. Please import data first."
   }
 }
