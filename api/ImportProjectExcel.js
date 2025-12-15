@@ -5,7 +5,10 @@ const { ensureNamedContainer } = require('./cosmosClient');
 
 const DEFAULT_CONTAINER = 'ProjectCustomers';
 const DEFAULT_PARTITION_KEY = '/projectId';
-const DEFAULT_KEY_COLUMN = Number(process.env.BOX_IMPORT_KEY_COLUMN || 2);
+const DEFAULT_KEY_COLUMNS = (process.env.BOX_IMPORT_KEY_COLUMNS || process.env.BOX_IMPORT_KEY_COLUMN || '2')
+  .split(',')
+  .map((v) => Number(v.trim()))
+  .filter((n) => Number.isFinite(n) && n > 0);
 const DEFAULT_HEADER_ROW = Number(process.env.BOX_IMPORT_HEADER_ROW_INDEX || 1);
 const DEFAULT_DATA_START_ROW = Number(process.env.BOX_IMPORT_DATA_START_ROW || DEFAULT_HEADER_ROW + 1);
 
@@ -28,12 +31,20 @@ function deriveProjectId(blobName) {
   return withoutExt || 'default';
 }
 
-function getKeyColumnIndex(overrideIndex) {
-  const parsed = Number(overrideIndex ?? process.env.BOX_IMPORT_KEY_COLUMN ?? DEFAULT_KEY_COLUMN);
-  if (!Number.isFinite(parsed) || parsed < 1) {
-    return DEFAULT_KEY_COLUMN;
+function getKeyColumns(override) {
+  if (Array.isArray(override) && override.length > 0) {
+    const clean = override.map((v) => Number(v)).filter((n) => Number.isFinite(n) && n > 0);
+    if (clean.length > 0) return clean;
   }
-  return parsed;
+  const env =
+    process.env.BOX_IMPORT_KEY_COLUMNS ||
+    process.env.BOX_IMPORT_KEY_COLUMN ||
+    DEFAULT_KEY_COLUMNS.join(',');
+  const parsed = String(env)
+    .split(',')
+    .map((v) => Number(v.trim()))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  return parsed.length > 0 ? parsed : [2];
 }
 
 function normaliseHeader(value, index) {
@@ -44,14 +55,17 @@ function normaliseHeader(value, index) {
   return `col_${index}`;
 }
 
-function buildDocument(projectId, headers, row, keyColumnIndex, blobName, fileName) {
+function buildDocument(projectId, headers, row, keyColumns, blobName, fileName) {
   const data = {};
   headers.forEach((header, idx) => {
     const cellValue = toStringValue(row.getCell(idx + 1).value);
     data[header] = cellValue;
   });
 
-  const keyValue = toStringValue(row.getCell(keyColumnIndex).value).trim();
+  const keyParts = keyColumns.map((colIndex) =>
+    toStringValue(row.getCell(colIndex).value).trim(),
+  );
+  const keyValue = keyParts.filter(Boolean).join('|').trim();
   if (!keyValue) {
     return null;
   }
@@ -60,12 +74,13 @@ function buildDocument(projectId, headers, row, keyColumnIndex, blobName, fileNa
     id: `${projectId}:${keyValue}`,
     projectId,
     key: keyValue,
+    keyParts,
     rowIndex: row.number,
     data,
     source: {
       blobName,
       fileName,
-      keyColumnIndex,
+      keyColumns,
     },
     updatedAt: new Date().toISOString(),
   };
@@ -91,12 +106,12 @@ async function parseWorkbook(
     .slice(1)
     .map((value, idx) => normaliseHeader(value, idx + 1));
 
-  const keyColumnIndex = getKeyColumnIndex(overrideKeyColumnIndex);
+  const keyColumns = getKeyColumns(overrideKeyColumnIndex);
   const documents = [];
 
   worksheet.eachRow((row, rowNumber) => {
     if (rowNumber < dataStartRow) return;
-    const doc = buildDocument(projectId, headers, row, keyColumnIndex, blobName, fileName);
+    const doc = buildDocument(projectId, headers, row, keyColumns, blobName, fileName);
     if (doc) {
       documents.push(doc);
     }
@@ -136,7 +151,7 @@ async function upsertDocuments(docs) {
         const fileName = body.fileName || body.blobName || 'upload.xlsx';
         const blobName = body.blobName || fileName;
         const projectId = body.projectId || deriveProjectId(blobName);
-        const keyColumnIndex = body.keyColumnIndex;
+        const keyColumnIndex = body.keyColumnIndex || body.keyColumns; // backward compatibility
         const headerRowIndex = body.headerRowIndex || DEFAULT_HEADER_ROW;
         const dataStartRow = body.dataStartRow || DEFAULT_DATA_START_ROW;
 

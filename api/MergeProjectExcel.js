@@ -4,7 +4,10 @@ const { getNamedContainer } = require('./cosmosClient');
 
 const DEFAULT_HEADER_ROW = Number(process.env.BOX_IMPORT_HEADER_ROW_INDEX || 1);
 const DEFAULT_DATA_START_ROW = Number(process.env.BOX_IMPORT_DATA_START_ROW || DEFAULT_HEADER_ROW + 1);
-const DEFAULT_KEY_COLUMN = Number(process.env.BOX_IMPORT_KEY_COLUMN || 2);
+const DEFAULT_KEY_COLUMNS = (process.env.BOX_IMPORT_KEY_COLUMNS || process.env.BOX_IMPORT_KEY_COLUMN || '2')
+  .split(',')
+  .map((v) => Number(v.trim()))
+  .filter((n) => Number.isFinite(n) && n > 0);
 
 const container = () =>
   getNamedContainer('ProjectCustomers', [
@@ -45,13 +48,35 @@ function buildLookup(items) {
   return map;
 }
 
-function updateSheetWithData(worksheet, headers, keyColumnIndex, dataStartRow, lookup) {
+function getKeyColumns(override) {
+  if (Array.isArray(override) && override.length > 0) {
+    const clean = override.map((v) => Number(v)).filter((n) => Number.isFinite(n) && n > 0);
+    if (clean.length > 0) return clean;
+  }
+  const env =
+    process.env.BOX_IMPORT_KEY_COLUMNS ||
+    process.env.BOX_IMPORT_KEY_COLUMN ||
+    DEFAULT_KEY_COLUMNS.join(',');
+  const parsed = String(env)
+    .split(',')
+    .map((v) => Number(v.trim()))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  return parsed.length > 0 ? parsed : [2];
+}
+
+function getKeyFromRow(row, keyColumns) {
+  const parts = keyColumns.map((col) => toStringValue(row.getCell(col).value).trim());
+  const key = parts.filter(Boolean).join('|').trim();
+  return key;
+}
+
+function updateSheetWithData(worksheet, headers, keyColumns, dataStartRow, lookup) {
   let updated = 0;
   const lastRow = worksheet.rowCount;
 
   for (let rowNumber = dataStartRow; rowNumber <= lastRow; rowNumber += 1) {
     const row = worksheet.getRow(rowNumber);
-    const keyValue = toStringValue(row.getCell(keyColumnIndex).value).trim();
+    const keyValue = getKeyFromRow(row, keyColumns);
     if (!keyValue) continue;
     const match = lookup.get(keyValue);
     if (!match) continue;
@@ -85,7 +110,7 @@ app.http('MergeProjectExcel', {
 
       const headerRowIndex = Number(body?.headerRowIndex || DEFAULT_HEADER_ROW);
       const dataStartRow = Number(body?.dataStartRow || DEFAULT_DATA_START_ROW);
-      const keyColumnIndex = Number(body?.keyColumnIndex || DEFAULT_KEY_COLUMN);
+      const keyColumns = getKeyColumns(body?.keyColumns || body?.keyColumnIndex);
 
       const buffer = Buffer.from(fileBase64, 'base64');
       const workbook = new ExcelJS.Workbook();
@@ -104,7 +129,7 @@ app.http('MergeProjectExcel', {
       const items = await fetchProjectItems(projectId);
       const lookup = buildLookup(items);
 
-      const updated = updateSheetWithData(worksheet, headers, keyColumnIndex, dataStartRow, lookup);
+      const updated = updateSheetWithData(worksheet, headers, keyColumns, dataStartRow, lookup);
       const outBuffer = await workbook.xlsx.writeBuffer();
       const outBase64 = Buffer.from(outBuffer).toString('base64');
 
@@ -120,6 +145,7 @@ app.http('MergeProjectExcel', {
           updated,
           projectId,
           headers,
+          keyColumns,
         },
       };
     } catch (error) {
