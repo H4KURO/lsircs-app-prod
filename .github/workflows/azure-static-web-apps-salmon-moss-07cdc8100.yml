@@ -35,6 +35,10 @@ jobs:
       # ステップ3: フロントエンド(app)を手動でビルドする
       - name: Build Frontend
         working-directory: ./app
+        env:
+          # Optional: set this in GitHub repository variables to route Gemini analysis to a dedicated Function App.
+          # Example value: https://lsirai-fzhqgec3h7fsfncg.westus2-01.azurewebsites.net/api
+          VITE_AI_API_URL: ${{ vars.VITE_AI_API_URL }}
         run: |
           npm install
           npm run build
