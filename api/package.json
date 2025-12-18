@@ -9,7 +9,7 @@
     "@google/generative-ai": "^0.24.1",
     "axios": "^1.11.0",
     "csv-parse": "^6.1.0",
-    "exceljs": "^4.4.0",
+    "exceljs": "^4.3.0",
     "uuid": "^11.1.0"
   },
   "engines": {

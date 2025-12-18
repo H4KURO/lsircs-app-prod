@@ -17,7 +17,10 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { AttachmentManager } from './AttachmentManager';
 import { useTranslation } from 'react-i18next';
 
-const API_URL = '/api';
+const SWA_API_URL = '/api';
+// Optional: point only the AI analysis to a separate Function App (e.g. Japan West) to avoid egress restrictions.
+// Set `VITE_AI_API_URL` to something like: `https://<functionapp>.azurewebsites.net/api`
+const AI_API_URL = import.meta?.env?.VITE_AI_API_URL || SWA_API_URL;
 const OWNER_FIELD = '�S����';
 
 const INITIAL_FORM = {
@@ -54,7 +57,7 @@ export function CustomerAiImport({ onCreated }) {
     setIsAnalyzing(true);
     setError('');
     try {
-      const { data } = await axios.post(`${API_URL}/AnalyzeCustomerDocument`, { attachments });
+      const { data } = await axios.post(`${AI_API_URL}/AnalyzeCustomerDocument`, { attachments });
       setAnalysis(data);
       setFormValues({
         name: data?.extracted?.name || '',
@@ -91,7 +94,7 @@ export function CustomerAiImport({ onCreated }) {
         [OWNER_FIELD]: formValues.owner || '',
         attachments,
       };
-      const { data } = await axios.post(`${API_URL}/CreateCustomer`, payload);
+      const { data } = await axios.post(`${SWA_API_URL}/CreateCustomer`, payload);
       onCreated?.(data);
       setAttachments([]);
       setAnalysis(null);

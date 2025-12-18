@@ -32,13 +32,11 @@ app.http('RegionCheck', {
   methods: ['GET'],
   authLevel: 'anonymous',
   route: 'region-check',
-  handler: async (_request, context) => {
+  handler: async (request, context) => {
     const region = getEnvRegion();
     const publicIp = await fetchPublicIp();
     context.log('RegionCheck', { region, publicIp });
-    return {
-      status: 200,
-      jsonBody: { region, publicIp },
-    };
+    return { status: 200, jsonBody: { region, publicIp } };
   },
 });
+
