@@ -1,7 +1,7 @@
 const { app } = require('@azure/functions');
 const { v4: uuidv4 } = require('uuid');
 const { splitAttachmentsByUploadRequirement, toTrimmedString } = require('./attachmentUtils');
-const { buildGenerativeModel, getModelId } = require('./geminiClient');
+const { generateContent, getModelId } = require('./geminiClient');
 const { serviceEstimatesContainer, resolvePartitionKey, DEFAULT_PARTITION_VALUE } = require('./serviceEstimateStore');
 
 const MAX_EXAMPLES = 50;
@@ -102,7 +102,7 @@ async function extractPropertyDetails(model, newAttachments) {
   ].join('\n');
 
   const parts = [{ text: prompt }, ...attachmentParts(newAttachments)];
-  const result = await model.generateContent({
+  const { text: responseText } = await generateContent({
     contents: [{ role: 'user', parts }],
     generationConfig: {
       temperature: 0.1,
@@ -110,8 +110,6 @@ async function extractPropertyDetails(model, newAttachments) {
       responseMimeType: 'application/json',
     },
   });
-
-  const responseText = result?.response?.text?.() || '';
   const parsed = safeJsonParse(responseText) || {};
   const normalised = {
     layout: normaliseLayout(parsed.layout),
@@ -237,7 +235,7 @@ async function generateEstimate(model, propertyDetails, comparableExamples, fall
     `類似事例: ${JSON.stringify(comps)}`,
   ].join('\n');
 
-  const result = await model.generateContent({
+  const { text: responseText } = await generateContent({
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     generationConfig: {
       temperature: 0.15,
@@ -245,8 +243,6 @@ async function generateEstimate(model, propertyDetails, comparableExamples, fall
       responseMimeType: 'application/json',
     },
   });
-
-  const responseText = result?.response?.text?.() || '';
   const parsed = safeJsonParse(responseText) || {};
   const amount =
     normaliseNumber(parsed.estimate ?? parsed.amount ?? parsed.price) ?? fallbackEstimate;
@@ -283,8 +279,6 @@ app.http('EstimateServiceCost', {
       }
 
       const userPropertyInput = payload?.property || payload;
-      const model = buildGenerativeModel();
-      // Log model/version resolution to Azure Logs for troubleshooting.
       context.log(`[EstimateServiceCost] model=${getModelId()} apiVersion=${process.env.GEMINI_API_VERSION || process.env.GENAI_API_VERSION || 'v1'}`);
       let extracted = {};
 

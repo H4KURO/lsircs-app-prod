@@ -1,6 +1,6 @@
 const { app } = require('@azure/functions');
 const { splitAttachmentsByUploadRequirement, validationError } = require('./attachmentUtils');
-const { buildGenerativeModel, getModelId } = require('./geminiClient');
+const { generateContent, getModelId } = require('./geminiClient');
 
 function parseDataUrl(dataUrl) {
   if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) {
@@ -98,8 +98,9 @@ app.http('AnalyzeCustomerDocument', {
         return { status: 400, body: 'At least one PDF or image is required for analysis.' };
       }
 
-      const model = buildGenerativeModel();
-      context.log(`[AnalyzeCustomerDocument] model=${getModelId()} apiVersion=${process.env.GEMINI_API_VERSION || process.env.GENAI_API_VERSION || 'v1'}`);
+      context.log(
+        `[AnalyzeCustomerDocument] model=${getModelId()} apiVersion=${process.env.GEMINI_API_VERSION || process.env.GENAI_API_VERSION || 'v1'}`,
+      );
       const prompt = [
         'You are a bilingual assistant that reads Japanese/English PDFs or photos for property leasing.',
         'Extract the fields needed to register a customer in a CRM and summarize the document.',
@@ -128,7 +129,7 @@ app.http('AnalyzeCustomerDocument', {
         });
       }
 
-      const result = await model.generateContent({
+      const { text: responseText } = await generateContent({
         contents: [{ role: 'user', parts }],
         generationConfig: {
           temperature: 0.2,
@@ -136,8 +137,6 @@ app.http('AnalyzeCustomerDocument', {
           responseMimeType: 'application/json',
         },
       });
-
-      const responseText = result?.response?.text?.() || '';
       const parsed = parseModelResponse(responseText);
 
       return {
