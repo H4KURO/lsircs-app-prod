@@ -94,7 +94,7 @@ function attachmentParts(newAttachments = []) {
   }));
 }
 
-async function extractPropertyDetails(model, newAttachments) {
+async function extractPropertyDetails(newAttachments) {
   const prompt = [
     '物件資料（PDF/画像）から見積り計算に必要な属性を抽出してください。',
     '日本語で回答し、JSONのみを返してください。キーは layout, areaSqm, region, address, buildingType, rooms, yearBuilt, summary, features。',
@@ -223,7 +223,7 @@ function buildComparableSummary(examples) {
   }));
 }
 
-async function generateEstimate(model, propertyDetails, comparableExamples, fallbackEstimate) {
+async function generateEstimate(propertyDetails, comparableExamples, fallbackEstimate) {
   const comps = buildComparableSummary(comparableExamples);
   const prompt = [
     'あなたは不動産サービス費用の見積りアシスタントです。',
@@ -283,7 +283,7 @@ app.http('EstimateServiceCost', {
       let extracted = {};
 
       if (newAttachments.length > 0) {
-        extracted = await extractPropertyDetails(model, newAttachments);
+        extracted = await extractPropertyDetails(newAttachments);
       }
 
       const propertyDetails = mergePropertyDetails(userPropertyInput, extracted);
@@ -295,7 +295,7 @@ app.http('EstimateServiceCost', {
       const recentExamples = await loadRecentExamples(container);
       const ranked = rankExamples(recentExamples, propertyDetails);
       const fallbackEstimate = computeBaselineEstimate(propertyDetails, ranked);
-      const estimate = await generateEstimate(model, propertyDetails, ranked.slice(0, 6), fallbackEstimate);
+      const estimate = await generateEstimate(propertyDetails, ranked.slice(0, 6), fallbackEstimate);
 
       const now = new Date().toISOString();
       const id = uuidv4();
