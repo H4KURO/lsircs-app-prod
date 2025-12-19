@@ -284,6 +284,8 @@ app.http('EstimateServiceCost', {
 
       const userPropertyInput = payload?.property || payload;
       const model = buildGenerativeModel();
+      // Log model/version resolution to Azure Logs for troubleshooting.
+      context.log(`[EstimateServiceCost] model=${getModelId()} apiVersion=${process.env.GEMINI_API_VERSION || process.env.GENAI_API_VERSION || 'v1'}`);
       let extracted = {};
 
       if (newAttachments.length > 0) {
