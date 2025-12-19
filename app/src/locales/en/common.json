@@ -9,6 +9,8 @@
     "invoices": "Invoice Management",
     "settings": "Settings",
     "profile": "Profile Settings"
+    ,
+    "serviceEstimate": "AI Estimate"
   },
   "auth": {
     "signInPrompt": "Please sign in",
@@ -377,5 +379,57 @@
     "keyRequired": "Key is required.",
     "noColumns": "No columns available. Please import data first.",
     "editFieldTitle": "Edit: {{field}}"
+  },
+  "serviceEstimate": {
+    "title": "AI Estimate (Gemini)",
+    "description": "Generate a service cost estimate from property info or PDFs/images via Gemini, then save manual corrections as training data.",
+    "form": {
+      "title": "Input",
+      "submit": "Run estimate"
+    },
+    "fields": {
+      "layout": "Layout",
+      "areaSqm": "Area (sqm)",
+      "region": "Region / City",
+      "address": "Address",
+      "buildingType": "Building type",
+      "rooms": "Rooms",
+      "yearBuilt": "Year built",
+      "notes": "Notes"
+    },
+    "actions": {
+      "addFiles": "Add PDF / images",
+      "replaceFiles": "Replace files",
+      "estimate": "Run estimate"
+    },
+    "attachments": {
+      "helper": "Attach one or more PDFs/images for AI extraction",
+      "count": "{{count}} file(s)"
+    },
+    "result": {
+      "title": "Estimate result",
+      "estimate": "AI estimate",
+      "final": "Final amount",
+      "rationale": "Rationale",
+      "similarExamples": "Similar examples",
+      "exampleLine": "{{layout}} / {{area}} sqm / {{region}} / {{amount}}"
+    },
+    "feedback": {
+      "title": "Manual correction (saved for learning)",
+      "amount": "Final amount (JPY)",
+      "notes": "Notes / reason",
+      "submit": "Save as final"
+    },
+    "messages": {
+      "estimateSuccess": "Estimate generated.",
+      "estimateFailed": "Failed to generate estimate.",
+      "feedbackSuccess": "Correction saved.",
+      "feedbackFailed": "Failed to save correction.",
+      "fileReadError": "Failed to read file(s)."
+    },
+    "validation": {
+      "minInput": "Provide layout, area, region, or attach a PDF/image.",
+      "finalAmount": "Enter a final amount."
+    }
   }
 }

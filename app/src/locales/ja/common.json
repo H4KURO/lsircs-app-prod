@@ -9,6 +9,8 @@
     "invoices": "請求書管理",
     "settings": "設定",
     "profile": "プロフィール設定"
+    ,
+    "serviceEstimate": "AI見積り"
   },
   "auth": {
     "signInPrompt": "ログインしてください",
@@ -377,5 +379,57 @@
     "keyRequired": "キーは必須です。",
     "noColumns": "列情報がありません。先にデータを取り込んでください。",
     "editFieldTitle": "編集: {{field}}"
+  },
+  "serviceEstimate": {
+    "title": "AI見積り（Gemini）",
+    "description": "物件条件やPDF/画像を元にGeminiでサービス費用を算出し、手動修正を学習データとして保存します。",
+    "form": {
+      "title": "入力",
+      "submit": "見積りを算出"
+    },
+    "fields": {
+      "layout": "間取り",
+      "areaSqm": "専有面積（㎡）",
+      "region": "地域（都道府県・市区）",
+      "address": "住所",
+      "buildingType": "建物種別",
+      "rooms": "部屋数",
+      "yearBuilt": "築年",
+      "notes": "メモ"
+    },
+    "actions": {
+      "addFiles": "PDF/画像を追加",
+      "replaceFiles": "PDF/画像を差し替え",
+      "estimate": "見積りを算出"
+    },
+    "attachments": {
+      "helper": "PDF/画像を1件以上添付できます（AI抽出用）",
+      "count": "添付 {{count}} 件"
+    },
+    "result": {
+      "title": "見積り結果",
+      "estimate": "AI見積り",
+      "final": "確定額",
+      "rationale": "根拠",
+      "similarExamples": "類似事例",
+      "exampleLine": "{{layout}} / {{area}}㎡ / {{region}} / {{amount}}"
+    },
+    "feedback": {
+      "title": "手動修正（学習データに保存）",
+      "amount": "確定金額（円）",
+      "notes": "メモ・理由",
+      "submit": "確定として保存"
+    },
+    "messages": {
+      "estimateSuccess": "見積りを取得しました。",
+      "estimateFailed": "見積り取得に失敗しました。",
+      "feedbackSuccess": "修正を保存しました。",
+      "feedbackFailed": "修正の保存に失敗しました。",
+      "fileReadError": "ファイルの読み込みに失敗しました。"
+    },
+    "validation": {
+      "minInput": "間取り・面積・地域のいずれか、またはPDF/画像を入力してください。",
+      "finalAmount": "確定金額を入力してください。"
+    }
   }
 }

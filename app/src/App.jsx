@@ -9,6 +9,7 @@ import { DashboardView } from "./DashboardView";
 import { ManagedPropertiesView } from "./ManagedPropertiesView";
 import { WeeklyLeasingReportView } from "./WeeklyLeasingReportView";
 import { ProjectTMView } from "./ProjectTMView";
+import { ServiceEstimateView } from "./ServiceEstimateView";
 import "./App.css";
 import {
   Box,
@@ -49,6 +50,7 @@ const ALLOWED_VIEWS = new Set([
   "projectTm",
   "settings",
   "profile",
+  "serviceEstimate",
 ]);
 
 const parseInitialLocation = () => {
@@ -185,6 +187,7 @@ function App() {
       { text: t("nav.projectTm"), view: "projectTm" },
       { text: t("nav.weeklyReports"), view: "weeklyReports", icon: <AssessmentIcon /> },
       { text: t("nav.invoices"), view: "invoices" },
+      { text: t("nav.serviceEstimate"), view: "serviceEstimate" },
       { text: t("nav.settings"), view: "settings", icon: <SettingsIcon /> },
     ],
     [t],
@@ -283,6 +286,8 @@ function App() {
         return <SettingsView />;
       case "projectTm":
         return <ProjectTMView />;
+      case "serviceEstimate":
+        return <ServiceEstimateView />;
       default:
         return <DashboardView user={user} />;
     }
