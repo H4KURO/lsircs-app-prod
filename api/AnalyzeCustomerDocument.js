@@ -102,6 +102,8 @@ app.http('AnalyzeCustomerDocument', {
       const prompt = [
         'You are a bilingual assistant that reads Japanese/English PDFs or photos for property leasing.',
         'Extract the fields needed to register a customer in a CRM and summarize the document.',
+        'Search both Japanese and English text. Look for: customer/recipient/company names, property/building names or addresses, price/amount,担当/owner/contact/agent names.',
+        'If you cannot find a field, set it to null or an empty string (no guesses).',
         'Return a single JSON object only, no extra text, with this shape:',
         '{',
         '  "summary": "<120 characters in Japanese summarizing the document>",',
