@@ -1,11 +1,10 @@
-const axios = require('axios');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const API_KEY_KEYS = ['GEMINI_API_KEY', 'GOOGLE_GENAI_API_KEY', 'GENAI_API_KEY'];
 const MODEL_KEYS = ['GEMINI_MODEL', 'GEMINI_MODEL_ID'];
-// 2.5 はロケーション制限にかかりやすいためデフォルトを 1.5-flash に設定
-const DEFAULT_MODEL = 'gemini-1.5-flash';
-// API バージョンは v1 に固定（v1beta を避ける）
-const DEFAULT_API_VERSION = 'v1';
+const DEFAULT_MODEL = 'gemini-2.5-pro';
+const API_VERSION_KEYS = ['GEMINI_API_VERSION', 'GENAI_API_VERSION'];
+const DEFAULT_API_VERSION = 'v1'; // v1beta can be used if explicitly needed
 
 function resolveSetting(keys, fallback = null) {
   for (const key of keys) {
@@ -22,12 +21,12 @@ function getGeminiApiKey() {
 }
 
 function getModelId() {
-  // 環境変数で上書き可能
   return resolveSetting(MODEL_KEYS, DEFAULT_MODEL);
 }
 
 function getApiVersion() {
-  return DEFAULT_API_VERSION;
+  const version = resolveSetting(API_VERSION_KEYS, DEFAULT_API_VERSION);
+  return version || DEFAULT_API_VERSION;
 }
 
 function normaliseModelId(modelId) {
@@ -41,56 +40,20 @@ function normaliseModelId(modelId) {
   return `models/${trimmed}`;
 }
 
-function extractTextFromResponse(data) {
-  const candidates = data?.candidates;
-  if (!Array.isArray(candidates) || candidates.length === 0) {
-    return '';
-  }
-  const parts = candidates[0]?.content?.parts;
-  if (!Array.isArray(parts) || parts.length === 0) {
-    return '';
-  }
-  const textPart = parts.find((p) => typeof p.text === 'string');
-  return textPart?.text || '';
-}
-
-async function generateContent({ contents, generationConfig }) {
+function buildGenerativeModel() {
   const apiKey = getGeminiApiKey();
   if (!apiKey) {
     const error = new Error('Gemini API key is not configured.');
     error.code = 'MissingGeminiApiKey';
     throw error;
   }
-
+  const client = new GoogleGenerativeAI(apiKey, { apiVersion: getApiVersion() });
   const model = normaliseModelId(getModelId());
-  const apiVersion = getApiVersion();
-  const url = `https://generativelanguage.googleapis.com/${apiVersion}/${model}:generateContent`;
-
-  const body = {
-    contents,
-    generationConfig,
-  };
-
-  // 基本ログ（Functions の Application Insights に出力）
-  // eslint-disable-next-line no-console
-  console.log(`[Gemini] init model=${model}, apiVersion=${apiVersion}`);
-
-  try {
-    const response = await axios.post(url, body, {
-      params: { key: apiKey },
-      headers: { 'Content-Type': 'application/json' },
-    });
-    const text = extractTextFromResponse(response.data);
-    return { data: response.data, text };
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error('[Gemini] generateContent failed', error?.response?.data || error?.message);
-    throw error;
-  }
+  return client.getGenerativeModel({ model });
 }
 
 module.exports = {
-  generateContent,
+  buildGenerativeModel,
   getGeminiApiKey,
   getModelId,
   getApiVersion,
