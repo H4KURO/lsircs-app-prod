@@ -102,7 +102,11 @@ app.http('AnalyzeCustomerDocument', {
       const prompt = [
         'You are a bilingual assistant that reads Japanese/English PDFs or photos for property leasing.',
         'Extract the fields needed to register a customer in a CRM and summarize the document.',
-        'Search both Japanese and English text. Look for: customer/recipient/company names, property/building names or addresses, price/amount,担当/owner/contact/agent names.',
+        'Search both Japanese and English text. Focus on the lines/phrases near these cues:',
+        '  - People/companies: tenant, landlord, customer, client, company, borrower, buyer, seller, 承諾者, 借主, 貸主, 入居者, 契約者, 顧客, 会社名',
+        '  - Property/address: property, building, unit, address, room, suite, 物件, 建物, 部屋, 住所',
+        '  - Price (USD): rent, price, amount, total, deposit, fee, charge, USD, $, 金額, 料金, 手数料',
+        '  - Contact/agent: agent, broker, contact, representative, 担当, 営業, 連絡先, 窓口',
         'If you cannot find a field, set it to null or an empty string (no guesses).',
         'Return a single JSON object only, no extra text, with this shape:',
         '{',
@@ -115,7 +119,7 @@ app.http('AnalyzeCustomerDocument', {
         '  },',
         '  "notes": ["short bullet insights in Japanese"]',
         '}',
-        'Use numbers only for price (JPY). Set missing items to null or empty strings.',
+        'Use numbers only for price (USD). Set missing items to null or empty strings.',
       ].join('\n');
 
       const parts = [{ text: prompt }];
