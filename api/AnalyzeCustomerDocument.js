@@ -145,11 +145,20 @@ app.http('AnalyzeCustomerDocument', {
         },
       });
 
+      const candidates = Array.isArray(result?.response?.candidates) ? result.response.candidates : [];
+      const firstParts = candidates[0]?.content?.parts || [];
+      const firstPartsText = firstParts
+        .map((p) => (typeof p.text === 'string' ? p.text : ''))
+        .filter(Boolean)
+        .join(' ')
+        .slice(0, 500);
+
       const responseText = result?.response?.text?.() || '';
       const responsePreview = responseText.slice(0, 500);
       context.log(
-        `[AnalyzeCustomerDocument] response preview (500 chars): ${responsePreview}`,
+        `[AnalyzeCustomerDocument] candidates=${candidates.length} responsePreview="${responsePreview}" partsPreview="${firstPartsText}"`,
       );
+
       const parsed = parseModelResponse(responseText);
 
       return {
@@ -159,7 +168,7 @@ app.http('AnalyzeCustomerDocument', {
           extracted: parsed.extracted,
           notes: parsed.notes,
           missingFields: parsed.missingFields,
-          rawModelText: parsed.raw,
+          rawModelText: parsed.raw || responsePreview || firstPartsText,
           model: getModelId(),
         },
       };
