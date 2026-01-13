@@ -99,6 +99,9 @@ app.http('AnalyzeCustomerDocument', {
       }
 
       const model = buildGenerativeModel();
+      context.log(
+        `[AnalyzeCustomerDocument] model=${getModelId()} apiVersion=${process.env.GEMINI_API_VERSION || process.env.GENAI_API_VERSION || 'v1'} attachments=${newAttachments.length}`,
+      );
       const prompt = [
         'You are a bilingual assistant that reads Japanese/English PDFs or photos for property leasing.',
         'Extract the fields needed to register a customer in a CRM and summarize the document.',
@@ -143,6 +146,10 @@ app.http('AnalyzeCustomerDocument', {
       });
 
       const responseText = result?.response?.text?.() || '';
+      const responsePreview = responseText.slice(0, 500);
+      context.log(
+        `[AnalyzeCustomerDocument] response preview (500 chars): ${responsePreview}`,
+      );
       const parsed = parseModelResponse(responseText);
 
       return {
