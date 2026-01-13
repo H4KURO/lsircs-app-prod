@@ -155,7 +155,6 @@ app.http('AnalyzeCustomerDocument', {
         generationConfig: {
           temperature: 0.2,
           maxOutputTokens: 512,
-          responseMimeType: 'application/json',
         },
       });
 
