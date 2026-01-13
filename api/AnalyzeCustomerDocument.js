@@ -2,6 +2,19 @@ const { app } = require('@azure/functions');
 const { splitAttachmentsByUploadRequirement, validationError } = require('./attachmentUtils');
 const { buildGenerativeModel, getModelId } = require('./geminiClient');
 
+function logInfo(context, message) {
+  context.log(message);
+  // eslint-disable-next-line no-console
+  console.log(message);
+}
+
+function logInfo(context, message) {
+  // Ensure visibility even if context log level is filtered.
+  context.log(message);
+  // eslint-disable-next-line no-console
+  console.log(message);
+}
+
 function parseDataUrl(dataUrl) {
   if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) {
     throw validationError('Attachments must include encoded data.', 'InvalidAttachment');
@@ -99,7 +112,8 @@ app.http('AnalyzeCustomerDocument', {
       }
 
       const model = buildGenerativeModel();
-      context.log(
+      logInfo(
+        context,
         `[AnalyzeCustomerDocument] model=${getModelId()} apiVersion=${process.env.GEMINI_API_VERSION || process.env.GENAI_API_VERSION || 'v1'} attachments=${newAttachments.length}`,
       );
       const prompt = [
@@ -155,7 +169,8 @@ app.http('AnalyzeCustomerDocument', {
 
       const responseText = result?.response?.text?.() || '';
       const responsePreview = responseText.slice(0, 500);
-      context.log(
+      logInfo(
+        context,
         `[AnalyzeCustomerDocument] candidates=${candidates.length} responsePreview="${responsePreview}" partsPreview="${firstPartsText}"`,
       );
 
@@ -181,7 +196,7 @@ app.http('AnalyzeCustomerDocument', {
       if (error?.code === 'MissingGeminiApiKey' || message.includes('Gemini API key')) {
         return { status: 500, body: safeDetails };
       }
-      context.log('AnalyzeCustomerDocument failed', error);
+      logInfo(context, `AnalyzeCustomerDocument failed: ${error?.message || error}`);
       return {
         status: 500,
         body: safeDetails || 'Failed to analyze document.',
