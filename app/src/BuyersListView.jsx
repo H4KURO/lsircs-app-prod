@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Paper,
@@ -9,6 +9,7 @@ import {
   TableHead,
   TableRow,
   TablePagination,
+  TableSortLabel,
   Button,
   Dialog,
   DialogTitle,
@@ -25,6 +26,12 @@ import {
   Tab,
   Grid,
   Divider,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  InputAdornment,
+  Chip,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -33,6 +40,8 @@ import {
   Refresh as RefreshIcon,
   FileUpload as FileUploadIcon,
   Visibility as VisibilityIcon,
+  Search as SearchIcon,
+  Clear as ClearIcon,
 } from '@mui/icons-material';
 import axios from 'axios';
 
@@ -56,6 +65,16 @@ export default function BuyersListView() {
   const [viewingItem, setViewingItem] = useState(null);
   const [currentTab, setCurrentTab] = useState(0);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  
+  // フィルター・ソート用の状態
+  const [filters, setFilters] = useState({
+    unitNumber: '',
+    japanStaff: '',
+    hawaiiStaff: '',
+    status: '',
+  });
+  const [orderBy, setOrderBy] = useState('unitNumber');
+  const [order, setOrder] = useState('asc');
   
   const [formData, setFormData] = useState({
     unitNumber: '',
@@ -97,6 +116,92 @@ export default function BuyersListView() {
       showSnackbar('データの取得に失敗しました', 'error');
     }
   };
+
+  // ユニークな担当者リストを取得
+  const uniqueJapanStaff = useMemo(() => {
+    return [...new Set(items.map(item => item.japanStaff).filter(Boolean))].sort();
+  }, [items]);
+
+  const uniqueHawaiiStaff = useMemo(() => {
+    return [...new Set(items.map(item => item.hawaiiStaff).filter(Boolean))].sort();
+  }, [items]);
+
+  const uniqueStatuses = useMemo(() => {
+    return [...new Set(items.map(item => item.status).filter(Boolean))].sort();
+  }, [items]);
+
+  // フィルター適用
+  const filteredItems = useMemo(() => {
+    return items.filter(item => {
+      // ユニット番号検索
+      if (filters.unitNumber && !item.unitNumber?.toLowerCase().includes(filters.unitNumber.toLowerCase())) {
+        return false;
+      }
+      // 日本担当フィルター
+      if (filters.japanStaff && item.japanStaff !== filters.japanStaff) {
+        return false;
+      }
+      // ハワイ担当フィルター
+      if (filters.hawaiiStaff && item.hawaiiStaff !== filters.hawaiiStaff) {
+        return false;
+      }
+      // ステータスフィルター
+      if (filters.status && item.status !== filters.status) {
+        return false;
+      }
+      return true;
+    });
+  }, [items, filters]);
+
+  // ソート適用
+  const sortedItems = useMemo(() => {
+    const sorted = [...filteredItems];
+    sorted.sort((a, b) => {
+      let aValue = a[orderBy] || '';
+      let bValue = b[orderBy] || '';
+      
+      // 数値の場合
+      if (orderBy === 'purchasePrice') {
+        aValue = Number(aValue) || 0;
+        bValue = Number(bValue) || 0;
+      }
+      
+      // 文字列の場合
+      if (typeof aValue === 'string') {
+        aValue = aValue.toLowerCase();
+        bValue = bValue.toLowerCase();
+      }
+      
+      if (order === 'asc') {
+        return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
+      } else {
+        return aValue < bValue ? 1 : aValue > bValue ? -1 : 0;
+      }
+    });
+    return sorted;
+  }, [filteredItems, orderBy, order]);
+
+  // ソート方向の切り替え
+  const handleRequestSort = (property) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
+  };
+
+  // フィルターのクリア
+  const handleClearFilters = () => {
+    setFilters({
+      unitNumber: '',
+      japanStaff: '',
+      hawaiiStaff: '',
+      status: '',
+    });
+  };
+
+  // アクティブなフィルター数
+  const activeFiltersCount = useMemo(() => {
+    return Object.values(filters).filter(value => value !== '').length;
+  }, [filters]);
 
   const handleOpenDialog = (item = null) => {
     if (item) {
@@ -293,24 +398,153 @@ export default function BuyersListView() {
           </Box>
         </Toolbar>
 
+        {/* フィルターセクション */}
+        <Box sx={{ p: 2, backgroundColor: 'grey.50' }}>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} sm={6} md={3}>
+              <TextField
+                fullWidth
+                size="small"
+                label="ユニット番号で検索"
+                value={filters.unitNumber}
+                onChange={(e) => setFilters({ ...filters, unitNumber: e.target.value })}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={2}>
+              <FormControl fullWidth size="small">
+                <InputLabel>日本担当</InputLabel>
+                <Select
+                  value={filters.japanStaff}
+                  label="日本担当"
+                  onChange={(e) => setFilters({ ...filters, japanStaff: e.target.value })}
+                >
+                  <MenuItem value="">すべて</MenuItem>
+                  {uniqueJapanStaff.map(staff => (
+                    <MenuItem key={staff} value={staff}>{staff}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6} md={2}>
+              <FormControl fullWidth size="small">
+                <InputLabel>ハワイ担当</InputLabel>
+                <Select
+                  value={filters.hawaiiStaff}
+                  label="ハワイ担当"
+                  onChange={(e) => setFilters({ ...filters, hawaiiStaff: e.target.value })}
+                >
+                  <MenuItem value="">すべて</MenuItem>
+                  {uniqueHawaiiStaff.map(staff => (
+                    <MenuItem key={staff} value={staff}>{staff}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6} md={2}>
+              <FormControl fullWidth size="small">
+                <InputLabel>ステータス</InputLabel>
+                <Select
+                  value={filters.status}
+                  label="ステータス"
+                  onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                >
+                  <MenuItem value="">すべて</MenuItem>
+                  {uniqueStatuses.map(status => (
+                    <MenuItem key={status} value={status}>{status}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={12} md={3}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                {activeFiltersCount > 0 && (
+                  <Chip 
+                    label={`${activeFiltersCount}件のフィルター`} 
+                    size="small" 
+                    color="primary"
+                  />
+                )}
+                <Button
+                  size="small"
+                  startIcon={<ClearIcon />}
+                  onClick={handleClearFilters}
+                  disabled={activeFiltersCount === 0}
+                >
+                  クリア
+                </Button>
+              </Box>
+            </Grid>
+          </Grid>
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+            {sortedItems.length}件中 {Math.min((page + 1) * rowsPerPage, sortedItems.length)}件を表示
+          </Typography>
+        </Box>
+
         <TableContainer>
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>日本担当</TableCell>
-                <TableCell>ハワイ担当</TableCell>
-                <TableCell>ユニット番号</TableCell>
-                <TableCell>契約者名</TableCell>
+                <TableCell>
+                  <TableSortLabel
+                    active={orderBy === 'japanStaff'}
+                    direction={orderBy === 'japanStaff' ? order : 'asc'}
+                    onClick={() => handleRequestSort('japanStaff')}
+                  >
+                    日本担当
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell>
+                  <TableSortLabel
+                    active={orderBy === 'hawaiiStaff'}
+                    direction={orderBy === 'hawaiiStaff' ? order : 'asc'}
+                    onClick={() => handleRequestSort('hawaiiStaff')}
+                  >
+                    ハワイ担当
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell>
+                  <TableSortLabel
+                    active={orderBy === 'unitNumber'}
+                    direction={orderBy === 'unitNumber' ? order : 'asc'}
+                    onClick={() => handleRequestSort('unitNumber')}
+                  >
+                    ユニット番号
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell>
+                  <TableSortLabel
+                    active={orderBy === 'nameRomaji'}
+                    direction={orderBy === 'nameRomaji' ? order : 'asc'}
+                    onClick={() => handleRequestSort('nameRomaji')}
+                  >
+                    契約者名
+                  </TableSortLabel>
+                </TableCell>
                 <TableCell>電話</TableCell>
-                <TableCell>ステータス</TableCell>
+                <TableCell>
+                  <TableSortLabel
+                    active={orderBy === 'status'}
+                    direction={orderBy === 'status' ? order : 'asc'}
+                    onClick={() => handleRequestSort('status')}
+                  >
+                    ステータス
+                  </TableSortLabel>
+                </TableCell>
                 <TableCell>操作</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {items
+              {sortedItems
                 .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                 .map((item) => (
-                  <TableRow key={item.id}>
+                  <TableRow key={item.id} hover>
                     <TableCell>{item.japanStaff}</TableCell>
                     <TableCell>{item.hawaiiStaff}</TableCell>
                     <TableCell>{item.unitNumber}</TableCell>
@@ -348,7 +582,7 @@ export default function BuyersListView() {
 
         <TablePagination
           component="div"
-          count={items.length}
+          count={sortedItems.length}
           page={page}
           onPageChange={handleChangePage}
           rowsPerPage={rowsPerPage}
