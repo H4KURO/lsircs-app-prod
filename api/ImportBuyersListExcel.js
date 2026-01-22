@@ -42,56 +42,6 @@ function parsePrice(value) {
   return isNaN(numValue) ? 0 : numValue;
 }
 
-// ヘッダーマッピング定義
-// キー：Excelのヘッダー名（階層を > で結合）
-// 値：データベースのフィールド名
-const HEADER_MAPPING = {
-  // 基本情報
-  '日本担当': 'japanStaff',
-  'ハワイ担当': 'hawaiiStaff',
-  'HHC担当': 'hhcStaff',
-  'ユニット\n(Unit #)': 'unitNumber',
-  '契約者氏名\nローマ字\n (Name)': 'nameRomaji',
-  '契約者氏名\n日本語': 'nameJapanese',
-  'Escrow #': 'escrowNumber',
-  '住所': 'address',
-  '電話': 'phone',
-  
-  // メールアドレス（階層構造）
-  'Eメール > 本人': 'emailPrimary',
-  'CC': 'emailCC',
-  'DocuSign': 'emailDocusign',
-  'メモ': 'emailMemo',
-  
-  // 物件情報
-  'Unit Type': 'unitType',
-  'Bed/th': 'bedBath',
-  'sqft': 'sqft',
-  
-  // 契約情報
-  'Contracted Date\n(HI Time)': 'contractedDate',
-  '購入価格（ ○：Receipt受取済　△：送金済・Receipt未受領） > $': 'purchasePrice',
-  
-  // 支払いスケジュール
-  '1st Deposit > 価格*5%': 'deposit1Amount',
-  '期日(日本時間)': 'deposit1DueDate',
-  'Receipt': 'deposit1Receipt',
-  '2nd Deposit > 価格*5%': 'deposit2Amount',
-  '3rd Deposit > 価格*10%': 'deposit3Amount',
-  '残金（価格*80%）': 'balanceAmount',
-  
-  // 駐車場・ストレージ
-  'Parking stall > No.': 'parkingNumber',
-  'Storage > お申込み': 'storageApplication',
-  'Storage No.': 'storageNumber',
-  
-  // その他
-  '目的': 'purpose',
-  '個人/法人': 'entityType',
-  '登記日': 'registrationDate',
-  '登記名義 (Title )': 'titleName',
-};
-
 /**
  * ヘッダー行を解析して列番号マッピングを作成
  */
@@ -101,43 +51,42 @@ function buildHeaderIndex(worksheet) {
   const row3 = worksheet.getRow(3);
   const row4 = worksheet.getRow(4);
   
+  // 各列を処理
   row2.eachCell((cell, colNumber) => {
     const header2 = cell.value ? String(cell.value).trim() : '';
     const header3 = row3.getCell(colNumber).value ? String(row3.getCell(colNumber).value).trim() : '';
     const header4 = row4.getCell(colNumber).value ? String(row4.getCell(colNumber).value).trim() : '';
     
-    // 階層的なヘッダー名を構築
-    let compositeHeader = '';
-    
+    // 単一ヘッダー（2行目のみ）
     if (header2) {
-      compositeHeader = header2;
-      if (header3) {
-        compositeHeader += ' > ' + header3;
-        if (header4) {
-          compositeHeader += ' > ' + header4;
-        }
-      }
-    } else if (header3) {
-      // 2行目が空で3行目にある場合（結合セルの続き）
-      compositeHeader = header3;
-      if (header4) {
-        compositeHeader += ' > ' + header4;
-      }
-    } else if (header4) {
-      compositeHeader = header4;
+      headerIndex[header2] = colNumber;
     }
     
-    if (compositeHeader) {
-      headerIndex[compositeHeader] = colNumber;
+    // 階層ヘッダー（2行目 + 3行目）
+    if (header2 && header3) {
+      const composite = `${header2} > ${header3}`;
+      headerIndex[composite] = colNumber;
+    }
+    
+    // 3層ヘッダー（2行目 + 3行目 + 4行目）
+    if (header2 && header3 && header4) {
+      const composite = `${header2} > ${header3} > ${header4}`;
+      headerIndex[composite] = colNumber;
+    }
+    
+    // 3行目のみのヘッダー（結合セルの続き）
+    if (!header2 && header3) {
+      headerIndex[header3] = colNumber;
       
-      // 3行目のみのヘッダー（Eメール配下の列など）
-      if (header3 && !header2) {
-        headerIndex[header3] = colNumber;
+      // 4行目も追加
+      if (header4) {
+        headerIndex[`${header3} > ${header4}`] = colNumber;
       }
-      // 4行目のみのヘッダー（Deposit配下の列など）
-      if (header4 && !header2 && !header3) {
-        headerIndex[header4] = colNumber;
-      }
+    }
+    
+    // 4行目のみのヘッダー
+    if (!header2 && !header3 && header4) {
+      headerIndex[header4] = colNumber;
     }
   });
   
@@ -145,27 +94,21 @@ function buildHeaderIndex(worksheet) {
 }
 
 /**
- * ヘッダーマッピングに基づいてデータを抽出
+ * 値を安全に取得
  */
-function extractDataFromRow(row, headerIndex) {
-  const data = {};
+function getValueByHeader(row, headerIndex, headerName) {
+  const colNumber = headerIndex[headerName];
+  if (!colNumber) return '';
   
-  for (const [excelHeader, dbField] of Object.entries(HEADER_MAPPING)) {
-    const colNumber = headerIndex[excelHeader];
-    if (colNumber) {
-      const cell = row.getCell(colNumber);
-      let value = cell.value;
-      
-      // 数式の場合は計算結果を取得
-      if (cell.formula) {
-        value = cell.result;
-      }
-      
-      data[dbField] = parseExcelValue(value);
-    }
+  const cell = row.getCell(colNumber);
+  let value = cell.value;
+  
+  // 数式の場合は計算結果を取得
+  if (cell.formula) {
+    value = cell.result;
   }
   
-  return data;
+  return parseExcelValue(value);
 }
 
 app.http('ImportBuyersListExcel', {
@@ -197,7 +140,8 @@ app.http('ImportBuyersListExcel', {
       // ヘッダー行を解析
       const headerIndex = buildHeaderIndex(worksheet);
       
-      context.log('Header Index built:', Object.keys(headerIndex).length, 'columns found');
+      context.log('Header Index built:', Object.keys(headerIndex).length, 'headers found');
+      context.log('Available headers:', Object.keys(headerIndex).slice(0, 20));
 
       const container = buyersListContainer();
       const now = new Date().toISOString();
@@ -207,46 +151,40 @@ app.http('ImportBuyersListExcel', {
       worksheet.eachRow((row, rowNumber) => {
         if (rowNumber <= 4) return; // ヘッダー行をスキップ
 
-        // データを抽出
-        const data = extractDataFromRow(row, headerIndex);
+        // ユニット番号を取得（必須）
+        const unitNumber = getValueByHeader(row, headerIndex, 'ユニット\n(Unit #)');
         
-        // ユニット番号が必須
-        if (!data.unitNumber || data.unitNumber === '0') {
+        if (!unitNumber || unitNumber === '0') {
           return; // 空行またはテンプレート行をスキップ
         }
 
-        // 価格フィールドを数値に変換
-        const purchasePrice = parsePrice(data.purchasePrice);
-
+        // データを抽出
         const item = {
           id: uuidv4(),
-          unitNumber: data.unitNumber,
-          nameRomaji: data.nameRomaji || '',
-          nameJapanese: data.nameJapanese || '',
-          japanStaff: data.japanStaff || '',
-          hawaiiStaff: data.hawaiiStaff || '',
-          hhcStaff: data.hhcStaff || '',
-          escrowNumber: data.escrowNumber || '',
-          address: data.address || '',
-          phone: data.phone || '',
-          emailPrimary: data.emailPrimary || '',
-          emailCC: data.emailCC || '',
-          emailDocusign: data.emailDocusign || '',
-          unitType: data.unitType || '',
-          bedBath: data.bedBath || '',
-          sqft: data.sqft || '',
-          contractedDate: data.contractedDate || '',
-          purchasePrice: purchasePrice,
-          deposit1Amount: parsePrice(data.deposit1Amount),
-          deposit1DueDate: data.deposit1DueDate || '',
-          deposit1Receipt: data.deposit1Receipt || '',
-          deposit2Amount: parsePrice(data.deposit2Amount),
-          deposit3Amount: parsePrice(data.deposit3Amount),
-          balanceAmount: parsePrice(data.balanceAmount),
-          parkingNumber: data.parkingNumber || '',
-          storageNumber: data.storageNumber || '',
-          purpose: data.purpose || '',
-          entityType: data.entityType || '',
+          unitNumber: unitNumber,
+          nameRomaji: getValueByHeader(row, headerIndex, '契約者氏名\nローマ字\n (Name)'),
+          nameJapanese: getValueByHeader(row, headerIndex, '契約者氏名\n日本語'),
+          japanStaff: getValueByHeader(row, headerIndex, '日本担当'),
+          hawaiiStaff: getValueByHeader(row, headerIndex, 'ハワイ担当'),
+          hhcStaff: getValueByHeader(row, headerIndex, 'HHC担当'),
+          escrowNumber: getValueByHeader(row, headerIndex, 'Escrow #'),
+          address: getValueByHeader(row, headerIndex, '住所'),
+          phone: getValueByHeader(row, headerIndex, '電話'),
+          emailPrimary: getValueByHeader(row, headerIndex, '本人'),
+          emailCC: getValueByHeader(row, headerIndex, 'CC'),
+          emailDocusign: getValueByHeader(row, headerIndex, 'DocuSign'),
+          unitType: getValueByHeader(row, headerIndex, 'Unit Type'),
+          bedBath: getValueByHeader(row, headerIndex, 'Bed/th'),
+          sqft: getValueByHeader(row, headerIndex, 'sqft'),
+          contractedDate: getValueByHeader(row, headerIndex, 'Contracted Date\n(HI Time)'),
+          purchasePrice: parsePrice(getValueByHeader(row, headerIndex, '$')),
+          deposit1Amount: parsePrice(getValueByHeader(row, headerIndex, '価格*5%')),
+          deposit1DueDate: getValueByHeader(row, headerIndex, '期日(日本時間)'),
+          deposit1Receipt: getValueByHeader(row, headerIndex, 'Receipt'),
+          parkingNumber: getValueByHeader(row, headerIndex, 'No.'),
+          storageNumber: getValueByHeader(row, headerIndex, 'Storage No.'),
+          purpose: getValueByHeader(row, headerIndex, '目的'),
+          entityType: getValueByHeader(row, headerIndex, '個人/法人'),
           status: 'Active',
           createdAt: now,
           createdBy: clientPrincipal.userDetails || 'System Import',
