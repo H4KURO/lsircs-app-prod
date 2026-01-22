@@ -65,9 +65,10 @@ app.http('ImportBuyersListExcel', {
       const now = new Date().toISOString();
       const importedItems = [];
 
-      // ヘッダー行をスキップして3行目から読み込み（1行目：タイトル、2行目：ヘッダー）
+      // ヘッダー・説明行をスキップして5行目から読み込み
+      // 1行目：タイトル、2-4行目：列の説明、5行目以降：実データ
       worksheet.eachRow((row, rowNumber) => {
-        if (rowNumber <= 2) return; // ヘッダー行をスキップ
+        if (rowNumber <= 4) return; // 1-4行目をスキップ
 
         const unitNumber = parseExcelValue(row.getCell(5).value); // E列：ユニット番号
         if (!unitNumber || unitNumber === '0') return; // 空行またはテンプレート行をスキップ
