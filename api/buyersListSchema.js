@@ -3,8 +3,7 @@
 const BuyersListItemSchema = {
   id: 'string',              // UUID
   unitNumber: 'string',      // ユニット番号（例: "908", "913"）
-  nameRomaji: 'string',      // 契約者氏名（ローマ字）
-  nameJapanese: 'string',    // 契約者氏名（日本語）
+  nameRomaji: 'string',      // 契約者氏名
   japanStaff: 'string',      // 日本担当者
   hawaiiStaff: 'string',     // ハワイ担当者
   phone: 'string',           // 電話番号

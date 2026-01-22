@@ -41,7 +41,6 @@ app.http('CreateBuyersListItem', {
         id: uuidv4(),
         unitNumber,
         nameRomaji: payload?.nameRomaji || '',
-        nameJapanese: payload?.nameJapanese || '',
         japanStaff: payload?.japanStaff || '',
         hawaiiStaff: payload?.hawaiiStaff || '',
         phone: payload?.phone || '',
