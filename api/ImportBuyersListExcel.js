@@ -93,8 +93,8 @@ app.http('ImportBuyersListExcel', {
           nameRomaji: parseExcelValue(row.getCell(5).value),      // E列(5)：契約者氏名（ローマ字）
           japanStaff: parseExcelValue(row.getCell(1).value),      // A列(1)：日本担当
           hawaiiStaff: parseExcelValue(row.getCell(2).value),     // B列(2)：ハワイ担当
-          phone: parseExcelValue(row.getCell(10).value),          // K列(8)：電話
-          email: parseExcelValue(row.getCell(11).value),          // L列(9)：メールアドレス
+          phone: parseExcelValue(row.getCell(11).value),          // K列(11)：電話
+          email: parseExcelValue(row.getCell(12).value),          // L列(12)：メールアドレス
           contractedDate: parseExcelValue(row.getCell(30).value), // AD列(30)：契約日
           purchasePrice: parsePrice(row.getCell(31).value),       // AE列(31)：購入価格
           status: 'Active',
