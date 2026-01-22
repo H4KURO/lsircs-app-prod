@@ -89,14 +89,14 @@ app.http('ImportBuyersListExcel', {
 
         const item = {
           id: uuidv4(),
-          unitNumber: unitNumber,                                  // D列(4)：ユニット番号
-          nameRomaji: parseExcelValue(row.getCell(5).value),      // E列(5)：契約者氏名（ローマ字）
-          japanStaff: parseExcelValue(row.getCell(1).value),      // A列(1)：日本担当
-          hawaiiStaff: parseExcelValue(row.getCell(2).value),     // B列(2)：ハワイ担当
-          phone: parseExcelValue(row.getCell(11).value),          // K列(11)：電話
-          email: parseExcelValue(row.getCell(12).value),          // L列(12)：メールアドレス
-          contractedDate: parseExcelValue(row.getCell(30).value), // AD列(30)：契約日
-          purchasePrice: parsePrice(row.getCell(31).value),       // AE列(31)：購入価格
+          japanStaff:      row.getCell(1).value   // A列 → 日本担当
+hawaiiStaff:     row.getCell(2).value   // B列 → ハワイ担当
+unitNumber:      row.getCell(4).value   // D列 → ユニット番号
+nameRomaji:      row.getCell(5).value   // E列 → 契約者名
+phone:           row.getCell(10).value  // J列 → 電話
+email:           row.getCell(11).value  // K列 → メールアドレス
+contractedDate:  row.getCell(30).value  // AD列 → 契約日
+purchasePrice:   row.getCell(31).value  // AE列 → 購入価格
           status: 'Active',
           createdAt: now,
           createdBy: clientPrincipal.userDetails || 'System Import',
