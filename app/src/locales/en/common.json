@@ -6,9 +6,56 @@
     "managedProperties": "Managed Properties",
     "projectTm": "Project TM",
     "weeklyReports": "Weekly Reports",
+    "buyersList": "Buyers List",
     "invoices": "Invoice Management",
     "settings": "Settings",
     "profile": "Profile Settings"
+  },
+  "buyersList": {
+    "title": "Buyers List",
+    "description": "Manage TPWV buyers information",
+    "actions": {
+      "addItem": "Add New",
+      "import": "Import Excel",
+      "export": "Export Excel",
+      "refresh": "Refresh",
+      "edit": "Edit",
+      "delete": "Delete",
+      "save": "Save",
+      "cancel": "Cancel"
+    },
+    "fields": {
+      "unitNumber": "Unit Number",
+      "nameRomaji": "Name (Romaji)",
+      "nameJapanese": "Name (Japanese)",
+      "japanStaff": "Japan Staff",
+      "hawaiiStaff": "Hawaii Staff",
+      "phone": "Phone",
+      "email": "Email",
+      "contractedDate": "Contract Date",
+      "purchasePrice": "Purchase Price",
+      "status": "Status"
+    },
+    "dialog": {
+      "addTitle": "Add New Buyer",
+      "editTitle": "Edit Buyer",
+      "importTitle": "Import from Excel",
+      "importHelper": "Select TPWV_Buyers_List.xlsx file"
+    },
+    "messages": {
+      "deleteConfirm": "Are you sure you want to delete this item?",
+      "addSuccess": "Added successfully",
+      "updateSuccess": "Updated successfully",
+      "deleteSuccess": "Deleted successfully",
+      "importSuccess": "Import completed",
+      "fetchError": "Failed to load data",
+      "saveError": "Failed to save",
+      "deleteError": "Failed to delete",
+      "importError": "Import failed"
+    },
+    "pagination": {
+      "rowsPerPage": "Rows per page:"
+    }
   },
   "auth": {
     "signInPrompt": "Please sign in",
@@ -265,7 +312,7 @@
     }
   },
   "taskView": {
-    "description": "Track your team by category and tag. Each user’s view is saved automatically.",
+    "description": "Track your team by category and tag. Each user's view is saved automatically.",
     "actions": {
       "addTask": "Add Task",
       "resetCategories": "Show All",
@@ -340,7 +387,7 @@
       "title": "Display settings",
       "description": "Choose categories, sort order, and layout. Preferences are saved per user."
     },
-    "footer": "Your selections are saved automatically. Switch views to review your team’s progress."
+    "footer": "Your selections are saved automatically. Switch views to review your team's progress."
   },
   "taskDetail": {
     "statusLabel": "Status",
@@ -349,34 +396,6 @@
     "attachments": {
       "title": "Attachments"
     }
-  },
-  "projectTm": {
-    "title": "Project TM",
-    "projectId": "Project ID",
-    "projectPlaceholder": "Enter or select a project ID",
-    "reload": "Load data",
-    "save": "Save to Excel",
-    "saving": "Saving...",
-    "selectedProject": "Project: {{projectId}}",
-    "noProject": "Select a project to view data",
-    "rowCount": "{{count}} rows",
-    "empty": "No data for this project.",
-    "keyColumn": "Key",
-    "noDataToExport": "No data to export.",
-    "readyForPa": "Data is ready. Run the Power Automate flow to update Box. (file: {{fileName}})",
-    "addRow": "Add row",
-    "edit": "Edit",
-    "delete": "Delete",
-    "actions": "Actions",
-    "editRowTitle": "Edit row",
-    "addRowTitle": "Add row",
-    "cancel": "Cancel",
-    "saveFailed": "Failed to save row.",
-    "deleteFailed": "Failed to delete row.",
-    "confirmDelete": "Delete row with key \"{{key}}\"?",
-    "keyRequired": "Key is required.",
-    "noColumns": "No columns available. Please import data first.",
-    "editFieldTitle": "Edit: {{field}}"
   },
   "projectTm": {
     "title": "Project TM",

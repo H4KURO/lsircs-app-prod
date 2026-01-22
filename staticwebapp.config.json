@@ -148,6 +148,48 @@
       ]
     },
     {
+      "route": "/api/GetBuyersList",
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/CreateBuyersListItem",
+      "methods": [
+        "POST"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/UpdateBuyersListItem/{id}",
+      "methods": [
+        "PUT"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/DeleteBuyersListItem/{id}",
+      "methods": [
+        "DELETE"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/ImportBuyersListExcel",
+      "methods": [
+        "POST"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
       "route": "/api/HealthCheck",
       "allowedRoles": [
         "anonymous"

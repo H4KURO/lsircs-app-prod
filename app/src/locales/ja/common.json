@@ -6,9 +6,56 @@
     "managedProperties": "管理物件",
     "projectTm": "プロジェクトTM",
     "weeklyReports": "週間レポート",
+    "buyersList": "Buyers List",
     "invoices": "請求書管理",
     "settings": "設定",
     "profile": "プロフィール設定"
+  },
+  "buyersList": {
+    "title": "Buyers List",
+    "description": "TPWV購入者情報管理",
+    "actions": {
+      "addItem": "新規追加",
+      "import": "Excelインポート",
+      "export": "Excelエクスポート",
+      "refresh": "更新",
+      "edit": "編集",
+      "delete": "削除",
+      "save": "保存",
+      "cancel": "キャンセル"
+    },
+    "fields": {
+      "unitNumber": "ユニット番号",
+      "nameRomaji": "契約者名（ローマ字）",
+      "nameJapanese": "契約者名（日本語）",
+      "japanStaff": "日本担当",
+      "hawaiiStaff": "ハワイ担当",
+      "phone": "電話",
+      "email": "メール",
+      "contractedDate": "契約日",
+      "purchasePrice": "購入価格",
+      "status": "ステータス"
+    },
+    "dialog": {
+      "addTitle": "新規購入者追加",
+      "editTitle": "購入者編集",
+      "importTitle": "Excelからインポート",
+      "importHelper": "TPWV_Buyers_List.xlsxファイルを選択してください"
+    },
+    "messages": {
+      "deleteConfirm": "本当に削除しますか？",
+      "addSuccess": "追加しました",
+      "updateSuccess": "更新しました",
+      "deleteSuccess": "削除しました",
+      "importSuccess": "インポートが完了しました",
+      "fetchError": "データの取得に失敗しました",
+      "saveError": "保存に失敗しました",
+      "deleteError": "削除に失敗しました",
+      "importError": "インポートに失敗しました"
+    },
+    "pagination": {
+      "rowsPerPage": "表示件数:"
+    }
   },
   "auth": {
     "signInPrompt": "ログインしてください",

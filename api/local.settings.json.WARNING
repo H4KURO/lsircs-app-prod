@@ -1,0 +1,28 @@
+{
+  "//": "⚠️ WARNING: このファイルには機密情報が含まれています！",
+  "//": "CRITICAL: 以下の認証情報は即座にローテーション（再生成）してください！",
+  "//": "1. Azure Cosmos DB接続文字列を再生成",
+  "//": "2. Slack Bot TokenとSigning Secretを再生成",
+  "//": "3. Azure Storage接続文字列を再生成",
+  "//": "4. このファイルをGit管理から除外（.gitignoreに追加済み）",
+  "//": "5. 詳細はSECURITY.mdを参照してください",
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "CosmosDbConnectionString": "⚠️ ROTATE THIS KEY IMMEDIATELY - See SECURITY.md",
+    "N8N_TASK_CREATED_WEBHOOK": "https://lsircs-n8n.app.n8n.cloud/webhook-test/baf815b8-1d66-4122-8a5e-71312d44ddb2",
+    "SLACK_ALLOWED_TEAM_ID": "",
+    "SLACK_THREAD_TS": "",
+    "SLACK_CHANNEL_ID": "⚠️ VERIFY THIS CHANNEL ID",
+    "SLACK_SIGNING_SECRET": "⚠️ ROTATE THIS KEY IMMEDIATELY - See SECURITY.md",
+    "SLACK_BOT_TOKEN": "⚠️ ROTATE THIS KEY IMMEDIATELY - See SECURITY.md",
+    "APP_BASE_URL": "http://localhost:5173/",
+    "BOX_IMPORT_STORAGE_CONNECTION": "⚠️ ROTATE THIS KEY IMMEDIATELY - See SECURITY.md",
+    "BOX_IMPORT_KEY_COLUMNS": "2,3,4"
+  },
+  "Host": {
+    "CORS": "http://localhost:5173",
+    "CORS_CREDENTIALS": true
+  }
+}

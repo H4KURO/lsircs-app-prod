@@ -1,0 +1,217 @@
+// ============================================
+// App.jsx 統合パッチ
+// ============================================
+// このファイルは、BuyersListViewをApp.jsxに統合するための
+// コード変更を示しています。
+// ============================================
+
+// ----------------------------------------
+// 1. インポートセクションに追加
+// ----------------------------------------
+// 既存のビューのインポート文の近くに以下を追加：
+
+import BuyersListView from './BuyersListView';
+
+// アイコンのインポート（@mui/icons-materialから）
+// 既存のアイコンインポート文の近くに以下を追加：
+import ListAltIcon from '@mui/icons-material/ListAlt';
+// または以下のいずれか：
+// import HomeWorkIcon from '@mui/icons-material/HomeWork';
+// import AssignmentIcon from '@mui/icons-material/Assignment';
+
+
+// ----------------------------------------
+// 2. メニュー項目の定義に追加
+// ----------------------------------------
+// menuItems 配列の適切な位置に以下を追加：
+// （例：projectTmの後、invoicesの前など）
+
+const menuItems = [
+  { id: 'dashboard', label: t('nav.dashboard'), icon: <DashboardIcon />, view: 'dashboard' },
+  { id: 'tasks', label: t('nav.tasks'), icon: <AssignmentIcon />, view: 'tasks' },
+  { id: 'customers', label: t('nav.customers'), icon: <PeopleIcon />, view: 'customers' },
+  { id: 'managedProperties', label: t('nav.managedProperties'), icon: <HomeWorkIcon />, view: 'properties' },
+  { id: 'projectTm', label: t('nav.projectTm'), icon: <FolderOpenIcon />, view: 'projectTm' },
+  { id: 'weeklyReports', label: t('nav.weeklyReports'), icon: <AssessmentIcon />, view: 'weeklyReports' },
+  
+  // ↓↓↓ ここに追加 ↓↓↓
+  { id: 'buyersList', label: t('nav.buyersList'), icon: <ListAltIcon />, view: 'buyersList' },
+  // ↑↑↑ ここまで ↑↑↑
+  
+  { id: 'invoices', label: t('nav.invoices'), icon: <ReceiptIcon />, view: 'invoices' },
+  { id: 'settings', label: t('nav.settings'), icon: <SettingsIcon />, view: 'settings' },
+];
+
+
+// ----------------------------------------
+// 3. ビューレンダリングロジックに追加
+// ----------------------------------------
+// renderView 関数または switch文に以下のケースを追加：
+
+const renderView = () => {
+  switch (currentView) {
+    case 'dashboard':
+      return <DashboardView />;
+    case 'tasks':
+      return <TaskView />;
+    case 'customers':
+      return <CustomerView />;
+    case 'properties':
+      return <ManagedPropertiesView />;
+    case 'projectTm':
+      return <ProjectTMView />;
+    case 'weeklyReports':
+      return <WeeklyLeasingReportView />;
+    
+    // ↓↓↓ ここに追加 ↓↓↓
+    case 'buyersList':
+      return <BuyersListView />;
+    // ↑↑↑ ここまで ↑↑↑
+    
+    case 'invoices':
+      return <InvoiceView />;
+    case 'settings':
+      return <SettingsView />;
+    case 'profile':
+      return <ProfileView />;
+    default:
+      return <DashboardView />;
+  }
+};
+
+
+// ----------------------------------------
+// 完全な統合例（参考）
+// ----------------------------------------
+/*
+import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+import {
+  Box,
+  AppBar,
+  Toolbar,
+  Drawer,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  Typography,
+  IconButton,
+} from '@mui/material';
+import {
+  Dashboard as DashboardIcon,
+  Assignment as AssignmentIcon,
+  People as PeopleIcon,
+  HomeWork as HomeWorkIcon,
+  FolderOpen as FolderOpenIcon,
+  Assessment as AssessmentIcon,
+  ListAlt as ListAltIcon,      // ← 追加
+  Receipt as ReceiptIcon,
+  Settings as SettingsIcon,
+  Menu as MenuIcon,
+} from '@mui/icons-material';
+
+// ビューのインポート
+import DashboardView from './DashboardView';
+import TaskView from './TaskView';
+import CustomerView from './CustomerView';
+import ManagedPropertiesView from './ManagedPropertiesView';
+import ProjectTMView from './ProjectTMView';
+import WeeklyLeasingReportView from './WeeklyLeasingReportView';
+import BuyersListView from './BuyersListView';  // ← 追加
+import InvoiceView from './InvoiceView';
+import SettingsView from './SettingsView';
+import ProfileView from './ProfileView';
+
+function App() {
+  const { t } = useTranslation();
+  const [currentView, setCurrentView] = useState('dashboard');
+  const [drawerOpen, setDrawerOpen] = useState(true);
+
+  const menuItems = [
+    { id: 'dashboard', label: t('nav.dashboard'), icon: <DashboardIcon />, view: 'dashboard' },
+    { id: 'tasks', label: t('nav.tasks'), icon: <AssignmentIcon />, view: 'tasks' },
+    { id: 'customers', label: t('nav.customers'), icon: <PeopleIcon />, view: 'customers' },
+    { id: 'managedProperties', label: t('nav.managedProperties'), icon: <HomeWorkIcon />, view: 'properties' },
+    { id: 'projectTm', label: t('nav.projectTm'), icon: <FolderOpenIcon />, view: 'projectTm' },
+    { id: 'weeklyReports', label: t('nav.weeklyReports'), icon: <AssessmentIcon />, view: 'weeklyReports' },
+    { id: 'buyersList', label: t('nav.buyersList'), icon: <ListAltIcon />, view: 'buyersList' }, // ← 追加
+    { id: 'invoices', label: t('nav.invoices'), icon: <ReceiptIcon />, view: 'invoices' },
+    { id: 'settings', label: t('nav.settings'), icon: <SettingsIcon />, view: 'settings' },
+  ];
+
+  const renderView = () => {
+    switch (currentView) {
+      case 'dashboard':
+        return <DashboardView />;
+      case 'tasks':
+        return <TaskView />;
+      case 'customers':
+        return <CustomerView />;
+      case 'properties':
+        return <ManagedPropertiesView />;
+      case 'projectTm':
+        return <ProjectTMView />;
+      case 'weeklyReports':
+        return <WeeklyLeasingReportView />;
+      case 'buyersList':                    // ← 追加
+        return <BuyersListView />;          // ← 追加
+      case 'invoices':
+        return <InvoiceView />;
+      case 'settings':
+        return <SettingsView />;
+      case 'profile':
+        return <ProfileView />;
+      default:
+        return <DashboardView />;
+    }
+  };
+
+  return (
+    <Box sx={{ display: 'flex' }}>
+      <AppBar position="fixed">
+        <Toolbar>
+          <IconButton
+            color="inherit"
+            edge="start"
+            onClick={() => setDrawerOpen(!drawerOpen)}
+          >
+            <MenuIcon />
+          </IconButton>
+          <Typography variant="h6" noWrap>
+            {t('app.title')}
+          </Typography>
+        </Toolbar>
+      </AppBar>
+
+      <Drawer
+        variant="permanent"
+        open={drawerOpen}
+        sx={{ width: 240 }}
+      >
+        <Toolbar />
+        <List>
+          {menuItems.map((item) => (
+            <ListItem
+              button
+              key={item.id}
+              selected={currentView === item.view}
+              onClick={() => setCurrentView(item.view)}
+            >
+              <ListItemIcon>{item.icon}</ListItemIcon>
+              <ListItemText primary={item.label} />
+            </ListItem>
+          ))}
+        </List>
+      </Drawer>
+
+      <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
+        <Toolbar />
+        {renderView()}
+      </Box>
+    </Box>
+  );
+}
+
+export default App;
+*/
