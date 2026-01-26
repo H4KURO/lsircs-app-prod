@@ -1,114 +1,150 @@
 const { app } = require('@azure/functions');
-const { v4: uuidv4 } = require('uuid');
+const { BlobServiceClient } = require('@azure/storage-blob');
 const ExcelJS = require('exceljs');
-const { getNamedContainer } = require('./cosmosClient');
+const cosmosClient = require('./cosmosClient');
 
-const buyersListContainer = () =>
-  getNamedContainer('BuyersList', ['COSMOS_BUYERSLIST_CONTAINER', 'CosmosBuyersListContainer']);
+// Excel列名のバリエーションをすべて処理する関数
+function normalizeHeaderName(headerName) {
+  if (!headerName) return '';
+  return String(headerName)
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/\n/g, ' ')
+    .toLowerCase();
+}
+
+// Excel列名 → データベースフィールド名のマッピング
+function buildHeaderMapping(headerRow) {
+  const mapping = {};
+  
+  // 基本的なマッピング定義（正規化された名前で）
+  const fieldMappings = {
+    // 既存フィールド
+    '№': 'number',
+    'no': 'number',
+    '日本担当': 'japanStaff',
+    'ハワイ担当': 'hawaiiStaff',
+    'hhc担当': 'hhcStaff',
+    'ユニット (unit #)': 'unitNumber',
+    'unit #': 'unitNumber',
+    '契約者氏名 ローマ字 (name)': 'nameRomaji',
+    'name': 'nameRomaji',
+    '契約者氏名 日本語': 'nameJapanese',
+    'escrow #': 'escrowNumber',
+    '住所': 'address',
+    '電話': 'phone',
+    'eメール': 'emailPrimary',
+    '本人': 'emailPrimary',
+    'cc': 'emailCC',
+    'docusign': 'emailDocusign',
+    'unit type': 'unitType',
+    'bed/th': 'bedBath',
+    'sqft': 'sqft',
+    'contracted date (hi time)': 'contractedDate',
+    '$': 'purchasePrice',
+    '価格*5%': 'deposit1Amount',
+    '期日(日本時間)': 'deposit1DueDate',
+    'receipt': 'deposit1Receipt',
+    'no.': 'parkingNumber',
+    'storage no.': 'storageNumber',
+    '目的': 'purpose',
+    '個人/法人': 'entityType',
+    
+    // ========== Phase 4.1: 追加フィールド ==========
+    
+    // 登記・法人情報
+    '登記名義 (title )': 'registrationName',
+    'title': 'registrationName',
+    'ssn/tin': 'ssnTin',
+    '居住エリア': 'residenceArea',
+    'married / single': 'marriedSingle',
+    'vesting of title include spouse?': 'vestingTitle',
+    '配偶者名': 'spouseName',
+    
+    // ファイナンス
+    'financing type': 'financingType',
+    'pre- quorification': 'preQualification',
+    'pre-qualification': 'preQualification',
+    '残高証明書 契約時': 'bankStatementContract',
+    'irp': 'irp',
+    
+    // アップグレード - Color
+    'color kitchen': 'colorKitchen',
+    'kitchen': 'colorKitchen',
+    'color bathroom': 'colorBathroom',
+    'bathroom': 'colorBathroom',
+    
+    // 残金
+    '残金（価格*80%）': 'finalBalance',
+    '残金': 'finalBalance',
+    
+    // 登記
+    '登記日': 'registrationDate',
+    '個人／法人': 'registrationPersonOrEntity',
+    '別荘／賃貸': 'vacationOrRental'
+  };
+  
+  // ヘッダー行から実際のマッピングを構築
+  headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+    const headerText = normalizeHeaderName(cell.value);
+    
+    // 直接マッチング
+    if (fieldMappings[headerText]) {
+      mapping[colNumber] = fieldMappings[headerText];
+      return;
+    }
+    
+    // 部分マッチング（複雑なヘッダー名用）
+    for (const [key, field] of Object.entries(fieldMappings)) {
+      if (headerText.includes(key) || key.includes(headerText)) {
+        mapping[colNumber] = field;
+        break;
+      }
+    }
+  });
+  
+  return mapping;
+}
+
+// セルの値を取得・変換
+function getCellValue(cell) {
+  if (!cell || cell.value === null || cell.value === undefined) {
+    return '';
+  }
+  
+  // 日付型
+  if (cell.value instanceof Date) {
+    return cell.value.toISOString();
+  }
+  
+  // 数値型
+  if (typeof cell.value === 'number') {
+    return cell.value;
+  }
+  
+  // オブジェクト型（リッチテキストなど）
+  if (typeof cell.value === 'object') {
+    if (cell.value.richText) {
+      return cell.value.richText.map(t => t.text).join('');
+    }
+    if (cell.value.text) {
+      return cell.value.text;
+    }
+    return JSON.stringify(cell.value);
+  }
+  
+  // 文字列型
+  return String(cell.value).trim();
+}
 
 function parseClientPrincipal(request) {
   const header = request.headers.get('x-ms-client-principal');
-  if (!header) {
-    return null;
-  }
+  if (!header) return null;
   try {
     return JSON.parse(Buffer.from(header, 'base64').toString('ascii'));
   } catch (error) {
     return null;
   }
-}
-
-function parseExcelValue(value) {
-  if (value === null || value === undefined || value === '') {
-    return '';
-  }
-  if (typeof value === 'object' && value.text) {
-    return value.text;
-  }
-  if (value instanceof Date) {
-    return value.toISOString();
-  }
-  // 数式の結果を取得
-  if (typeof value === 'object' && value.result !== undefined) {
-    return value.result;
-  }
-  return String(value);
-}
-
-function parsePrice(value) {
-  if (!value) return 0;
-  const stringValue = String(value).replace(/[$,]/g, '');
-  const numValue = parseFloat(stringValue);
-  return isNaN(numValue) ? 0 : numValue;
-}
-
-/**
- * ヘッダー行を解析して列番号マッピングを作成
- */
-function buildHeaderIndex(worksheet) {
-  const headerIndex = {};
-  const row2 = worksheet.getRow(2);
-  const row3 = worksheet.getRow(3);
-  const row4 = worksheet.getRow(4);
-  
-  // 各列を処理
-  row2.eachCell((cell, colNumber) => {
-    const header2 = cell.value ? String(cell.value).trim() : '';
-    const header3 = row3.getCell(colNumber).value ? String(row3.getCell(colNumber).value).trim() : '';
-    const header4 = row4.getCell(colNumber).value ? String(row4.getCell(colNumber).value).trim() : '';
-    
-    // 単一ヘッダー（2行目のみ）
-    if (header2) {
-      headerIndex[header2] = colNumber;
-    }
-    
-    // 階層ヘッダー（2行目 + 3行目）
-    if (header2 && header3) {
-      const composite = `${header2} > ${header3}`;
-      headerIndex[composite] = colNumber;
-    }
-    
-    // 3層ヘッダー（2行目 + 3行目 + 4行目）
-    if (header2 && header3 && header4) {
-      const composite = `${header2} > ${header3} > ${header4}`;
-      headerIndex[composite] = colNumber;
-    }
-    
-    // 3行目のみのヘッダー（結合セルの続き）
-    if (!header2 && header3) {
-      headerIndex[header3] = colNumber;
-      
-      // 4行目も追加
-      if (header4) {
-        headerIndex[`${header3} > ${header4}`] = colNumber;
-      }
-    }
-    
-    // 4行目のみのヘッダー
-    if (!header2 && !header3 && header4) {
-      headerIndex[header4] = colNumber;
-    }
-  });
-  
-  return headerIndex;
-}
-
-/**
- * 値を安全に取得
- */
-function getValueByHeader(row, headerIndex, headerName) {
-  const colNumber = headerIndex[headerName];
-  if (!colNumber) return '';
-  
-  const cell = row.getCell(colNumber);
-  let value = cell.value;
-  
-  // 数式の場合は計算結果を取得
-  if (cell.formula) {
-    value = cell.result;
-  }
-  
-  return parseExcelValue(value);
 }
 
 app.http('ImportBuyersListExcel', {
@@ -123,106 +159,228 @@ app.http('ImportBuyersListExcel', {
     try {
       const formData = await request.formData();
       const file = formData.get('file');
-      
+
       if (!file) {
-        return { status: 400, body: 'Excel file is required.' };
+        return {
+          status: 400,
+          jsonBody: { error: 'No file uploaded' }
+        };
       }
 
       const buffer = Buffer.from(await file.arrayBuffer());
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(buffer);
 
-      const worksheet = workbook.getWorksheet('Buyers list');
+      const worksheet = workbook.worksheets[0];
       if (!worksheet) {
-        return { status: 400, body: 'Sheet "Buyers list" not found in Excel file.' };
+        return {
+          status: 400,
+          jsonBody: { error: 'No worksheet found in Excel file' }
+        };
       }
 
-      // ヘッダー行を解析
-      const headerIndex = buildHeaderIndex(worksheet);
+      // ヘッダー行を探す（2-5行目を確認）
+      let headerRow = null;
+      let headerRowIndex = 0;
       
-      context.log('Header Index built:', Object.keys(headerIndex).length, 'headers found');
-      context.log('Available headers:', Object.keys(headerIndex).slice(0, 20));
-
-      const container = buyersListContainer();
-      const now = new Date().toISOString();
-      const importedItems = [];
-
-      // 5行目以降のデータを読み込み（1-4行目はヘッダー）
-      worksheet.eachRow((row, rowNumber) => {
-        if (rowNumber <= 4) return; // ヘッダー行をスキップ
-
-        // ユニット番号を取得（必須）
-        const unitNumber = getValueByHeader(row, headerIndex, 'ユニット\n(Unit #)');
+      for (let i = 2; i <= 5; i++) {
+        const row = worksheet.getRow(i);
+        const firstCell = getCellValue(row.getCell(1));
         
-        if (!unitNumber || unitNumber === '0') {
-          return; // 空行またはテンプレート行をスキップ
+        if (firstCell.includes('№') || firstCell.includes('No')) {
+          headerRow = row;
+          headerRowIndex = i;
+          break;
         }
+      }
 
-        // データを抽出
-        const item = {
-          id: uuidv4(),
-          unitNumber: unitNumber,
-          nameRomaji: getValueByHeader(row, headerIndex, '契約者氏名\nローマ字\n (Name)'),
-          nameJapanese: getValueByHeader(row, headerIndex, '契約者氏名\n日本語'),
-          japanStaff: getValueByHeader(row, headerIndex, '日本担当'),
-          hawaiiStaff: getValueByHeader(row, headerIndex, 'ハワイ担当'),
-          hhcStaff: getValueByHeader(row, headerIndex, 'HHC担当'),
-          escrowNumber: getValueByHeader(row, headerIndex, 'Escrow #'),
-          address: getValueByHeader(row, headerIndex, '住所'),
-          phone: getValueByHeader(row, headerIndex, '電話'),
-          emailPrimary: getValueByHeader(row, headerIndex, '本人'),
-          emailCC: getValueByHeader(row, headerIndex, 'CC'),
-          emailDocusign: getValueByHeader(row, headerIndex, 'DocuSign'),
-          unitType: getValueByHeader(row, headerIndex, 'Unit Type'),
-          bedBath: getValueByHeader(row, headerIndex, 'Bed/th'),
-          sqft: getValueByHeader(row, headerIndex, 'sqft'),
-          contractedDate: getValueByHeader(row, headerIndex, 'Contracted Date\n(HI Time)'),
-          purchasePrice: parsePrice(getValueByHeader(row, headerIndex, '$')),
-          deposit1Amount: parsePrice(getValueByHeader(row, headerIndex, '価格*5%')),
-          deposit1DueDate: getValueByHeader(row, headerIndex, '期日(日本時間)'),
-          deposit1Receipt: getValueByHeader(row, headerIndex, 'Receipt'),
-          parkingNumber: getValueByHeader(row, headerIndex, 'No.'),
-          storageNumber: getValueByHeader(row, headerIndex, 'Storage No.'),
-          purpose: getValueByHeader(row, headerIndex, '目的'),
-          entityType: getValueByHeader(row, headerIndex, '個人/法人'),
-          status: 'Active',
-          createdAt: now,
-          createdBy: clientPrincipal.userDetails || 'System Import',
-          updatedAt: now,
-          updatedBy: clientPrincipal.userDetails || 'System Import',
+      if (!headerRow) {
+        return {
+          status: 400,
+          jsonBody: { error: 'Could not find header row in Excel file' }
+        };
+      }
+
+      context.log('Header row found at:', headerRowIndex);
+
+      // ヘッダーマッピングを構築
+      const columnMapping = buildHeaderMapping(headerRow);
+      context.log('Column mapping:', columnMapping);
+
+      // データ行を読み込み
+      const buyers = [];
+      const dataStartRow = headerRowIndex + 1;
+
+      worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+        if (rowNumber <= headerRowIndex) return;
+
+        // 空行をスキップ
+        const firstCell = getCellValue(row.getCell(1));
+        if (!firstCell || firstCell === '') return;
+
+        // Phase 4.1: すべてのフィールドを初期化
+        const buyer = {
+          // 既存フィールド
+          number: '',
+          unitNumber: '',
+          nameRomaji: '',
+          nameJapanese: '',
+          japanStaff: '',
+          hawaiiStaff: '',
+          hhcStaff: '',
+          escrowNumber: '',
+          address: '',
+          phone: '',
+          emailPrimary: '',
+          emailCC: '',
+          emailDocusign: '',
+          unitType: '',
+          bedBath: '',
+          sqft: '',
+          contractedDate: '',
+          purchasePrice: '',
+          deposit1Amount: '',
+          deposit1DueDate: '',
+          deposit1Receipt: '',
+          parkingNumber: '',
+          storageNumber: '',
+          purpose: '',
+          entityType: '',
+          
+          // Phase 4.1: 新規フィールド
+          registrationName: '',
+          ssnTin: '',
+          marriedSingle: '',
+          vestingTitle: '',
+          spouseName: '',
+          deposit2Amount: '',
+          deposit2DueDate: '',
+          deposit2Receipt: '',
+          deposit3Amount: '',
+          deposit3DueDate: '',
+          deposit3Receipt: '',
+          financingType: '',
+          preQualification: '',
+          bankStatementContract: '',
+          irp: '',
+          colorKitchen: '',
+          colorBathroom: '',
+          motorizedDrapes: '',
+          motorizedDrapesPrice: '',
+          evCharger: '',
+          evChargerPrice: '',
+          totoToilet: '',
+          totoToiletPrice: '',
+          woodFlooring: '',
+          woodFlooringPrice: '',
+          upgradeTotal: '',
+          upgradeDeposit20: '',
+          upgradeBalance80: '',
+          parkingAdditionalPurchase: '',
+          parkingApplication: '',
+          storagePrice: '',
+          storageDeposit20: '',
+          storageReceipt: '',
+          storageBalance80: '',
+          storageAddendum: '',
+          residenceArea: '',
+          finalBalance: '',
+          registrationDate: '',
+          registrationPersonOrEntity: '',
+          vacationOrRental: '',
+          
+          // システムフィールド
+          status: 'active',
+          createdBy: clientPrincipal.userDetails,
+          createdAt: new Date().toISOString(),
+          updatedBy: clientPrincipal.userDetails,
+          updatedAt: new Date().toISOString()
         };
 
-        importedItems.push(item);
+        // マッピングに基づいてデータを抽出
+        row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+          const fieldName = columnMapping[colNumber];
+          if (fieldName && buyer.hasOwnProperty(fieldName)) {
+            buyer[fieldName] = getCellValue(cell);
+          }
+        });
+
+        buyers.push(buyer);
       });
 
-      context.log(`Importing ${importedItems.length} items to Cosmos DB`);
+      context.log(`Processed ${buyers.length} buyers`);
 
-      // Cosmos DBに一括インポート
-      const results = [];
-      for (const item of importedItems) {
-        try {
-          const { resource } = await container.items.create(item);
-          results.push({ success: true, unitNumber: item.unitNumber });
-        } catch (error) {
-          context.log(`Failed to import unit ${item.unitNumber}:`, error.message);
-          results.push({ success: false, unitNumber: item.unitNumber, error: error.message });
-        }
+      if (buyers.length === 0) {
+        return {
+          status: 400,
+          jsonBody: { error: 'No data found in Excel file' }
+        };
       }
 
-      const successCount = results.filter(r => r.success).length;
-      const failureCount = results.filter(r => !r.success).length;
+      // Cosmos DBに保存
+      const { database } = await cosmosClient.getDatabase();
+      const container = database.container(process.env.COSMOS_BUYERSLIST_CONTAINER || 'BuyersList');
+
+      let importedCount = 0;
+      let updatedCount = 0;
+      let errors = [];
+
+      for (const buyer of buyers) {
+        try {
+          // unitNumberをIDとして使用
+          if (!buyer.unitNumber) {
+            errors.push(`Row skipped: No unit number`);
+            continue;
+          }
+
+          buyer.id = `buyer_${buyer.unitNumber}`;
+
+          // 既存レコードを確認
+          try {
+            const { resource: existing } = await container.item(buyer.id, buyer.id).read();
+            
+            if (existing) {
+              // 既存レコードを更新
+              buyer.createdAt = existing.createdAt;
+              buyer.createdBy = existing.createdBy;
+              buyer.updatedAt = new Date().toISOString();
+              buyer.updatedBy = clientPrincipal.userDetails;
+              
+              await container.item(buyer.id, buyer.id).replace(buyer);
+              updatedCount++;
+            }
+          } catch (readError) {
+            // レコードが存在しない場合は新規作成
+            await container.items.create(buyer);
+            importedCount++;
+          }
+
+        } catch (error) {
+          context.error('Error saving buyer:', error);
+          errors.push(`Unit ${buyer.unitNumber}: ${error.message}`);
+        }
+      }
 
       return {
         status: 200,
         jsonBody: {
-          message: `Import completed: ${successCount} succeeded, ${failureCount} failed`,
-          results,
-        },
+          message: 'Import completed',
+          imported: importedCount,
+          updated: updatedCount,
+          total: buyers.length,
+          errors: errors.length > 0 ? errors : undefined
+        }
       };
+
     } catch (error) {
-      const message = error.message || 'Error importing Excel file.';
-      context.log('ImportBuyersListExcel failed', error);
-      return { status: 500, body: message };
+      context.error('Import error:', error);
+      return {
+        status: 500,
+        jsonBody: {
+          error: 'Failed to import Excel file',
+          details: error.message
+        }
+      };
     }
   },
 });
