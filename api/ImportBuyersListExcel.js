@@ -27,6 +27,7 @@ function buildHeaderMapping(headerRow) {
     'hhc担当': 'hhcStaff',
     'ユニット (unit #)': 'unitNumber',
     'unit #': 'unitNumber',
+    'ユニット': 'unitNumber',
     '契約者氏名 ローマ字 (name)': 'nameRomaji',
     'name': 'nameRomaji',
     '契約者氏名 日本語': 'nameJapanese',
@@ -39,9 +40,12 @@ function buildHeaderMapping(headerRow) {
     'docusign': 'emailDocusign',
     'unit type': 'unitType',
     'bed/th': 'bedBath',
+    'bed/bath': 'bedBath',
     'sqft': 'sqft',
     'contracted date (hi time)': 'contractedDate',
+    'contracted date': 'contractedDate',
     '$': 'purchasePrice',
+    '購入価格': 'purchasePrice',
     '価格*5%': 'deposit1Amount',
     '期日(日本時間)': 'deposit1DueDate',
     'receipt': 'deposit1Receipt',
@@ -54,10 +58,12 @@ function buildHeaderMapping(headerRow) {
     
     // 登記・法人情報
     '登記名義 (title )': 'registrationName',
+    '登記名義': 'registrationName',
     'title': 'registrationName',
     'ssn/tin': 'ssnTin',
     '居住エリア': 'residenceArea',
     'married / single': 'marriedSingle',
+    'married/single': 'marriedSingle',
     'vesting of title include spouse?': 'vestingTitle',
     '配偶者名': 'spouseName',
     
@@ -171,33 +177,90 @@ app.http('ImportBuyersListExcel', {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(buffer);
 
-      const worksheet = workbook.worksheets[0];
+      context.log(`Workbook loaded. Total worksheets: ${workbook.worksheets.length}`);
+      
+      // すべてのワークシートをログ出力
+      workbook.worksheets.forEach((ws, index) => {
+        context.log(`Sheet ${index}: "${ws.name}" (${ws.rowCount} rows)`);
+      });
+
+      // データを含むワークシートを探す
+      let worksheet = null;
+      let worksheetName = '';
+      
+      // まず "Buyers list" という名前のシートを探す
+      for (const ws of workbook.worksheets) {
+        if (ws.name.toLowerCase().includes('buyers') || 
+            ws.name.toLowerCase().includes('list')) {
+          worksheet = ws;
+          worksheetName = ws.name;
+          context.log(`Found worksheet by name: "${worksheetName}"`);
+          break;
+        }
+      }
+      
+      // 見つからない場合は、データがあるシートを探す
+      if (!worksheet) {
+        for (const ws of workbook.worksheets) {
+          if (ws.rowCount > 0 && ws.actualRowCount > 0) {
+            // 最初の10行をチェック
+            let hasData = false;
+            for (let i = 1; i <= Math.min(10, ws.rowCount); i++) {
+              const row = ws.getRow(i);
+              const firstCell = getCellValue(row.getCell(1));
+              if (firstCell && firstCell !== '') {
+                hasData = true;
+                break;
+              }
+            }
+            if (hasData) {
+              worksheet = ws;
+              worksheetName = ws.name;
+              context.log(`Found worksheet with data: "${worksheetName}"`);
+              break;
+            }
+          }
+        }
+      }
+
       if (!worksheet) {
         return {
           status: 400,
-          jsonBody: { error: 'No worksheet found in Excel file' }
+          jsonBody: { 
+            error: 'No worksheet with data found in Excel file',
+            sheetsFound: workbook.worksheets.map(ws => ({
+              name: ws.name,
+              rowCount: ws.rowCount
+            }))
+          }
         };
       }
 
-      // ヘッダー行を探す（1-10行目を確認、より柔軟に）
+      context.log(`Using worksheet: "${worksheetName}"`);
+
+      // ヘッダー行を探す（1-10行目を確認）
       let headerRow = null;
       let headerRowIndex = 0;
       
       context.log('Searching for header row...');
       
-      for (let i = 1; i <= 10; i++) {
+      for (let i = 1; i <= Math.min(10, worksheet.rowCount); i++) {
         const row = worksheet.getRow(i);
         const firstCell = getCellValue(row.getCell(1));
+        const secondCell = getCellValue(row.getCell(2));
+        const thirdCell = getCellValue(row.getCell(3));
+        
+        context.log(`Row ${i}: "${firstCell}" | "${secondCell}" | "${thirdCell}"`);
+        
         const firstCellLower = firstCell.toLowerCase();
         
-        context.log(`Row ${i}, First cell: "${firstCell}"`);
-        
-        // より多くのパターンに対応
+        // ヘッダー行の条件を緩和
         if (firstCellLower.includes('№') || 
             firstCellLower.includes('no') ||
-            firstCellLower.includes('番号') ||
-            firstCell === '№' ||
-            firstCell === 'No') {
+            firstCellLower === '№' ||
+            firstCellLower === 'no' ||
+            (firstCell === '' && secondCell.toLowerCase().includes('日本')) ||
+            (firstCell === '' && thirdCell.toLowerCase().includes('ハワイ'))) {
           headerRow = row;
           headerRowIndex = i;
           context.log(`✓ Header row found at row ${i}`);
@@ -208,19 +271,23 @@ app.http('ImportBuyersListExcel', {
       if (!headerRow) {
         // デバッグ情報を返す
         const debugInfo = [];
-        for (let i = 1; i <= 10; i++) {
+        for (let i = 1; i <= Math.min(10, worksheet.rowCount); i++) {
           const row = worksheet.getRow(i);
-          const firstCell = getCellValue(row.getCell(1));
-          debugInfo.push(`Row ${i}: "${firstCell}"`);
+          const cells = [];
+          for (let j = 1; j <= 5; j++) {
+            cells.push(getCellValue(row.getCell(j)));
+          }
+          debugInfo.push(`Row ${i}: [${cells.join('", "')}]`);
         }
         
         return {
           status: 400,
           jsonBody: { 
             error: 'Could not find header row in Excel file',
-            debug: 'First 10 rows:',
+            worksheet: worksheetName,
+            debug: 'First 10 rows (first 5 columns):',
             rows: debugInfo,
-            hint: 'Header row should start with № or No in the first column'
+            hint: 'Header row should contain column names like №, 日本担当, ハワイ担当, etc.'
           }
         };
       }
@@ -240,7 +307,11 @@ app.http('ImportBuyersListExcel', {
 
         // 空行をスキップ
         const firstCell = getCellValue(row.getCell(1));
-        if (!firstCell || firstCell === '') return;
+        if (!firstCell || firstCell === '') {
+          // Unit番号が2列目にある可能性
+          const secondCell = getCellValue(row.getCell(2));
+          if (!secondCell || secondCell === '') return;
+        }
 
         // Phase 4.1: すべてのフィールドを初期化
         const buyer = {
@@ -332,12 +403,17 @@ app.http('ImportBuyersListExcel', {
         buyers.push(buyer);
       });
 
-      context.log(`Processed ${buyers.length} buyers`);
+      context.log(`Processed ${buyers.length} buyers from worksheet "${worksheetName}"`);
 
       if (buyers.length === 0) {
         return {
           status: 400,
-          jsonBody: { error: 'No data found in Excel file' }
+          jsonBody: { 
+            error: 'No data found in Excel file',
+            worksheet: worksheetName,
+            headerRow: headerRowIndex,
+            hint: 'Data rows should start after the header row'
+          }
         };
       }
 
@@ -389,6 +465,7 @@ app.http('ImportBuyersListExcel', {
         status: 200,
         jsonBody: {
           message: 'Import completed',
+          worksheet: worksheetName,
           imported: importedCount,
           updated: updatedCount,
           total: buyers.length,
