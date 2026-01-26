@@ -179,25 +179,49 @@ app.http('ImportBuyersListExcel', {
         };
       }
 
-      // ヘッダー行を探す（2-5行目を確認）
+      // ヘッダー行を探す（1-10行目を確認、より柔軟に）
       let headerRow = null;
       let headerRowIndex = 0;
       
-      for (let i = 2; i <= 5; i++) {
+      context.log('Searching for header row...');
+      
+      for (let i = 1; i <= 10; i++) {
         const row = worksheet.getRow(i);
         const firstCell = getCellValue(row.getCell(1));
+        const firstCellLower = firstCell.toLowerCase();
         
-        if (firstCell.includes('№') || firstCell.includes('No')) {
+        context.log(`Row ${i}, First cell: "${firstCell}"`);
+        
+        // より多くのパターンに対応
+        if (firstCellLower.includes('№') || 
+            firstCellLower.includes('no') ||
+            firstCellLower.includes('番号') ||
+            firstCell === '№' ||
+            firstCell === 'No') {
           headerRow = row;
           headerRowIndex = i;
+          context.log(`✓ Header row found at row ${i}`);
           break;
         }
       }
 
       if (!headerRow) {
+        // デバッグ情報を返す
+        const debugInfo = [];
+        for (let i = 1; i <= 10; i++) {
+          const row = worksheet.getRow(i);
+          const firstCell = getCellValue(row.getCell(1));
+          debugInfo.push(`Row ${i}: "${firstCell}"`);
+        }
+        
         return {
           status: 400,
-          jsonBody: { error: 'Could not find header row in Excel file' }
+          jsonBody: { 
+            error: 'Could not find header row in Excel file',
+            debug: 'First 10 rows:',
+            rows: debugInfo,
+            hint: 'Header row should start with № or No in the first column'
+          }
         };
       }
 
@@ -205,7 +229,7 @@ app.http('ImportBuyersListExcel', {
 
       // ヘッダーマッピングを構築
       const columnMapping = buildHeaderMapping(headerRow);
-      context.log('Column mapping:', columnMapping);
+      context.log('Column mapping:', JSON.stringify(columnMapping));
 
       // データ行を読み込み
       const buyers = [];
@@ -378,7 +402,8 @@ app.http('ImportBuyersListExcel', {
         status: 500,
         jsonBody: {
           error: 'Failed to import Excel file',
-          details: error.message
+          details: error.message,
+          stack: error.stack
         }
       };
     }
