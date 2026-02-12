@@ -40,8 +40,10 @@ import { ProfileView } from "./ProfileView";
 import { useTranslation } from "react-i18next";
 import { AccessDeniedView } from "./AccessDeniedView";
 import { WhitelistView } from "./WhitelistView";
+import { BuyersListView } from "./BuyersListView";
 import SecurityIcon from "@mui/icons-material/Security";
 import CircularProgress from "@mui/material/CircularProgress";
+import ListAltIcon from "@mui/icons-material/ListAlt";
 
 const ALLOWED_VIEWS = new Set([
   "dashboard",
@@ -205,6 +207,7 @@ function App() {
       { text: t("nav.projectTm"), view: "projectTm" },
       { text: t("nav.weeklyReports"), view: "weeklyReports", icon: <AssessmentIcon /> },
       { text: t("nav.invoices"), view: "invoices" },
+      { text: "Buyers List", view: "buyersList", icon: <ListAltIcon /> },
       { text: t("nav.settings"), view: "settings", icon: <SettingsIcon /> },
     ],
     [t],
@@ -332,6 +335,8 @@ function App() {
         return <SettingsView />;
       case "projectTm":
         return <ProjectTMView />;
+      case "buyersList":
+        return <BuyersListView />;
       case "whitelist":
         return accessStatus.isAdmin
           ? <WhitelistView currentUser={user} />
