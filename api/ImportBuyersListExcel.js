@@ -14,7 +14,8 @@ function normalizeHeaderName(headerName) {
 }
 
 // Excel列名 → データベースフィールド名のマッピング
-function buildHeaderMapping(headerRow) {
+// colOffset: ヘッダーが何列目から始まるか（0=1列目, 1=2列目）
+function buildHeaderMapping(headerRow, colOffset = 0) {
   const mapping = {};
   
   // 基本的なマッピング定義（正規化された名前で）
@@ -91,8 +92,13 @@ function buildHeaderMapping(headerRow) {
   };
   
   // ヘッダー行から実際のマッピングを構築
+  // colOffsetを考慮して、実際のデータ列番号にマッピング
   headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+    // ヘッダー開始列より前はスキップ
+    if (colNumber <= colOffset) return;
+    
     const headerText = normalizeHeaderName(cell.value);
+    if (!headerText) return;
     
     // 直接マッチング
     if (fieldMappings[headerText]) {
@@ -238,48 +244,49 @@ app.http('ImportBuyersListExcel', {
 
       context.log(`Using worksheet: "${worksheetName}"`);
 
-      // ヘッダー行を探す（1-10行目を確認）
+      // ヘッダー行を探す
+      // 構造: 1列目が空で、2列目以降にヘッダーがある場合も対応
       let headerRow = null;
       let headerRowIndex = 0;
+      let headerColOffset = 0; // ヘッダー開始列のオフセット（0=1列目, 1=2列目）
       
       context.log('Searching for header row...');
       
+      const HEADER_KEYWORDS = ['№', 'no', '日本担当', 'ハワイ担当', 'hhc担当', 'unit'];
+      
       for (let i = 1; i <= Math.min(10, worksheet.rowCount); i++) {
         const row = worksheet.getRow(i);
-        const firstCell = getCellValue(row.getCell(1));
-        const secondCell = getCellValue(row.getCell(2));
-        const thirdCell = getCellValue(row.getCell(3));
         
-        context.log(`Row ${i}: "${firstCell}" | "${secondCell}" | "${thirdCell}"`);
-        
-        const firstCellLower = firstCell.toLowerCase();
-        
-        // ヘッダー行の条件を緩和
-        if (firstCellLower.includes('№') || 
-            firstCellLower.includes('no') ||
-            firstCellLower === '№' ||
-            firstCellLower === 'no' ||
-            (firstCell === '' && secondCell.toLowerCase().includes('日本')) ||
-            (firstCell === '' && thirdCell.toLowerCase().includes('ハワイ'))) {
-          headerRow = row;
-          headerRowIndex = i;
-          context.log(`✓ Header row found at row ${i}`);
-          break;
+        // 最初の5列をチェック
+        for (let col = 1; col <= 5; col++) {
+          const cellVal = getCellValue(row.getCell(col)).toLowerCase().trim();
+          const isHeader = HEADER_KEYWORDS.some(kw => cellVal.includes(kw));
+          
+          if (isHeader) {
+            // 同じ行が連続で重複していないか確認（マージセル対策）
+            // すでに見つかっていて同じ行番号なら最初の行を優先
+            if (!headerRow) {
+              headerRow = row;
+              headerRowIndex = i;
+              headerColOffset = col - 1; // 何列目からヘッダーが始まるか
+              context.log(`✓ Header row found at row ${i}, starting from col ${col}`);
+            }
+            break;
+          }
         }
+        if (headerRow) break;
       }
 
       if (!headerRow) {
-        // デバッグ情報を返す
         const debugInfo = [];
         for (let i = 1; i <= Math.min(10, worksheet.rowCount); i++) {
           const row = worksheet.getRow(i);
           const cells = [];
           for (let j = 1; j <= 5; j++) {
-            cells.push(getCellValue(row.getCell(j)));
+            cells.push(JSON.stringify(getCellValue(row.getCell(j))));
           }
-          debugInfo.push(`Row ${i}: [${cells.join('", "')}]`);
+          debugInfo.push(`Row ${i}: [${cells.join(', ')}]`);
         }
-        
         return {
           status: 400,
           jsonBody: { 
@@ -294,8 +301,8 @@ app.http('ImportBuyersListExcel', {
 
       context.log('Header row found at:', headerRowIndex);
 
-      // ヘッダーマッピングを構築
-      const columnMapping = buildHeaderMapping(headerRow);
+      // ヘッダーマッピングを構築（ヘッダー開始列のオフセットを考慮）
+      const columnMapping = buildHeaderMapping(headerRow, headerColOffset);
       context.log('Column mapping:', JSON.stringify(columnMapping));
 
       // データ行を読み込み
@@ -305,13 +312,13 @@ app.http('ImportBuyersListExcel', {
       worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
         if (rowNumber <= headerRowIndex) return;
 
-        // 空行をスキップ
-        const firstCell = getCellValue(row.getCell(1));
-        if (!firstCell || firstCell === '') {
-          // Unit番号が2列目にある可能性
-          const secondCell = getCellValue(row.getCell(2));
-          if (!secondCell || secondCell === '') return;
+        // 空行をスキップ（ヘッダー開始列+1以降にデータがあるか確認）
+        let hasData = false;
+        for (let col = 1; col <= 5; col++) {
+          const val = getCellValue(row.getCell(col));
+          if (val && val !== '') { hasData = true; break; }
         }
+        if (!hasData) return;
 
         // Phase 4.1: すべてのフィールドを初期化
         const buyer = {
