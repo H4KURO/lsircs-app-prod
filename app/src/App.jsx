@@ -40,7 +40,7 @@ import { ProfileView } from "./ProfileView";
 import { useTranslation } from "react-i18next";
 import { AccessDeniedView } from "./AccessDeniedView";
 import { WhitelistView } from "./WhitelistView";
-import { BuyersListView } from "./BuyersListView";
+import BuyersListView from "./BuyersListView";
 import SecurityIcon from "@mui/icons-material/Security";
 import CircularProgress from "@mui/material/CircularProgress";
 import ListAltIcon from "@mui/icons-material/ListAlt";
