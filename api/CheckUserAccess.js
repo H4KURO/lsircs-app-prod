@@ -20,23 +20,29 @@ app.http('CheckUserAccess', {
       return { status: 401, jsonBody: { allowed: false, reason: 'not_logged_in' } };
     }
 
+    const userEmail = clientPrincipal.userDetails;
+    context.log(`CheckUserAccess called for: ${userEmail}`);
+
     try {
       const { database } = await cosmosClient.getDatabase();
-      const container = database.container('AllowedUsers');
 
-      // ホワイトリストが空かどうかチェック（初回セットアップ用）
-      const { resources: allUsers } = await container.items
+      const containerName = process.env.COSMOS_ALLOWEDUSERS_CONTAINER || 'AllowedUsers';
+      context.log(`Using container: ${containerName}`);
+      const container = database.container(containerName);
+
+      // 全件数確認
+      const { resources: countResult } = await container.items
         .query('SELECT VALUE COUNT(1) FROM c')
         .fetchAll();
+      const totalUsers = countResult[0] || 0;
+      context.log(`Total users in container: ${totalUsers}`);
 
-      const totalUsers = allUsers[0] || 0;
-
-      // ホワイトリストが空なら、最初のユーザーを管理者として自動登録
+      // ホワイトリストが空なら最初のユーザーを管理者として自動登録
       if (totalUsers === 0) {
         const firstAdmin = {
           id: `user_${Date.now()}`,
-          email: clientPrincipal.userDetails,
-          name: clientPrincipal.userDetails,
+          email: userEmail,
+          name: userEmail,
           isAdmin: true,
           isAllowed: true,
           createdAt: new Date().toISOString(),
@@ -44,63 +50,63 @@ app.http('CheckUserAccess', {
           updatedAt: new Date().toISOString(),
         };
         await container.items.create(firstAdmin);
-        context.log(`First admin registered: ${clientPrincipal.userDetails}`);
+        context.log(`First admin auto-registered: ${userEmail}`);
         return {
           status: 200,
-          jsonBody: {
-            allowed: true,
-            isAdmin: true,
-            isFirstAdmin: true,
-            email: clientPrincipal.userDetails
-          }
+          jsonBody: { allowed: true, isAdmin: true, isFirstAdmin: true, email: userEmail }
         };
       }
 
-      // ホワイトリストでメールアドレスを検索
-      const { resources: users } = await container.items
-        .query({
-          query: 'SELECT * FROM c WHERE c.email = @email',
-          parameters: [{ name: '@email', value: clientPrincipal.userDetails }]
-        })
+      // 全ユーザー取得してJavaScript側でマッチング（大文字小文字無視）
+      const { resources: allUsers } = await container.items
+        .query('SELECT c.id, c.email, c.isAdmin, c.isAllowed FROM c')
         .fetchAll();
+      context.log(`All registered emails: ${allUsers.map(u => u.email).join(', ')}`);
 
-      if (users.length === 0) {
+      const matchedUser = allUsers.find(
+        u => u.email && u.email.toLowerCase() === userEmail.toLowerCase()
+      );
+      context.log(`Match result: ${matchedUser ? 'FOUND' : 'NOT FOUND'}`);
+
+      if (!matchedUser) {
         return {
           status: 200,
           jsonBody: {
             allowed: false,
             reason: 'not_in_whitelist',
-            email: clientPrincipal.userDetails
+            email: userEmail,
+            debug_registered_emails: allUsers.map(u => u.email)
           }
         };
       }
 
-      const user = users[0];
       return {
         status: 200,
         jsonBody: {
-          allowed: user.isAllowed !== false,
-          isAdmin: user.isAdmin === true,
-          email: clientPrincipal.userDetails,
-          name: user.name
+          allowed: matchedUser.isAllowed !== false,
+          isAdmin: matchedUser.isAdmin === true,
+          email: userEmail,
+          name: matchedUser.name
         }
       };
 
     } catch (error) {
       context.error('CheckUserAccess error:', error);
-      // Cosmos DBのコンテナが存在しない場合は最初のユーザーを許可
       if (error.code === 404) {
         return {
           status: 200,
-          jsonBody: {
-            allowed: true,
-            isAdmin: true,
-            isFirstAdmin: true,
-            email: clientPrincipal.userDetails
-          }
+          jsonBody: { allowed: true, isAdmin: true, isFirstAdmin: true, email: userEmail }
         };
       }
-      return { status: 500, jsonBody: { allowed: false, reason: 'error', error: error.message } };
+      return {
+        status: 200,
+        jsonBody: {
+          allowed: false,
+          reason: 'error',
+          error: error.message,
+          errorCode: error.code
+        }
+      };
     }
   },
 });
