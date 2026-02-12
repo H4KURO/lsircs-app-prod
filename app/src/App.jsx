@@ -9,7 +9,6 @@ import { DashboardView } from "./DashboardView";
 import { ManagedPropertiesView } from "./ManagedPropertiesView";
 import { WeeklyLeasingReportView } from "./WeeklyLeasingReportView";
 import { ProjectTMView } from "./ProjectTMView";
-import BuyersListView from "./BuyersListView";
 import "./App.css";
 import {
   Box,
@@ -34,12 +33,15 @@ import GoogleIcon from "@mui/icons-material/Google";
 import MicrosoftIcon from "@mui/icons-material/Microsoft";
 import LogoutIcon from "@mui/icons-material/Logout";
 import AssessmentIcon from "@mui/icons-material/Assessment";
-import ListAltIcon from "@mui/icons-material/ListAlt";
 import { SettingsView } from "./SettingsView";
 import SettingsIcon from "@mui/icons-material/Settings";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import { ProfileView } from "./ProfileView";
 import { useTranslation } from "react-i18next";
+import { AccessDeniedView } from "./AccessDeniedView";
+import { WhitelistView } from "./WhitelistView";
+import SecurityIcon from "@mui/icons-material/Security";
+import CircularProgress from "@mui/material/CircularProgress";
 
 const ALLOWED_VIEWS = new Set([
   "dashboard",
@@ -47,11 +49,12 @@ const ALLOWED_VIEWS = new Set([
   "customers",
   "managedProperties",
   "weeklyReports",
-  "buyersList",
   "invoices",
   "projectTm",
   "settings",
   "profile",
+  "whitelist",
+  "buyersList",
 ]);
 
 const parseInitialLocation = () => {
@@ -105,6 +108,7 @@ function App() {
   const [currentView, setCurrentView] = useState(initialLocation.view);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [user, setUser] = useState(null);
+  const [accessStatus, setAccessStatus] = useState(null);
   const [deepLinkTaskId, setDeepLinkTaskId] = useState(initialLocation.taskId);
   const { t, i18n } = useTranslation();
   const [language, setLanguage] = useState(() => (i18n.language || "ja").split("-")[0]);
@@ -136,6 +140,19 @@ function App() {
     axios.get(`${API_URL}/GetUserProfile`).catch((err) => {
       console.error("Failed to ensure user profile", err);
     });
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    async function checkAccess() {
+      try {
+        const res = await axios.get(`${API_URL}/CheckUserAccess`);
+        setAccessStatus(res.data);
+      } catch {
+        setAccessStatus({ allowed: false, reason: 'error' });
+      }
+    }
+    checkAccess();
   }, [user]);
 
   useEffect(() => {
@@ -187,7 +204,6 @@ function App() {
       { text: t("nav.managedProperties"), view: "managedProperties" },
       { text: t("nav.projectTm"), view: "projectTm" },
       { text: t("nav.weeklyReports"), view: "weeklyReports", icon: <AssessmentIcon /> },
-      { text: t("nav.buyersList"), view: "buyersList", icon: <ListAltIcon /> },
       { text: t("nav.invoices"), view: "invoices" },
       { text: t("nav.settings"), view: "settings", icon: <SettingsIcon /> },
     ],
@@ -251,6 +267,21 @@ function App() {
             <ListItemText primary={t("nav.profile")} />
           </ListItemButton>
         </ListItem>
+        {accessStatus?.isAdmin && (
+          <ListItem disablePadding>
+            <ListItemButton
+              onClick={() => {
+                handleViewChange("whitelist");
+                setDrawerOpen(false);
+              }}
+            >
+              <ListItemIcon>
+                <SecurityIcon />
+              </ListItemIcon>
+              <ListItemText primary="アクセス管理" />
+            </ListItemButton>
+          </ListItem>
+        )}
         <ListItem disablePadding>
           <ListItemButton component="a" href="/.auth/logout">
             <ListItemIcon>
@@ -268,6 +299,20 @@ function App() {
       return <Typography>{t("auth.welcome")}</Typography>;
     }
 
+    // アクセスチェック中
+    if (!accessStatus) {
+      return (
+        <Box sx={{ display: "flex", justifyContent: "center", mt: 8 }}>
+          <CircularProgress />
+        </Box>
+      );
+    }
+
+    // アクセス拒否
+    if (!accessStatus.allowed) {
+      return <AccessDeniedView userEmail={user.userDetails} />;
+    }
+
     switch (currentView) {
       case "dashboard":
         return <DashboardView user={user} />;
@@ -279,8 +324,6 @@ function App() {
         return <ManagedPropertiesView />;
       case "weeklyReports":
         return <WeeklyLeasingReportView />;
-      case "buyersList":
-        return <BuyersListView />;
       case "invoices":
         return <InvoiceView />;
       case "profile":
@@ -289,6 +332,10 @@ function App() {
         return <SettingsView />;
       case "projectTm":
         return <ProjectTMView />;
+      case "whitelist":
+        return accessStatus.isAdmin
+          ? <WhitelistView currentUser={user} />
+          : <AccessDeniedView userEmail={user.userDetails} />;
       default:
         return <DashboardView user={user} />;
     }
