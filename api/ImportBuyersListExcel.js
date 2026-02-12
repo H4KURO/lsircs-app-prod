@@ -6,10 +6,14 @@ const { ensureNamedContainer } = require('./cosmosClient');
 // Excel列名のバリエーションをすべて処理する関数
 function normalizeHeaderName(headerName) {
   if (!headerName) return '';
+  // オブジェクト（数式セル）の場合は結果値を使用
+  if (typeof headerName === 'object' && headerName !== null) {
+    headerName = headerName.result ?? headerName.text ?? '';
+  }
   return String(headerName)
+    .replace(/\r\n|\r|\n/g, ' ')  // 改行を空白に
+    .replace(/\s+/g, ' ')            // 連続空白を1つに
     .trim()
-    .replace(/\s+/g, ' ')
-    .replace(/\n/g, ' ')
     .toLowerCase();
 }
 
@@ -29,6 +33,9 @@ function buildHeaderMapping(headerRow, colOffset = 0) {
     'ユニット (unit #)': 'unitNumber',
     'unit #': 'unitNumber',
     'ユニット': 'unitNumber',
+    'ユニット (unit #)': 'unitNumber',
+    'ユニット\n(unit #)': 'unitNumber',
+    'ユニット (unit#)': 'unitNumber',
     '契約者氏名 ローマ字 (name)': 'nameRomaji',
     'name': 'nameRomaji',
     '契約者氏名 日本語': 'nameJapanese',
@@ -92,9 +99,8 @@ function buildHeaderMapping(headerRow, colOffset = 0) {
   };
   
   // ヘッダー行から実際のマッピングを構築
-  // colOffsetを考慮して、実際のデータ列番号にマッピング
+  const unmappedHeaders = [];
   headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
-    // ヘッダー開始列より前はスキップ
     if (colNumber <= colOffset) return;
     
     const headerText = normalizeHeaderName(cell.value);
@@ -106,14 +112,30 @@ function buildHeaderMapping(headerRow, colOffset = 0) {
       return;
     }
     
-    // 部分マッチング（複雑なヘッダー名用）
+    // 部分マッチング
+    let matched = false;
     for (const [key, field] of Object.entries(fieldMappings)) {
       if (headerText.includes(key) || key.includes(headerText)) {
         mapping[colNumber] = field;
+        matched = true;
         break;
       }
     }
+    if (!matched) {
+      unmappedHeaders.push(`col${colNumber}:"${headerText}"`);
+    }
   });
+  
+  // unitNumberが未マッピングの場合、"unit"を含む列を強制マッピング
+  if (!Object.values(mapping).includes('unitNumber')) {
+    headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+      if (colNumber <= colOffset) return;
+      const raw = String(cell.value || '').toLowerCase();
+      if (raw.includes('unit') || raw.includes('ユニット')) {
+        mapping[colNumber] = 'unitNumber';
+      }
+    });
+  }
   
   return mapping;
 }
@@ -126,7 +148,7 @@ function getCellValue(cell) {
   
   // 日付型
   if (cell.value instanceof Date) {
-    return cell.value.toISOString();
+    return cell.value.toISOString().split('T')[0]; // YYYY-MM-DD形式
   }
   
   // 数値型
@@ -134,15 +156,24 @@ function getCellValue(cell) {
     return cell.value;
   }
   
-  // オブジェクト型（リッチテキストなど）
+  // オブジェクト型
   if (typeof cell.value === 'object') {
+    // 数式セル（{ formula, result } 形式）
+    if (cell.value.formula !== undefined || cell.value.sharedFormula !== undefined) {
+      const result = cell.value.result;
+      if (result instanceof Date) return result.toISOString().split('T')[0];
+      if (typeof result === 'number') return result;
+      if (typeof result === 'string') return result.trim();
+      return result ?? '';
+    }
+    // リッチテキスト
     if (cell.value.richText) {
-      return cell.value.richText.map(t => t.text).join('');
+      return cell.value.richText.map(t => t.text || '').join('').trim();
     }
     if (cell.value.text) {
-      return cell.value.text;
+      return String(cell.value.text).trim();
     }
-    return JSON.stringify(cell.value);
+    return '';
   }
   
   // 文字列型
@@ -299,6 +330,24 @@ app.http('ImportBuyersListExcel', {
         };
       }
 
+      // ヘッダー行が複数行にまたがっている場合（マージセル）のスキップ処理
+      // ヘッダー行と同じ内容の連続行をスキップしてデータ開始行を特定する
+      const headerSecondCell = normalizeHeaderName(headerRow.getCell(headerColOffset + 2).value);
+      let dataStartRowIndex = headerRowIndex + 1;
+      
+      for (let i = headerRowIndex + 1; i <= Math.min(headerRowIndex + 5, worksheet.rowCount); i++) {
+        const row = worksheet.getRow(i);
+        const secondCell = normalizeHeaderName(row.getCell(headerColOffset + 2).value);
+        // 2列目がヘッダー行と同じ内容（マージセルの繰り返し）ならスキップ
+        if (secondCell === headerSecondCell && secondCell !== '') {
+          dataStartRowIndex = i + 1;
+          context.log(`Skipping duplicate header row at ${i}`);
+        } else {
+          break;
+        }
+      }
+      context.log(`Data starts at row: ${dataStartRowIndex}`);
+
       context.log('Header row found at:', headerRowIndex);
 
       // ヘッダーマッピングを構築（ヘッダー開始列のオフセットを考慮）
@@ -310,7 +359,7 @@ app.http('ImportBuyersListExcel', {
       const dataStartRow = headerRowIndex + 1;
 
       worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-        if (rowNumber <= headerRowIndex) return;
+        if (rowNumber < dataStartRowIndex) return;
 
         // 空行をスキップ（ヘッダー開始列+1以降にデータがあるか確認）
         let hasData = false;
@@ -434,12 +483,17 @@ app.http('ImportBuyersListExcel', {
       for (const buyer of buyers) {
         try {
           // unitNumberをIDとして使用
-          if (!buyer.unitNumber) {
-            errors.push(`Row skipped: No unit number`);
+          // unitNumberが空の場合はnameRomajiで代替
+          if (!buyer.unitNumber || String(buyer.unitNumber).trim() === '') {
+            errors.push(`Row skipped: No unit number (nameRomaji: ${buyer.nameRomaji})`);
             continue;
           }
 
-          buyer.id = `buyer_${buyer.unitNumber}`;
+          // IDから使用できない文字を除去
+          const safeUnitNumber = String(buyer.unitNumber)
+            .replace(/[/\?#[\]@!$&'()*+,;=%\s]/g, '_')
+            .replace(/^_+|_+$/g, '');
+          buyer.id = `buyer_${safeUnitNumber}`;
 
           // 既存レコードを確認
           try {
@@ -475,7 +529,9 @@ app.http('ImportBuyersListExcel', {
           imported: importedCount,
           updated: updatedCount,
           total: buyers.length,
-          errors: errors.length > 0 ? errors : undefined
+          errors: errors.length > 0 ? errors : undefined,
+          debug_mapping: Object.entries(columnMapping).slice(0, 8).map(([col, field]) => `col${col}→${field}`),
+          debug_dataStart: dataStartRowIndex
         }
       };
 
