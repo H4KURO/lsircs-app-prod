@@ -1,5 +1,5 @@
 const { app } = require('@azure/functions');
-const cosmosClient = require('./cosmosClient');
+const { ensureNamedContainer } = require('./cosmosClient');
 
 function parseClientPrincipal(request) {
   const header = request.headers.get('x-ms-client-principal');
@@ -31,8 +31,7 @@ app.http('UpdateBuyersList', {
         };
       }
 
-      const { database } = await cosmosClient.getDatabase();
-      const container = database.container(process.env.COSMOS_BUYERSLIST_CONTAINER || 'BuyersList');
+      const container = await ensureNamedContainer('BuyersList', { partitionKey: '/id' });
 
       // 既存データを取得
       const { resource: existingBuyer } = await container.item(id, id).read();

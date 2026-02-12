@@ -1,6 +1,6 @@
 const { app } = require('@azure/functions');
 const ExcelJS = require('exceljs');
-const cosmosClient = require('./cosmosClient');
+const { ensureNamedContainer } = require('./cosmosClient');
 
 // Phase 4.1: 69列のヘッダー定義
 const COLUMN_HEADERS = [
@@ -115,8 +115,7 @@ app.http('ExportBuyersListExcel', {
 
     try {
       // Cosmos DBからデータ取得
-      const { database } = await cosmosClient.getDatabase();
-      const container = database.container(process.env.COSMOS_BUYERSLIST_CONTAINER || 'BuyersList');
+      const container = await ensureNamedContainer('BuyersList', { partitionKey: '/id' });
 
       const { resources: buyers } = await container.items
         .query({

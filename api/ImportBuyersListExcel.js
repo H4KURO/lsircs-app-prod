@@ -1,7 +1,7 @@
 const { app } = require('@azure/functions');
 const { BlobServiceClient } = require('@azure/storage-blob');
 const ExcelJS = require('exceljs');
-const cosmosClient = require('./cosmosClient');
+const { ensureNamedContainer } = require('./cosmosClient');
 
 // Excel列名のバリエーションをすべて処理する関数
 function normalizeHeaderName(headerName) {
@@ -418,8 +418,7 @@ app.http('ImportBuyersListExcel', {
       }
 
       // Cosmos DBに保存
-      const { database } = await cosmosClient.getDatabase();
-      const container = database.container(process.env.COSMOS_BUYERSLIST_CONTAINER || 'BuyersList');
+      const container = await ensureNamedContainer('BuyersList', { partitionKey: '/id' });
 
       let importedCount = 0;
       let updatedCount = 0;
