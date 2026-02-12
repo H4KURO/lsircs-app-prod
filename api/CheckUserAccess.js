@@ -1,5 +1,7 @@
 const { app } = require('@azure/functions');
-const cosmosClient = require('./cosmosClient');
+const { getNamedContainer, ensureNamedContainer } = require('./cosmosClient');
+
+const CONTAINER_NAME = 'AllowedUsers';
 
 function parseClientPrincipal(request) {
   const header = request.headers.get('x-ms-client-principal');
@@ -21,21 +23,18 @@ app.http('CheckUserAccess', {
     }
 
     const userEmail = clientPrincipal.userDetails;
-    context.log(`CheckUserAccess called for: ${userEmail}`);
+    context.log(`CheckUserAccess: ${userEmail}`);
 
     try {
-      const { database } = await cosmosClient.getDatabase();
+      // コンテナを取得（存在しない場合は自動作成）
+      const container = await ensureNamedContainer(CONTAINER_NAME, { partitionKey: '/id' });
 
-      const containerName = process.env.COSMOS_ALLOWEDUSERS_CONTAINER || 'AllowedUsers';
-      context.log(`Using container: ${containerName}`);
-      const container = database.container(containerName);
-
-      // 全件数確認
+      // 全件数を確認
       const { resources: countResult } = await container.items
         .query('SELECT VALUE COUNT(1) FROM c')
         .fetchAll();
       const totalUsers = countResult[0] || 0;
-      context.log(`Total users in container: ${totalUsers}`);
+      context.log(`Total users: ${totalUsers}`);
 
       // ホワイトリストが空なら最初のユーザーを管理者として自動登録
       if (totalUsers === 0) {
@@ -50,23 +49,22 @@ app.http('CheckUserAccess', {
           updatedAt: new Date().toISOString(),
         };
         await container.items.create(firstAdmin);
-        context.log(`First admin auto-registered: ${userEmail}`);
+        context.log(`First admin registered: ${userEmail}`);
         return {
           status: 200,
           jsonBody: { allowed: true, isAdmin: true, isFirstAdmin: true, email: userEmail }
         };
       }
 
-      // 全ユーザー取得してJavaScript側でマッチング（大文字小文字無視）
+      // 全ユーザー取得してJavaScript側でマッチング（大文字小文字を無視）
       const { resources: allUsers } = await container.items
         .query('SELECT c.id, c.email, c.isAdmin, c.isAllowed FROM c')
         .fetchAll();
-      context.log(`All registered emails: ${allUsers.map(u => u.email).join(', ')}`);
 
       const matchedUser = allUsers.find(
         u => u.email && u.email.toLowerCase() === userEmail.toLowerCase()
       );
-      context.log(`Match result: ${matchedUser ? 'FOUND' : 'NOT FOUND'}`);
+      context.log(`Match: ${matchedUser ? 'FOUND' : 'NOT FOUND'}`);
 
       if (!matchedUser) {
         return {
@@ -74,8 +72,7 @@ app.http('CheckUserAccess', {
           jsonBody: {
             allowed: false,
             reason: 'not_in_whitelist',
-            email: userEmail,
-            debug_registered_emails: allUsers.map(u => u.email)
+            email: userEmail
           }
         };
       }
@@ -92,19 +89,12 @@ app.http('CheckUserAccess', {
 
     } catch (error) {
       context.error('CheckUserAccess error:', error);
-      if (error.code === 404) {
-        return {
-          status: 200,
-          jsonBody: { allowed: true, isAdmin: true, isFirstAdmin: true, email: userEmail }
-        };
-      }
       return {
         status: 200,
         jsonBody: {
           allowed: false,
           reason: 'error',
-          error: error.message,
-          errorCode: error.code
+          error: error.message
         }
       };
     }

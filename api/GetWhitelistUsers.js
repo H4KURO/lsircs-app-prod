@@ -1,5 +1,7 @@
 const { app } = require('@azure/functions');
-const cosmosClient = require('./cosmosClient');
+const { ensureNamedContainer } = require('./cosmosClient');
+
+const CONTAINER_NAME = 'AllowedUsers';
 
 function parseClientPrincipal(request) {
   const header = request.headers.get('x-ms-client-principal');
@@ -21,28 +23,22 @@ app.http('GetWhitelistUsers', {
     }
 
     try {
-      const { database } = await cosmosClient.getDatabase();
-      const container = database.container('AllowedUsers');
+      const container = await ensureNamedContainer(CONTAINER_NAME, { partitionKey: '/id' });
 
       // 呼び出し元が管理者かチェック
-      const { resources: callerList } = await container.items
-        .query({
-          query: 'SELECT * FROM c WHERE c.email = @email',
-          parameters: [{ name: '@email', value: clientPrincipal.userDetails }]
-        })
+      const { resources: allUsers } = await container.items
+        .query('SELECT * FROM c ORDER BY c.createdAt')
         .fetchAll();
 
-      const caller = callerList[0];
+      const caller = allUsers.find(
+        u => u.email && u.email.toLowerCase() === clientPrincipal.userDetails.toLowerCase()
+      );
+
       if (!caller || !caller.isAdmin) {
         return { status: 403, jsonBody: { error: 'Admin access required' } };
       }
 
-      // 全ユーザー取得
-      const { resources: users } = await container.items
-        .query('SELECT * FROM c ORDER BY c.createdAt')
-        .fetchAll();
-
-      return { status: 200, jsonBody: users };
+      return { status: 200, jsonBody: allUsers };
 
     } catch (error) {
       context.error('GetWhitelistUsers error:', error);
