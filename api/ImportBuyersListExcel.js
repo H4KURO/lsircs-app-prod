@@ -456,6 +456,10 @@ app.http('ImportBuyersListExcel', {
           }
         });
 
+        // デバッグ: 最初の3件のみ詳細ログ
+        if (buyers.length < 3) {
+          context.log(`Buyer[${buyers.length}]: unitNumber="${buyer.unitNumber}", nameRomaji="${buyer.nameRomaji}", col6value="${buyer.unitNumber}"`);
+        }
         buyers.push(buyer);
       });
 
@@ -530,6 +534,7 @@ app.http('ImportBuyersListExcel', {
           updated: updatedCount,
           total: buyers.length,
           errors: errors.length > 0 ? errors : undefined,
+          debug_first_buyer: buyers.length > 0 ? { unitNumber: buyers[0].unitNumber, nameRomaji: buyers[0].nameRomaji, id: buyers[0].id } : null,
           debug_mapping: Object.entries(columnMapping).slice(0, 8).map(([col, field]) => `col${col}→${field}`),
           debug_dataStart: dataStartRowIndex
         }
