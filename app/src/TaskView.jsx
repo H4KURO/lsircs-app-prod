@@ -429,6 +429,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   const [tasks, setTasks] = useState([]);
   const [assigneeOptions, setAssigneeOptions] = useState([]);
   const [categoryOptions, setCategoryOptions] = useState([]);
+  const [dbCategories, setDbCategories] = useState([]);
   const [tagOptions, setTagOptions] = useState([]);
   const [automationRules, setAutomationRules] = useState([]);
   const [preferences, setPreferences] = useState(() => clonePreferences(DEFAULT_PREFERENCES));
@@ -476,7 +477,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        const [tasksRes, usersRes, rulesRes, preferencesRes] = await Promise.all([
+        const [tasksRes, usersRes, rulesRes, preferencesRes, categoriesRes] = await Promise.all([
           axios.get(`${API_URL}/GetTasks`),
           axios.get(`${API_URL}/GetAllUsers`),
           axios.get(`${API_URL}/GetAutomationRules`).catch((error) => {
@@ -487,10 +488,19 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
             console.error('Failed to load task view preferences', error);
             return { data: null };
           }),
+          axios.get(`${API_URL}/GetCategories`).catch((error) => {
+            console.error('Failed to load categories', error);
+            return { data: [] };
+          }),
         ]);
 
         const normalizedTasks = normalizeTasks(tasksRes.data);
         setTasks(normalizedTasks);
+
+        const fetchedDbCategories = Array.isArray(categoriesRes?.data)
+          ? categoriesRes.data.map((c) => (typeof c === 'string' ? c.trim() : c?.name?.trim() ?? '')).filter(Boolean)
+          : [];
+        setDbCategories(fetchedDbCategories);
 
         const assignees = usersRes.data.map((user) => user.displayName);
         setAssigneeOptions(assignees);
@@ -540,10 +550,11 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
     }
   }, [onSelectedTaskChange, selectedTask]);
 
-  const derivedCategories = useMemo(
-    () => extractCategoryList(tasks).sort(sortByName),
-    [tasks],
-  );
+  const derivedCategories = useMemo(() => {
+    const fromTasks = extractCategoryList(tasks);
+    const merged = new Set([...dbCategories, ...fromTasks]);
+    return Array.from(merged).sort(sortByName);
+  }, [tasks, dbCategories]);
   const derivedTags = useMemo(() => extractTagList(tasks).sort(sortByName), [tasks]);
   const derivedAssignees = useMemo(() => {
     const names = new Set();
