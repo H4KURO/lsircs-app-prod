@@ -16,11 +16,23 @@ import {
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
+import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import { MuiColorInput } from 'mui-color-input';
 import { generateSubtaskId } from './taskUtils';
 
 const API_URL = '/api';
 const DEFAULT_CATEGORY_COLOR = '#1976d2';
+
+const PM_FLOW_TEMPLATE = {
+  tag: 'PM案件',
+  enabled: true,
+  subtasks: [
+    { title: 'ハワイからのメール内容を確認・把握', memo: '' },
+    { title: '日本語に翻訳してオーナーへ報告', memo: '' },
+    { title: 'オーナーの意向・回答を確認', memo: '' },
+    { title: 'オーナーの意向を英語でハワイへ連絡', memo: '' },
+  ],
+};
 
 function normaliseHex(value) {
   if (!value) {
@@ -253,6 +265,7 @@ export function SettingsView() {
     try {
       setDeletingRuleId(ruleId);
       await axios.delete(`${API_URL}/DeleteAutomationRule/${ruleId}`);
+      setAutomationRules((prev) => prev.filter((r) => r.id !== ruleId));
       alert('オートメーションルールを削除しました。');
     } catch (error) {
       console.error(error);
@@ -260,6 +273,19 @@ export function SettingsView() {
     } finally {
       setDeletingRuleId(null);
     }
+  };
+
+  const handleApplyPmTemplate = () => {
+    setNewRule({
+      tag: PM_FLOW_TEMPLATE.tag,
+      enabled: PM_FLOW_TEMPLATE.enabled,
+      subtasks: PM_FLOW_TEMPLATE.subtasks.map((s) => ({
+        id: generateSubtaskId(),
+        title: s.title,
+        memo: s.memo,
+        completed: false,
+      })),
+    });
   };
 
   const handleNewRuleFieldChange = (field, value) => {
@@ -422,6 +448,15 @@ export function SettingsView() {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             タグを選択したときに自動的に追加するサブタスクを設定できます。
           </Typography>
+
+          <Button
+            variant="outlined"
+            startIcon={<AutoFixHighIcon />}
+            onClick={handleApplyPmTemplate}
+            sx={{ mb: 2, alignSelf: 'flex-start' }}
+          >
+            PMフローテンプレートを使用
+          </Button>
 
           <Stack spacing={2} sx={{ mb: 3 }}>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ md: 'center' }}>
