@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "LSIRCS App API Functions",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
     "@azure/cosmos": "^4.5.0",
     "@azure/functions": "^4.4.0",
     "@azure/storage-blob": "^12.29.1",

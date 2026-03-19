@@ -32,7 +32,9 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import EmailIcon from '@mui/icons-material/Email';
 import { TaskDetailModal } from './TaskDetailModal';
+import { EmailImportModal } from './EmailImportModal';
 import {
   normalizeTask,
   normalizeTasks,
@@ -437,6 +439,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [isSavingPreferences, setIsSavingPreferences] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
+  const [emailImportOpen, setEmailImportOpen] = useState(false);
   const [statusUpdatingIds, setStatusUpdatingIds] = useState([]);
 
   const deepLinkHandledRef = useRef(null);
@@ -792,6 +795,25 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
       assignees: [],
       assignee: null,
       tags: [],
+      deadline: null,
+      subtasks: [],
+    });
+  };
+
+  const handleEmailParsed = ({ title, description, tags }) => {
+    setSelectedTask({
+      title: title || '',
+      description: description || '',
+      status: 'Started',
+      priority: 'Medium',
+      importance: 1,
+      category:
+        selectedCategories[0] && selectedCategories[0] !== DEFAULT_CATEGORY_LABEL
+          ? selectedCategories[0]
+          : null,
+      assignees: [],
+      assignee: null,
+      tags: tags || ['PM案件'],
       deadline: null,
       subtasks: [],
     });
@@ -1468,6 +1490,17 @@ const renderStatusLayout = () => {
           />
         </Stack>
         <Button
+          startIcon={<EmailIcon />}
+          variant="outlined"
+          onClick={() => setEmailImportOpen(true)}
+          sx={{
+            alignSelf: { xs: 'stretch', md: 'center' },
+            flex: { xs: '1 1 100%', md: '0 0 auto' },
+          }}
+        >
+          メールから作成
+        </Button>
+        <Button
           startIcon={<AddIcon />}
           variant="contained"
           onClick={handleOpenCreateModal}
@@ -1795,6 +1828,12 @@ const renderStatusLayout = () => {
           表示内容は自動保存されます。ビューを切り替えてチームの状況を確認しましょう。
         </Typography>
       </Paper>
+
+      <EmailImportModal
+        open={emailImportOpen}
+        onClose={() => setEmailImportOpen(false)}
+        onParsed={handleEmailParsed}
+      />
 
       {selectedTask && (
         <TaskDetailModal
