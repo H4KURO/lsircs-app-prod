@@ -41,9 +41,9 @@ const DEFAULT_SHEETS = [
   },
   {
     id: 'google-sheets-1',
-    label: 'Google Sheets',
+    label: 'Lease Renewal',
     embedUrl:
-      'https://docs.google.com/spreadsheets/d/1Zi8osWNTOZcT0LGx-bPLyWoaqDi8_ZPml8TgHUs0DJI/pubhtml?gid=1407916266&single=true&widget=true&headers=false',
+      'https://docs.google.com/spreadsheets/d/e/2PACX-1vTPobmZldKRRxPPyHP2WaQl4fy8hoSyhlUWBqiQaFCtAXrpRdBEvmMlkDz7vtEfNkPDpxSbHpOATDwx/pubhtml',
     externalUrl:
       'https://docs.google.com/spreadsheets/d/1Zi8osWNTOZcT0LGx-bPLyWoaqDi8_ZPml8TgHUs0DJI/edit?usp=sharing',
     allowFullscreen: false,
@@ -57,13 +57,19 @@ function guessEmbedUrl(url) {
   if (!url) return '';
   try {
     const u = new URL(url);
-    // Google Sheets: edit URL → pubhtml
-    const gsMatch = u.pathname.match(/\/spreadsheets\/d\/([^/]+)/);
-    if (u.hostname === 'docs.google.com' && gsMatch) {
-      const gidMatch = u.hash.match(/gid=(\d+)/);
-      const gid = gidMatch ? gidMatch[1] : (new URLSearchParams(u.search).get('gid') || '');
-      const pubBase = `https://docs.google.com/spreadsheets/d/${gsMatch[1]}/pubhtml`;
-      return gid ? `${pubBase}?gid=${gid}&single=true&widget=true&headers=false` : pubBase;
+    if (u.hostname === 'docs.google.com' && u.pathname.startsWith('/spreadsheets/')) {
+      // 公開URL（/d/e/{publishedId}/pubhtml 形式）はそのまま返す
+      if (u.pathname.includes('/d/e/')) {
+        return url;
+      }
+      // 編集URL → pubhtml に変換
+      const gsMatch = u.pathname.match(/\/spreadsheets\/d\/([^/]+)/);
+      if (gsMatch) {
+        const gidMatch = u.hash.match(/gid=(\d+)/);
+        const gid = gidMatch ? gidMatch[1] : (new URLSearchParams(u.search).get('gid') || '');
+        const pubBase = `https://docs.google.com/spreadsheets/d/${gsMatch[1]}/pubhtml`;
+        return gid ? `${pubBase}?gid=${gid}&single=true&widget=true&headers=false` : pubBase;
+      }
     }
     // Box: shared link → embed URL
     const boxMatch = u.pathname.match(/^\/s\/(.+)/);
