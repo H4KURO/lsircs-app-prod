@@ -41,7 +41,9 @@ import { useTranslation } from "react-i18next";
 import { AccessDeniedView } from "./AccessDeniedView";
 import { WhitelistView } from "./WhitelistView";
 import BuyersListView from "./BuyersListView";
+import { SpreadsheetView } from "./SpreadsheetView";
 import SecurityIcon from "@mui/icons-material/Security";
+import TableViewIcon from "@mui/icons-material/TableView";
 import CircularProgress from "@mui/material/CircularProgress";
 import ListAltIcon from "@mui/icons-material/ListAlt";
 
@@ -57,6 +59,7 @@ const ALLOWED_VIEWS = new Set([
   "profile",
   "whitelist",
   "buyersList",
+  "spreadsheet",
 ]);
 
 const parseInitialLocation = () => {
@@ -208,6 +211,7 @@ function App() {
       { text: t("nav.weeklyReports"), view: "weeklyReports", icon: <AssessmentIcon /> },
       { text: t("nav.invoices"), view: "invoices" },
       { text: "Buyers List", view: "buyersList", icon: <ListAltIcon /> },
+      { text: "スプレッドシート", view: "spreadsheet", icon: <TableViewIcon /> },
       { text: t("nav.settings"), view: "settings", icon: <SettingsIcon /> },
     ],
     [t],
@@ -337,6 +341,8 @@ function App() {
         return <ProjectTMView />;
       case "buyersList":
         return <BuyersListView />;
+      case "spreadsheet":
+        return <SpreadsheetView />;
       case "whitelist":
         return accessStatus.isAdmin
           ? <WhitelistView currentUser={user} />
