@@ -130,6 +130,13 @@ const calculateSubtaskSummary = (subtasks = []) => {
   return { total, completed, percent };
 };
 
+/** PM案件タグを持ち、4フェーズのサブタスク構成であるかを判定 */
+const isPMTask = (task) =>
+  Array.isArray(task?.tags) &&
+  task.tags.includes('PM案件') &&
+  Array.isArray(task?.subtasks) &&
+  task.subtasks.length === 4;
+
 const getStatusColor = (status) => statusColorMap[status] || 'action.disabled';
 
 const getDeadlineLabel = (deadline) => {
@@ -1070,9 +1077,13 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
               <Chip label={`進捗: ${currentStatusLabel}`} size="small" variant="outlined" />
               {hasSubtasks && (
                 <Chip
-                  label={`サブタスク: ${subtaskSummary.completed}/${subtaskSummary.total}`}
+                  label={
+                    isPMTask(task)
+                      ? `PMフェーズ: ${subtaskSummary.completed}/4`
+                      : `サブタスク: ${subtaskSummary.completed}/${subtaskSummary.total}`
+                  }
                   size="small"
-                  color={subtaskSummary.completed === subtaskSummary.total ? 'success' : 'default'}
+                  color={subtaskSummary.completed === subtaskSummary.total ? 'success' : isPMTask(task) ? 'warning' : 'default'}
                 />
               )}
             </Stack>
@@ -1080,68 +1091,155 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
         </Box>
 
         {hasSubtasks ? (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <Stack direction="row" spacing={1} alignItems="center">
-              <LinearProgress
-                variant="determinate"
-                value={subtaskSummary.percent}
-                sx={{ flexGrow: 1, height: 6, borderRadius: 3 }}
-              />
-              <Typography variant="caption" color="text.secondary" sx={{ minWidth: 72, textAlign: 'right' }}>
-                {subtaskSummary.percent}%
-              </Typography>
-            </Stack>
-            <Stack spacing={0.75}>
-              {(task.subtasks || []).map((subtask) => (
-                <Box
-                  key={subtask.id}
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 1,
-                    p: 0.75,
-                    borderRadius: 1,
-                    backgroundColor: subtask.completed ? 'action.selected' : 'transparent',
-                  }}
-                >
-                  <Checkbox
-                    checked={Boolean(subtask.completed)}
-                    onChange={() => handleToggleSubtaskCompletion(task.id, subtask.id)}
-                    icon={<RadioButtonUncheckedIcon fontSize="small" />}
-                    checkedIcon={<CheckCircleIcon fontSize="small" />}
+          isPMTask(task) ? (
+            /* ── PM フェーズ ステッパー ── */
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+              <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap">
+                {task.subtasks.map((subtask, index) => {
+                  const firstUncompletedIndex = task.subtasks.findIndex((s) => !s.completed);
+                  const isCompleted = subtask.completed;
+                  const isCurrent = index === firstUncompletedIndex;
+                  return (
+                    <Tooltip
+                      key={subtask.id}
+                      title={`フェーズ${index + 1}: ${subtask.title}`}
+                      placement="top"
+                    >
+                      <Box
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleSubtaskCompletion(task.id, subtask.id);
+                        }}
+                        sx={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: '50%',
+                          bgcolor: isCompleted
+                            ? 'primary.main'
+                            : isCurrent
+                            ? 'warning.light'
+                            : 'grey.200',
+                          border: '2px solid',
+                          borderColor: isCompleted
+                            ? 'primary.dark'
+                            : isCurrent
+                            ? 'warning.main'
+                            : 'grey.400',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          flexShrink: 0,
+                          transition: 'all 0.15s ease',
+                          '&:hover': { opacity: 0.75, transform: 'scale(1.12)' },
+                        }}
+                      >
+                        {isCompleted ? (
+                          <CheckCircleIcon sx={{ fontSize: '0.85rem', color: 'white' }} />
+                        ) : (
+                          <Typography
+                            sx={{
+                              fontSize: '0.65rem',
+                              fontWeight: 700,
+                              color: isCurrent ? 'warning.dark' : 'text.disabled',
+                              lineHeight: 1,
+                            }}
+                          >
+                            {index + 1}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Tooltip>
+                  );
+                })}
+                <Typography variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
+                  {subtaskSummary.completed === subtaskSummary.total
+                    ? '全フェーズ完了 ✓'
+                    : `フェーズ ${subtaskSummary.completed + 1} 進行中`}
+                </Typography>
+              </Stack>
+              {subtaskSummary.completed < subtaskSummary.total && (
+                <Box>
+                  <Chip
+                    label={`次のフェーズへ進む → フェーズ${subtaskSummary.completed + 1}`}
                     size="small"
+                    color="warning"
+                    variant="outlined"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const nextSubtask = task.subtasks.find((s) => !s.completed);
+                      if (nextSubtask) handleToggleSubtaskCompletion(task.id, nextSubtask.id);
+                    }}
+                    sx={{ '& .MuiChip-label': { fontSize: '0.72rem' } }}
                   />
+                </Box>
+              )}
+            </Box>
+          ) : (
+            /* ── 通常サブタスク表示 ── */
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <LinearProgress
+                  variant="determinate"
+                  value={subtaskSummary.percent}
+                  sx={{ flexGrow: 1, height: 6, borderRadius: 3 }}
+                />
+                <Typography variant="caption" color="text.secondary" sx={{ minWidth: 72, textAlign: 'right' }}>
+                  {subtaskSummary.percent}%
+                </Typography>
+              </Stack>
+              <Stack spacing={0.75}>
+                {(task.subtasks || []).map((subtask) => (
                   <Box
+                    key={subtask.id}
                     sx={{
                       display: 'flex',
-                      flexDirection: 'column',
-                      gap: 0.25,
-                      flexGrow: 1,
+                      alignItems: 'flex-start',
+                      gap: 1,
+                      p: 0.75,
+                      borderRadius: 1,
+                      backgroundColor: subtask.completed ? 'action.selected' : 'transparent',
                     }}
                   >
-                    <Typography
-                      variant="body2"
+                    <Checkbox
+                      checked={Boolean(subtask.completed)}
+                      onChange={() => handleToggleSubtaskCompletion(task.id, subtask.id)}
+                      icon={<RadioButtonUncheckedIcon fontSize="small" />}
+                      checkedIcon={<CheckCircleIcon fontSize="small" />}
+                      size="small"
+                    />
+                    <Box
                       sx={{
-                        textDecoration: subtask.completed ? 'line-through' : 'none',
-                        color: subtask.completed ? 'text.disabled' : 'text.primary',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 0.25,
+                        flexGrow: 1,
                       }}
                     >
-                      {subtask.title || '未設定のサブタスク'}
-                    </Typography>
-                    {subtask.memo ? (
                       <Typography
-                        variant="caption"
-                        color={subtask.completed ? 'text.disabled' : 'text.secondary'}
-                        sx={{ whiteSpace: 'pre-wrap' }}
+                        variant="body2"
+                        sx={{
+                          textDecoration: subtask.completed ? 'line-through' : 'none',
+                          color: subtask.completed ? 'text.disabled' : 'text.primary',
+                        }}
                       >
-                        {subtask.memo}
+                        {subtask.title || '未設定のサブタスク'}
                       </Typography>
-                    ) : null}
+                      {subtask.memo ? (
+                        <Typography
+                          variant="caption"
+                          color={subtask.completed ? 'text.disabled' : 'text.secondary'}
+                          sx={{ whiteSpace: 'pre-wrap' }}
+                        >
+                          {subtask.memo}
+                        </Typography>
+                      ) : null}
+                    </Box>
                   </Box>
-                </Box>
-              ))}
-            </Stack>
-          </Box>
+                ))}
+              </Stack>
+            </Box>
+          )
         ) : (
           <Typography variant="body2" color="text.secondary">
             サブタスクはまだありません。

@@ -41,7 +41,7 @@ app.http('ParseEmailToTask', {
     }
 
     try {
-      const client = new Anthropic.default({ apiKey });
+      const client = new Anthropic({ apiKey });
 
       const prompt = `あなたはハワイの不動産管理会社（PM会社）から日本のオフィス宛に届いた英語メールを解析するアシスタントです。
 以下のメールを日本語に翻訳し、タスク管理システム用の情報を抽出してください。
@@ -58,7 +58,7 @@ ${body || '（なし）'}
 }`;
 
       const message = await client.messages.create({
-        model: 'claude-haiku-4-5-20251001',
+        model: 'claude-haiku-4-5',
         max_tokens: 1024,
         messages: [{ role: 'user', content: prompt }],
       });
