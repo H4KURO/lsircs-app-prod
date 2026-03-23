@@ -21,6 +21,8 @@ import {
   ListItemText,
   ListItemSecondaryAction,
   Alert,
+  ToggleButtonGroup,
+  ToggleButton,
 } from '@mui/material';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -29,6 +31,8 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import SettingsIcon from '@mui/icons-material/Settings';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import GoogleSheetEditor from './GoogleSheetEditor';
 
 // ── デフォルトのシート定義 ─────────────────────────────
 const DEFAULT_SHEETS = [
@@ -38,6 +42,7 @@ const DEFAULT_SHEETS = [
     embedUrl: 'https://app.box.com/embed/s/fkanyws37r8ouw14k310ocqs9rnm5c1g',
     externalUrl: 'https://app.box.com/s/fkanyws37r8ouw14k310ocqs9rnm5c1g',
     allowFullscreen: true,
+    sheetTab: '',
   },
   {
     id: 'google-sheets-1',
@@ -47,6 +52,7 @@ const DEFAULT_SHEETS = [
     externalUrl:
       'https://docs.google.com/spreadsheets/d/1Zi8osWNTOZcT0LGx-bPLyWoaqDi8_ZPml8TgHUs0DJI/edit?usp=sharing',
     allowFullscreen: false,
+    sheetTab: 'Lease Renewal',
   },
 ];
 
@@ -95,15 +101,29 @@ function generateId() {
   return `sheet-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-// ── iframeパネル ─────────────────────────────────────────
+// Google Sheets かどうか判定
+function isGoogleSheet(url) {
+  return url?.includes('docs.google.com') ?? false;
+}
+
+// 編集URL から Spreadsheet ID を抽出
+function extractSpreadsheetId(url) {
+  return url?.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/)?.[1] ?? null;
+}
+
+// ── iframeパネル（表示/編集モード切替対応）────────────────
 function SheetPanel({ sheet }) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
+  const [viewMode, setViewMode] = useState('view'); // 'view' | 'edit'
 
   const handleReload = () => {
     setIsLoaded(false);
     setIframeKey((k) => k + 1);
   };
+
+  const spreadsheetId = extractSpreadsheetId(sheet.externalUrl);
+  const canEdit = isGoogleSheet(sheet.externalUrl) && !!spreadsheetId;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column' }}>
@@ -116,16 +136,42 @@ function SheetPanel({ sheet }) {
           minHeight: 48,
           px: 2,
           gap: 1,
+          flexWrap: 'wrap',
         }}
       >
-        <Typography variant="body2" color="text.secondary" sx={{ flexGrow: 1, fontSize: '0.78rem' }}>
+        <Typography variant="body2" color="text.secondary" sx={{ flexGrow: 1, fontSize: '0.78rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {sheet.embedUrl}
         </Typography>
-        <Tooltip title="再読み込み">
-          <Button size="small" startIcon={<RefreshIcon />} onClick={handleReload}>
-            再読み込み
-          </Button>
-        </Tooltip>
+
+        {/* 表示/編集モード切替（Google Sheetsのみ） */}
+        {canEdit && (
+          <ToggleButtonGroup
+            value={viewMode}
+            exclusive
+            onChange={(_, val) => { if (val) setViewMode(val); }}
+            size="small"
+            sx={{ height: 32 }}
+          >
+            <ToggleButton value="view" aria-label="表示モード">
+              <Tooltip title="表示モード（iframe）">
+                <VisibilityIcon fontSize="small" />
+              </Tooltip>
+            </ToggleButton>
+            <ToggleButton value="edit" aria-label="編集モード">
+              <Tooltip title="編集モード（API）">
+                <EditIcon fontSize="small" />
+              </Tooltip>
+            </ToggleButton>
+          </ToggleButtonGroup>
+        )}
+
+        {viewMode === 'view' && (
+          <Tooltip title="再読み込み">
+            <Button size="small" startIcon={<RefreshIcon />} onClick={handleReload}>
+              再読み込み
+            </Button>
+          </Tooltip>
+        )}
         <Button
           size="small"
           variant="outlined"
@@ -138,52 +184,63 @@ function SheetPanel({ sheet }) {
         </Button>
       </Toolbar>
 
-      <Box
-        sx={{
-          position: 'relative',
-          width: '100%',
-          height: 'calc(100vh - 264px)',
-          minHeight: 400,
-          backgroundColor: 'grey.100',
-        }}
-      >
-        {!isLoaded && (
-          <Box
-            sx={{
-              position: 'absolute',
-              inset: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 2,
-              zIndex: 1,
-              backgroundColor: 'grey.100',
-            }}
-          >
-            <CircularProgress size={40} />
-            <Typography variant="body2" color="text.secondary">
-              読み込み中...
-            </Typography>
-          </Box>
-        )}
-        <iframe
-          key={iframeKey}
-          src={sheet.embedUrl}
-          title={sheet.label}
-          width="100%"
-          height="100%"
-          style={{
-            border: 'none',
-            display: 'block',
-            opacity: isLoaded ? 1 : 0,
-            transition: 'opacity 0.3s ease',
+      {/* 編集モード: GoogleSheetEditor */}
+      {canEdit && viewMode === 'edit' ? (
+        <Box sx={{ p: 2 }}>
+          <GoogleSheetEditor
+            spreadsheetId={spreadsheetId}
+            sheetTab={sheet.sheetTab || ''}
+          />
+        </Box>
+      ) : (
+        /* 表示モード: iframe */
+        <Box
+          sx={{
+            position: 'relative',
+            width: '100%',
+            height: 'calc(100vh - 264px)',
+            minHeight: 400,
+            backgroundColor: 'grey.100',
           }}
-          allow={sheet.allowFullscreen ? 'fullscreen' : undefined}
-          allowFullScreen={sheet.allowFullscreen}
-          onLoad={() => setIsLoaded(true)}
-        />
-      </Box>
+        >
+          {!isLoaded && (
+            <Box
+              sx={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 2,
+                zIndex: 1,
+                backgroundColor: 'grey.100',
+              }}
+            >
+              <CircularProgress size={40} />
+              <Typography variant="body2" color="text.secondary">
+                読み込み中...
+              </Typography>
+            </Box>
+          )}
+          <iframe
+            key={iframeKey}
+            src={sheet.embedUrl}
+            title={sheet.label}
+            width="100%"
+            height="100%"
+            style={{
+              border: 'none',
+              display: 'block',
+              opacity: isLoaded ? 1 : 0,
+              transition: 'opacity 0.3s ease',
+            }}
+            allow={sheet.allowFullscreen ? 'fullscreen' : undefined}
+            allowFullScreen={sheet.allowFullscreen}
+            onLoad={() => setIsLoaded(true)}
+          />
+        </Box>
+      )}
     </Box>
   );
 }
@@ -193,6 +250,7 @@ function SheetFormDialog({ open, onClose, onSave, initial }) {
   const [label, setLabel] = useState('');
   const [externalUrl, setExternalUrl] = useState('');
   const [embedUrl, setEmbedUrl] = useState('');
+  const [sheetTab, setSheetTab] = useState('');
   const [embedAutoFilled, setEmbedAutoFilled] = useState(false);
 
   useEffect(() => {
@@ -200,6 +258,7 @@ function SheetFormDialog({ open, onClose, onSave, initial }) {
       setLabel(initial?.label ?? '');
       setExternalUrl(initial?.externalUrl ?? '');
       setEmbedUrl(initial?.embedUrl ?? '');
+      setSheetTab(initial?.sheetTab ?? '');
       setEmbedAutoFilled(false);
     }
   }, [open, initial]);
@@ -221,11 +280,13 @@ function SheetFormDialog({ open, onClose, onSave, initial }) {
       externalUrl: externalUrl.trim(),
       embedUrl: (embedUrl.trim() || externalUrl.trim()),
       allowFullscreen: isFullscreenAllowed(externalUrl.trim()),
+      sheetTab: sheetTab.trim(),
     });
     onClose();
   };
 
   const isValid = label.trim() && externalUrl.trim();
+  const showSheetTab = isGoogleSheet(externalUrl);
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -262,6 +323,16 @@ function SheetFormDialog({ open, onClose, onSave, initial }) {
             }
             FormHelperTextProps={{ sx: { color: embedAutoFilled ? 'success.main' : undefined } }}
           />
+          {showSheetTab && (
+            <TextField
+              label="シートタブ名（省略可）"
+              value={sheetTab}
+              onChange={(e) => setSheetTab(e.target.value)}
+              fullWidth
+              placeholder="例: Lease Renewal（省略時は最初のシートを使用）"
+              helperText="編集モードで使用するシートタブ名を指定します"
+            />
+          )}
           <Alert severity="info" sx={{ fontSize: '0.78rem' }}>
             <strong>Google Sheets</strong>: 「ファイル → 共有 → ウェブに公開」で公開したシートのみ埋め込み可能です。<br />
             <strong>Box</strong>: 「共有リンクを作成」し、リンクを知っている人が閲覧可能に設定してください。

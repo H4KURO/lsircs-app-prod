@@ -194,6 +194,39 @@
       "allowedRoles": [
         "anonymous"
       ]
+    },
+    {
+      "route": "/api/GetSheetData",
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/AppendSheetRow",
+      "methods": [
+        "POST"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/UpdateSheetRow",
+      "methods": [
+        "PUT"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/DeleteSheetRow",
+      "methods": [
+        "DELETE"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
     }
   ],
   "responseOverrides": {
