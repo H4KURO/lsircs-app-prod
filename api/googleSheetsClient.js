@@ -20,12 +20,27 @@ function resolveSetting(keys, fallback = null) {
  *    Node.js 20 / OpenSSL 3 では PKCS#1 の方が互換性が高い
  */
 function buildPrivateKey(raw) {
-  const pem = raw.replace(/\\n/g, '\n');
+  // --- 診断ログ（キーの中身は含めない）---
+  const hasLiteralBackslashN = raw.includes('\\n');
+  const hasActualNewline    = raw.includes('\n');
+  console.log(`[SA Key] rawLen=${raw.length} literalBackslashN=${hasLiteralBackslashN} actualNewline=${hasActualNewline}`);
+
+  // 1. literal \n → 実際の改行
+  let pem = raw.replace(/\\n/g, '\n');
+
+  // 2. \\n (ダブルエスケープ) → 実際の改行 (Azure が二重エスケープする場合)
+  pem = pem.replace(/\\n/g, '\n');
+
+  const headerOK = pem.startsWith('-----BEGIN PRIVATE KEY-----\n');
+  console.log(`[SA Key] pemLen=${pem.length} headerOK=${headerOK} newlines=${(pem.match(/\n/g)||[]).length}`);
+
   try {
-    const keyObj = crypto.createPrivateKey({ key: pem, format: 'pem' });
-    return keyObj.export({ type: 'pkcs1', format: 'pem' }).toString();
-  } catch (_) {
-    // 変換失敗時はそのまま使う
+    const keyObj = crypto.createPrivateKey({ key: Buffer.from(pem), format: 'pem' });
+    const pkcs1  = keyObj.export({ type: 'pkcs1', format: 'pem' }).toString();
+    console.log('[SA Key] PKCS8→PKCS1 conversion: SUCCESS');
+    return pkcs1;
+  } catch (err) {
+    console.log('[SA Key] PKCS8→PKCS1 conversion FAILED:', err.message);
     return pem;
   }
 }
