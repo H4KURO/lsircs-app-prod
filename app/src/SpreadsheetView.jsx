@@ -56,7 +56,7 @@ const DEFAULT_SHEETS = [
   },
 ];
 
-const STORAGE_KEY = 'spreadsheet_sheets_v1';
+const STORAGE_KEY = 'spreadsheet_sheets_v2'; // v1→v2: sheetTab追加に伴いキャッシュリセット
 
 // ── URL 自動変換（Google Sheets / Box 対応）─────────────
 function guessEmbedUrl(url) {
@@ -106,9 +106,10 @@ function isGoogleSheet(url) {
   return url?.includes('docs.google.com') ?? false;
 }
 
-// 編集URL から Spreadsheet ID を抽出
+// 編集URL から Spreadsheet ID を抽出（/d/e/ 形式の公開URLは除外）
 function extractSpreadsheetId(url) {
-  return url?.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/)?.[1] ?? null;
+  if (!url || url.includes('/spreadsheets/d/e/')) return null;
+  return url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/)?.[1] ?? null;
 }
 
 // ── iframeパネル（表示/編集モード切替対応）────────────────
