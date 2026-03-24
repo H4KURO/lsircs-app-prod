@@ -1,4 +1,5 @@
 const { google } = require('googleapis');
+const crypto = require('crypto');
 
 let cachedAuth = null;
 
@@ -10,6 +11,23 @@ function resolveSetting(keys, fallback = null) {
     }
   }
   return fallback;
+}
+
+/**
+ * Azure App Settings の秘密鍵を正規化する。
+ * 1. literal \n → 実際の改行に変換
+ * 2. PKCS#8 → PKCS#1 (RSA PRIVATE KEY) へ変換
+ *    Node.js 20 / OpenSSL 3 では PKCS#1 の方が互換性が高い
+ */
+function buildPrivateKey(raw) {
+  const pem = raw.replace(/\\n/g, '\n');
+  try {
+    const keyObj = crypto.createPrivateKey({ key: pem, format: 'pem' });
+    return keyObj.export({ type: 'pkcs1', format: 'pem' }).toString();
+  } catch (_) {
+    // 変換失敗時はそのまま使う
+    return pem;
+  }
 }
 
 function getSheetsClient() {
@@ -24,13 +42,11 @@ function getSheetsClient() {
   }
 
   if (!cachedAuth) {
-    // Azure App Settings stores \n as literal \\n — normalize here
-    const normalizedKey = privateKey.replace(/\\n/g, '\n');
-    // Use GoogleAuth with credentials (compatible with Node.js 18/20 + OpenSSL 3)
+    const finalKey = buildPrivateKey(privateKey);
     cachedAuth = new google.auth.GoogleAuth({
       credentials: {
         client_email: clientEmail,
-        private_key: normalizedKey,
+        private_key: finalKey,
       },
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
