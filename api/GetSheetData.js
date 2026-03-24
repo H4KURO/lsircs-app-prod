@@ -71,7 +71,7 @@ app.http('GetSheetData', {
       if (error.message && error.message.includes('credentials')) {
         return { status: 500, body: error.message };
       }
-      return { status: 500, body: 'シートデータの取得に失敗しました。' };
+      return { status: 500, body: `シートデータの取得に失敗しました: ${error.message || error.toString()}` };
     }
   },
 });
