@@ -17,7 +17,7 @@ app.http('AppendSheetRow', {
       }
 
       const sheets = getSheetsClient();
-      const range = sheetTab ? `${sheetTab}!A1` : 'A1';
+      const range = sheetTab ? `'${sheetTab}'!A1` : 'A1';
 
       await sheets.spreadsheets.values.append({
         spreadsheetId,

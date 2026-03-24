@@ -32,7 +32,7 @@ app.http('UpdateSheetRow', {
 
       const sheets = getSheetsClient();
       const endCol = colIndexToLetter(values.length - 1);
-      const sheetPrefix = sheetTab ? `${sheetTab}!` : '';
+      const sheetPrefix = sheetTab ? `'${sheetTab}'!` : '';
       const range = `${sheetPrefix}A${rowIndex}:${endCol}${rowIndex}`;
 
       await sheets.spreadsheets.values.update({

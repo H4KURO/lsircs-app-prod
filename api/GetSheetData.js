@@ -25,7 +25,7 @@ app.http('GetSheetData', {
       }
 
       const sheets = getSheetsClient();
-      const range = sheetTab ? `${sheetTab}` : 'A:ZZ';
+      const range = sheetTab ? `'${sheetTab}'!A:ZZ` : 'A:ZZ';
 
       const response = await sheets.spreadsheets.values.get({
         spreadsheetId,
