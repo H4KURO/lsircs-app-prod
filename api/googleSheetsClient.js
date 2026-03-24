@@ -26,12 +26,14 @@ function getSheetsClient() {
   if (!cachedAuth) {
     // Azure App Settings stores \n as literal \\n — normalize here
     const normalizedKey = privateKey.replace(/\\n/g, '\n');
-    cachedAuth = new google.auth.JWT(
-      clientEmail,
-      null,
-      normalizedKey,
-      ['https://www.googleapis.com/auth/spreadsheets']
-    );
+    // Use GoogleAuth with credentials (compatible with Node.js 18/20 + OpenSSL 3)
+    cachedAuth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: clientEmail,
+        private_key: normalizedKey,
+      },
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
   }
 
   return google.sheets({ version: 'v4', auth: cachedAuth });
