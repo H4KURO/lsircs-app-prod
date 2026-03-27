@@ -3,12 +3,7 @@
 import axios from "axios";
 import { useState, useEffect, useMemo } from "react";
 import { TaskView } from "./TaskView";
-import { CustomerView } from "./CustomerView";
-import { InvoiceView } from "./InvoiceView";
 import { DashboardView } from "./DashboardView";
-import { ManagedPropertiesView } from "./ManagedPropertiesView";
-import { WeeklyLeasingReportView } from "./WeeklyLeasingReportView";
-import { ProjectTMView } from "./ProjectTMView";
 import "./App.css";
 import {
   Box,
@@ -32,7 +27,6 @@ import MenuIcon from "@mui/icons-material/Menu";
 import GoogleIcon from "@mui/icons-material/Google";
 import MicrosoftIcon from "@mui/icons-material/Microsoft";
 import LogoutIcon from "@mui/icons-material/Logout";
-import AssessmentIcon from "@mui/icons-material/Assessment";
 import { SettingsView } from "./SettingsView";
 import SettingsIcon from "@mui/icons-material/Settings";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
@@ -40,25 +34,17 @@ import { ProfileView } from "./ProfileView";
 import { useTranslation } from "react-i18next";
 import { AccessDeniedView } from "./AccessDeniedView";
 import { WhitelistView } from "./WhitelistView";
-import BuyersListView from "./BuyersListView";
 import { SpreadsheetView } from "./SpreadsheetView";
 import SecurityIcon from "@mui/icons-material/Security";
 import TableViewIcon from "@mui/icons-material/TableView";
 import CircularProgress from "@mui/material/CircularProgress";
-import ListAltIcon from "@mui/icons-material/ListAlt";
 
 const ALLOWED_VIEWS = new Set([
   "dashboard",
   "tasks",
-  "customers",
-  "managedProperties",
-  "weeklyReports",
-  "invoices",
-  "projectTm",
   "settings",
   "profile",
   "whitelist",
-  "buyersList",
   "spreadsheet",
 ]);
 
@@ -205,12 +191,6 @@ function App() {
     () => [
       { text: t("nav.dashboard"), view: "dashboard" },
       { text: t("nav.tasks"), view: "tasks" },
-      { text: t("nav.customers"), view: "customers" },
-      { text: t("nav.managedProperties"), view: "managedProperties" },
-      { text: t("nav.projectTm"), view: "projectTm" },
-      { text: t("nav.weeklyReports"), view: "weeklyReports", icon: <AssessmentIcon /> },
-      { text: t("nav.invoices"), view: "invoices" },
-      { text: "Buyers List", view: "buyersList", icon: <ListAltIcon /> },
       { text: "スプレッドシート", view: "spreadsheet", icon: <TableViewIcon /> },
       { text: t("nav.settings"), view: "settings", icon: <SettingsIcon /> },
     ],
@@ -325,22 +305,10 @@ function App() {
         return <DashboardView user={user} />;
       case "tasks":
         return <TaskView initialTaskId={deepLinkTaskId} onSelectedTaskChange={handleTaskSelectionChange} />;
-      case "customers":
-        return <CustomerView />;
-      case "managedProperties":
-        return <ManagedPropertiesView />;
-      case "weeklyReports":
-        return <WeeklyLeasingReportView />;
-      case "invoices":
-        return <InvoiceView />;
       case "profile":
         return <ProfileView />;
       case "settings":
         return <SettingsView />;
-      case "projectTm":
-        return <ProjectTMView />;
-      case "buyersList":
-        return <BuyersListView />;
       case "spreadsheet":
         return <SpreadsheetView />;
       case "whitelist":
