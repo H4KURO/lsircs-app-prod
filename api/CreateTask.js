@@ -70,6 +70,8 @@ app.http('CreateTask', {
         deadline: payload?.deadline ?? null,
         subtasks: normalizeSubtasksInput(payload?.subtasks),
         attachments: [],
+        conversationId: payload?.conversationId ?? null,
+        emailNotes: [],
         createdAt: now,
         createdById: clientPrincipal.userId,
         createdByName: clientPrincipal.userDetails,
