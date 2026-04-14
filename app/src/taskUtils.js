@@ -67,6 +67,7 @@ const normalizeSubtask = (subtask, index) => {
     completed,
     order: typeof subtask.order === 'number' ? subtask.order : index,
     memo,
+    buyerLink: subtask.buyerLink ?? null,
   };
 };
 
