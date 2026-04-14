@@ -46,6 +46,7 @@ function normalizeSubtasksInput(input) {
       memo,
       completed,
       order: orderValue,
+      buyerLink: rawItem?.buyerLink ?? null,
     });
   });
 

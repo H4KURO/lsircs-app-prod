@@ -23,6 +23,30 @@ async function getSheetsClient() {
   return google.sheets({ version: 'v4', auth: client });
 }
 
+// ── シートごとのヘッダー行数 ─────────────────────────────────
+const SHEET_HEADER_ROWS = {
+  'Buyers list': 3,
+  'Xld': 3,
+  'Comission & Referral': 1,
+};
+
+// rowIndex（0始まりのデータ行）をシートの行番号（1始まり）に変換
+function getSheetDataRow(sheetName, rowIndex) {
+  const headerRows = SHEET_HEADER_ROWS[sheetName] ?? 3;
+  return headerRows + 1 + rowIndex;
+}
+
+// 複数セルを一括取得（バイヤー同期用）
+async function getBatchCellValues(ranges) {
+  const sheets = await getSheetsClient();
+  const response = await sheets.spreadsheets.values.batchGet({
+    spreadsheetId: SPREADSHEET_ID,
+    ranges,
+    valueRenderOption: 'UNFORMATTED_VALUE',
+  });
+  return response.data.valueRanges || [];
+}
+
 // Google Drive API経由でスプレッドシートをxlsx形式でエクスポート
 // 書式（枠線・色・結合セル・フォント等）がすべて保持される
 async function exportSpreadsheetAsExcel(spreadsheetId) {
@@ -79,4 +103,6 @@ module.exports = {
   updateSheetValues,
   appendSheetValues,
   exportSpreadsheetAsExcel,
+  getSheetDataRow,
+  getBatchCellValues,
 };
