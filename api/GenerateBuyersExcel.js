@@ -1,4 +1,5 @@
 const { app } = require('@azure/functions');
+const ExcelJS = require('exceljs');
 const { SPREADSHEET_ID, exportSpreadsheetAsExcel } = require('./sheetsClient');
 
 const n8nSecretKey = process.env.N8N_SECRET_KEY;
@@ -19,9 +20,33 @@ function isAuthorized(request) {
   return !!parseClientPrincipal(request);
 }
 
+// Drive APIのエクスポートバッファに全シートの保護を追加する
+async function addSheetProtection(buffer) {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+
+  workbook.worksheets.forEach((ws) => {
+    ws.protect(undefined, {
+      sheet: true,
+      selectLockedCells: true,   // セル選択は許可（閲覧・コピー用）
+      selectUnlockedCells: false,
+      formatCells: false,
+      formatColumns: false,
+      formatRows: false,
+      insertRows: false,
+      insertColumns: false,
+      deleteRows: false,
+      deleteColumns: false,
+      sort: false,
+      autoFilter: false,
+    });
+  });
+
+  return Buffer.from(await workbook.xlsx.writeBuffer());
+}
+
 // GET /api/GenerateBuyersExcel
-// Google Drive API経由でスプレッドシートをxlsxエクスポート
-// 枠線・色・結合セル・ドロップダウン等の書式がすべて保持される
+// Google Drive API経由でxlsxエクスポート後、全シートを読み取り専用保護して返す
 app.http('GenerateBuyersExcel', {
   methods: ['GET'],
   authLevel: 'anonymous',
@@ -32,19 +57,20 @@ app.http('GenerateBuyersExcel', {
 
     try {
       context.log('GenerateBuyersExcel: exporting from Google Drive...');
+      const rawBuffer = await exportSpreadsheetAsExcel(SPREADSHEET_ID);
+      context.log(`GenerateBuyersExcel: exported ${rawBuffer.byteLength} bytes, adding sheet protection...`);
 
-      const buffer = await exportSpreadsheetAsExcel(SPREADSHEET_ID);
-
-      context.log(`GenerateBuyersExcel: exported ${buffer.byteLength} bytes`);
+      const protectedBuffer = await addSheetProtection(rawBuffer);
+      context.log(`GenerateBuyersExcel: protected file size ${protectedBuffer.byteLength} bytes`);
 
       return {
         status: 200,
-        body: buffer,
+        body: protectedBuffer,
         headers: {
           'Content-Type':
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           'Content-Disposition': 'attachment; filename="TPWV_Buyers_List.xlsx"',
-          'Content-Length': buffer.byteLength.toString(),
+          'Content-Length': protectedBuffer.byteLength.toString(),
         },
       };
     } catch (error) {
