@@ -1,0 +1,7 @@
+# Google Cloud service account credentials - NEVER commit these
+*-service-account*.json
+lsircs-app-*.json
+
+# Local settings
+.env
+local.settings.json
