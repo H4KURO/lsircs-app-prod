@@ -10,7 +10,10 @@ function getAuth() {
   const credentials = JSON.parse(credentialsJson);
   return new google.auth.GoogleAuth({
     credentials,
-    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    scopes: [
+      'https://www.googleapis.com/auth/spreadsheets',
+      'https://www.googleapis.com/auth/drive.readonly',
+    ],
   });
 }
 
@@ -18,6 +21,22 @@ async function getSheetsClient() {
   const auth = getAuth();
   const client = await auth.getClient();
   return google.sheets({ version: 'v4', auth: client });
+}
+
+// Google Drive API経由でスプレッドシートをxlsx形式でエクスポート
+// 書式（枠線・色・結合セル・フォント等）がすべて保持される
+async function exportSpreadsheetAsExcel(spreadsheetId) {
+  const auth = getAuth();
+  const client = await auth.getClient();
+  const drive = google.drive({ version: 'v3', auth: client });
+  const response = await drive.files.export(
+    {
+      fileId: spreadsheetId,
+      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    },
+    { responseType: 'arraybuffer' },
+  );
+  return Buffer.from(response.data);
 }
 
 async function getSheetValues(range) {
@@ -59,4 +78,5 @@ module.exports = {
   getSheetValues,
   updateSheetValues,
   appendSheetValues,
+  exportSpreadsheetAsExcel,
 };

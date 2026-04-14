@@ -1,10 +1,5 @@
 const { app } = require('@azure/functions');
-const ExcelJS = require('exceljs');
-const { getSheetValues } = require('./sheetsClient');
-
-const BUYERS_SHEET = 'Buyers list';
-const XLD_SHEET = 'Xld';
-const COMMISSION_SHEET = 'Comission & Referral';
+const { SPREADSHEET_ID, exportSpreadsheetAsExcel } = require('./sheetsClient');
 
 const n8nSecretKey = process.env.N8N_SECRET_KEY;
 
@@ -24,17 +19,9 @@ function isAuthorized(request) {
   return !!parseClientPrincipal(request);
 }
 
-async function buildSheet(workbook, sheetName, values) {
-  const ws = workbook.addWorksheet(sheetName);
-  if (!values || values.length === 0) return;
-  values.forEach((row) => {
-    ws.addRow(row);
-  });
-}
-
 // GET /api/GenerateBuyersExcel
-// Called by Power Automate every 5 minutes
-// Returns Excel file (.xlsx) with all 3 sheets from Google Sheets
+// Google Drive API経由でスプレッドシートをxlsxエクスポート
+// 枠線・色・結合セル・ドロップダウン等の書式がすべて保持される
 app.http('GenerateBuyersExcel', {
   methods: ['GET'],
   authLevel: 'anonymous',
@@ -44,34 +31,15 @@ app.http('GenerateBuyersExcel', {
     }
 
     try {
-      context.log('GenerateBuyersExcel: fetching data from Google Sheets...');
+      context.log('GenerateBuyersExcel: exporting from Google Drive...');
 
-      // Fetch all 3 sheets in parallel
-      const [buyersValues, xldValues, commissionValues] = await Promise.all([
-        getSheetValues(`'${BUYERS_SHEET}'`),
-        getSheetValues(`'${XLD_SHEET}'`),
-        getSheetValues(`'${COMMISSION_SHEET}'`),
-      ]);
+      const buffer = await exportSpreadsheetAsExcel(SPREADSHEET_ID);
 
-      context.log(
-        `GenerateBuyersExcel: Buyers=${buyersValues.length} rows, Xld=${xldValues.length} rows, Commission=${commissionValues.length} rows`,
-      );
-
-      // Build Excel workbook
-      const workbook = new ExcelJS.Workbook();
-      workbook.creator = 'LSIRCS App';
-      workbook.created = new Date();
-
-      await buildSheet(workbook, BUYERS_SHEET, buyersValues);
-      await buildSheet(workbook, XLD_SHEET, xldValues);
-      await buildSheet(workbook, COMMISSION_SHEET, commissionValues);
-
-      // Write to buffer
-      const buffer = await workbook.xlsx.writeBuffer();
+      context.log(`GenerateBuyersExcel: exported ${buffer.byteLength} bytes`);
 
       return {
         status: 200,
-        body: Buffer.from(buffer),
+        body: buffer,
         headers: {
           'Content-Type':
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
