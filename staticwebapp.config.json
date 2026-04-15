@@ -202,6 +202,81 @@
       ]
     },
     {
+      "route": "/api/GetBuyers",
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/UpdateBuyer",
+      "methods": [
+        "POST"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/CreateBuyer",
+      "methods": [
+        "POST"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/GetXldBuyers",
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/UpdateXldBuyer",
+      "methods": [
+        "POST"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/GetCommissions",
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/UpdateCommission",
+      "methods": [
+        "POST"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/GenerateBuyersExcel",
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/GetBuyerSyncStatus",
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/UpdateBuyerCell",
+      "methods": [
+        "POST"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
       "route": "/api/AppendSheetRow",
       "methods": [
         "POST"
