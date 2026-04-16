@@ -1,5 +1,6 @@
 const { app } = require('@azure/functions');
 const Anthropic = require('@anthropic-ai/sdk');
+const pdfParse = require('pdf-parse');
 const documentTypes = require('./pdfDocumentTypes');
 
 function parseClientPrincipal(request) {
@@ -39,35 +40,25 @@ app.http('PdfExtract', {
         return { status: 400, body: `Unknown documentTypeId: ${documentTypeId}` };
       }
 
-      // Claude でPDF直接読み取り＋構造化（1ステップ）
-      context.log(`PdfExtract: Starting Claude PDF extraction for type=${documentTypeId} by ${clientPrincipal.userDetails}`);
+      // Step 1: pdf-parse でテキスト抽出
+      context.log(`PdfExtract: Extracting text from PDF for type=${documentTypeId} by ${clientPrincipal.userDetails}`);
+      const pdfBuffer = Buffer.from(base64, 'base64');
+      const pdfData = await pdfParse(pdfBuffer);
+      const extractedText = pdfData.text;
+      context.log(`PdfExtract: Text extracted (${extractedText.length} chars, ${pdfData.numpages} pages)`);
+
+      // Step 2: Claude Haiku で項目抽出・構造化
       const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
       if (!anthropicApiKey) throw new Error('ANTHROPIC_API_KEY is not set.');
 
-      const anthropic = new Anthropic({
-        apiKey: anthropicApiKey,
-        defaultHeaders: { 'anthropic-beta': 'pdfs-2024-09-25' },
-      });
+      const anthropic = new Anthropic({ apiKey: anthropicApiKey });
       const claudeMessage = await anthropic.messages.create({
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-3-5-haiku-20241022',
         max_tokens: 1024,
         messages: [
           {
             role: 'user',
-            content: [
-              {
-                type: 'document',
-                source: {
-                  type: 'base64',
-                  media_type: 'application/pdf',
-                  data: base64,
-                },
-              },
-              {
-                type: 'text',
-                text: docType.claudePrompt,
-              },
-            ],
+            content: `${docType.claudePrompt}\n\n--- PDFから抽出したテキスト ---\n${extractedText}`,
           },
         ],
       });
@@ -78,15 +69,18 @@ app.http('PdfExtract', {
       // JSON パース
       let extractedFields;
       try {
-        // コードブロック記号が混入した場合に除去
-        const cleaned = rawJson.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+        const cleaned = rawJson
+          .replace(/^```json\s*/i, '')
+          .replace(/^```\s*/i, '')
+          .replace(/\s*```$/i, '')
+          .trim();
         extractedFields = JSON.parse(cleaned);
       } catch {
         context.log('PdfExtract: Claude returned non-JSON, using raw text');
         extractedFields = { rawText: rawJson };
       }
 
-      context.log(`PdfExtract: Claude extraction complete for type=${documentTypeId} by ${clientPrincipal.userDetails}`);
+      context.log(`PdfExtract: Complete for type=${documentTypeId} by ${clientPrincipal.userDetails}`);
 
       return {
         status: 200,
