@@ -1,6 +1,6 @@
 const { app } = require('@azure/functions');
-const Anthropic = require('@anthropic-ai/sdk');
 const pdfParse = require('pdf-parse');
+const axios = require('axios');
 const documentTypes = require('./pdfDocumentTypes');
 
 function parseClientPrincipal(request) {
@@ -16,7 +16,8 @@ function parseClientPrincipal(request) {
 // POST /api/PdfExtract
 // Body: { base64: string, documentTypeId: string }
 // Returns: { fields: { [key]: string }, documentType: object }
-// ※ 個人情報を含む抽出結果はログに記録しない
+// ※ Azure東アジアからAnthropicへの直接接続はCloudflareにブロックされるため
+//   n8nを経由してClaude APIを呼び出す
 app.http('PdfExtract', {
   methods: ['POST'],
   authLevel: 'anonymous',
@@ -34,52 +35,31 @@ app.http('PdfExtract', {
         return { status: 400, body: 'base64 and documentTypeId are required.' };
       }
 
-      // ドキュメント種別の取得
       const docType = documentTypes.find((d) => d.id === documentTypeId);
       if (!docType) {
         return { status: 400, body: `Unknown documentTypeId: ${documentTypeId}` };
       }
 
-      // Step 1: pdf-parse でテキスト抽出
-      context.log(`PdfExtract: Extracting text from PDF for type=${documentTypeId} by ${clientPrincipal.userDetails}`);
+      // Step 1: pdf-parse でローカルテキスト抽出（無料・外部API不要）
+      context.log(`PdfExtract: Extracting text for type=${documentTypeId} by ${clientPrincipal.userDetails}`);
       const pdfBuffer = Buffer.from(base64, 'base64');
       const pdfData = await pdfParse(pdfBuffer);
       const extractedText = pdfData.text;
       context.log(`PdfExtract: Text extracted (${extractedText.length} chars, ${pdfData.numpages} pages)`);
 
-      // Step 2: Claude Haiku で項目抽出・構造化
-      const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
-      if (!anthropicApiKey) throw new Error('ANTHROPIC_API_KEY is not set.');
+      // Step 2: n8n webhook 経由で Claude Haiku 呼び出し
+      // ※ Azure東アジアからAnthropicへの直接呼び出しはネットワーク制限あり
+      const webhookUrl = process.env.N8N_PDF_EXTRACT_WEBHOOK_URL;
+      if (!webhookUrl) throw new Error('N8N_PDF_EXTRACT_WEBHOOK_URL is not set.');
 
-      const anthropic = new Anthropic({ apiKey: anthropicApiKey });
-      const claudeMessage = await anthropic.messages.create({
-        model: 'claude-3-5-haiku-20241022',
-        max_tokens: 1024,
-        messages: [
-          {
-            role: 'user',
-            content: `${docType.claudePrompt}\n\n--- PDFから抽出したテキスト ---\n${extractedText}`,
-          },
-        ],
-      });
+      context.log(`PdfExtract: Calling n8n webhook for type=${documentTypeId}`);
+      const n8nRes = await axios.post(
+        webhookUrl,
+        { text: extractedText, prompt: docType.claudePrompt },
+        { timeout: 60000 },
+      );
 
-      const rawJson = claudeMessage.content[0].text.trim();
-      // ※ 個人情報を含むため rawJson はログに出力しない
-
-      // JSON パース
-      let extractedFields;
-      try {
-        const cleaned = rawJson
-          .replace(/^```json\s*/i, '')
-          .replace(/^```\s*/i, '')
-          .replace(/\s*```$/i, '')
-          .trim();
-        extractedFields = JSON.parse(cleaned);
-      } catch {
-        context.log('PdfExtract: Claude returned non-JSON, using raw text');
-        extractedFields = { rawText: rawJson };
-      }
-
+      const extractedFields = n8nRes.data.fields;
       context.log(`PdfExtract: Complete for type=${documentTypeId} by ${clientPrincipal.userDetails}`);
 
       return {
