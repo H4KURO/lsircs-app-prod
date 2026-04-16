@@ -179,7 +179,7 @@ export function PdfImportDialog({ open, onClose, onImported }) {
       {extracting && (
         <Box sx={{ mt: 2 }}>
           <Typography variant="caption" color="text.secondary" gutterBottom>
-            AI処理中（Gemini → Claude）...
+            AI処理中（Claude PDF読み取り中）...
           </Typography>
           <LinearProgress />
         </Box>

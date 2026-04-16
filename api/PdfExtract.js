@@ -1,5 +1,4 @@
 const { app } = require('@azure/functions');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
 const Anthropic = require('@anthropic-ai/sdk');
 const documentTypes = require('./pdfDocumentTypes');
 
@@ -40,30 +39,8 @@ app.http('PdfExtract', {
         return { status: 400, body: `Unknown documentTypeId: ${documentTypeId}` };
       }
 
-      // Step 1: Gemini API でPDF全文抽出
-      context.log(`PdfExtract: Starting Gemini extraction for type=${documentTypeId} by ${clientPrincipal.userDetails}`);
-      const geminiApiKey = process.env.GEMINI_API_KEY;
-      if (!geminiApiKey) throw new Error('GEMINI_API_KEY is not set.');
-
-      const genAI = new GoogleGenerativeAI(geminiApiKey);
-      const geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-
-      const geminiResult = await geminiModel.generateContent([
-        {
-          inlineData: {
-            mimeType: 'application/pdf',
-            data: base64,
-          },
-        },
-        {
-          text: 'このPDFの全テキストを抽出してください。フォームの項目名と入力値、チェックボックスの選択状態（✓や数字が記入されているものを選択済みとして）をすべて含めてください。',
-        },
-      ]);
-
-      const extractedText = geminiResult.response.text();
-      context.log(`PdfExtract: Gemini extraction complete (${extractedText.length} chars)`);
-
-      // Step 2: Claude Haiku で項目抽出・構造化
+      // Claude でPDF直接読み取り＋構造化（1ステップ）
+      context.log(`PdfExtract: Starting Claude PDF extraction for type=${documentTypeId} by ${clientPrincipal.userDetails}`);
       const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
       if (!anthropicApiKey) throw new Error('ANTHROPIC_API_KEY is not set.');
 
@@ -74,7 +51,20 @@ app.http('PdfExtract', {
         messages: [
           {
             role: 'user',
-            content: `${docType.claudePrompt}\n\n--- ドキュメントのテキスト ---\n${extractedText}`,
+            content: [
+              {
+                type: 'document',
+                source: {
+                  type: 'base64',
+                  media_type: 'application/pdf',
+                  data: base64,
+                },
+              },
+              {
+                type: 'text',
+                text: docType.claudePrompt,
+              },
+            ],
           },
         ],
       });
@@ -93,7 +83,7 @@ app.http('PdfExtract', {
         extractedFields = { rawText: rawJson };
       }
 
-      context.log(`PdfExtract: Complete for type=${documentTypeId} by ${clientPrincipal.userDetails}`);
+      context.log(`PdfExtract: Claude extraction complete for type=${documentTypeId} by ${clientPrincipal.userDetails}`);
 
       return {
         status: 200,
