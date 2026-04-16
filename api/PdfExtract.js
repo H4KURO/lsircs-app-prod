@@ -44,35 +44,33 @@ app.http('PdfExtract', {
       const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
       if (!anthropicApiKey) throw new Error('ANTHROPIC_API_KEY is not set.');
 
-      const anthropic = new Anthropic({ apiKey: anthropicApiKey });
-      const claudeMessage = await anthropic.messages.create(
-        {
-          model: 'claude-3-5-haiku-20241022',
-          max_tokens: 1024,
-          messages: [
-            {
-              role: 'user',
-              content: [
-                {
-                  type: 'document',
-                  source: {
-                    type: 'base64',
-                    media_type: 'application/pdf',
-                    data: base64,
-                  },
+      const anthropic = new Anthropic({
+        apiKey: anthropicApiKey,
+        defaultHeaders: { 'anthropic-beta': 'pdfs-2024-09-25' },
+      });
+      const claudeMessage = await anthropic.messages.create({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 1024,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'document',
+                source: {
+                  type: 'base64',
+                  media_type: 'application/pdf',
+                  data: base64,
                 },
-                {
-                  type: 'text',
-                  text: docType.claudePrompt,
-                },
-              ],
-            },
-          ],
-        },
-        {
-          headers: { 'anthropic-beta': 'pdfs-2024-09-25' },
-        },
-      );
+              },
+              {
+                type: 'text',
+                text: docType.claudePrompt,
+              },
+            ],
+          },
+        ],
+      });
 
       const rawJson = claudeMessage.content[0].text.trim();
       // ※ 個人情報を含むため rawJson はログに出力しない
