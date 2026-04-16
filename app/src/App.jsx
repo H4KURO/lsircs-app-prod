@@ -36,9 +36,11 @@ import { AccessDeniedView } from "./AccessDeniedView";
 import { WhitelistView } from "./WhitelistView";
 import { SpreadsheetView } from "./SpreadsheetView";
 import { BuyersListView } from "./BuyersListView";
+import { MahanaProspectsView } from "./MahanaProspectsView";
 import SecurityIcon from "@mui/icons-material/Security";
 import TableViewIcon from "@mui/icons-material/TableView";
 import PeopleIcon from "@mui/icons-material/People";
+import ApartmentIcon from "@mui/icons-material/Apartment";
 import CircularProgress from "@mui/material/CircularProgress";
 
 const ALLOWED_VIEWS = new Set([
@@ -49,6 +51,7 @@ const ALLOWED_VIEWS = new Set([
   "whitelist",
   "spreadsheet",
   "buyers",
+  "mahana",
 ]);
 
 const parseInitialLocation = () => {
@@ -195,6 +198,7 @@ function App() {
       { text: t("nav.dashboard"), view: "dashboard" },
       { text: t("nav.tasks"), view: "tasks" },
       { text: "バイヤーリスト", view: "buyers", icon: <PeopleIcon /> },
+      { text: "Mahana Prospects", view: "mahana", icon: <ApartmentIcon /> },
       { text: "スプレッドシート", view: "spreadsheet", icon: <TableViewIcon /> },
       { text: t("nav.settings"), view: "settings", icon: <SettingsIcon /> },
     ],
@@ -315,6 +319,8 @@ function App() {
         return <SettingsView />;
       case "buyers":
         return <BuyersListView />;
+      case "mahana":
+        return <MahanaProspectsView />;
       case "spreadsheet":
         return <SpreadsheetView />;
       case "whitelist":

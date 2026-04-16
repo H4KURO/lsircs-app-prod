@@ -28,6 +28,7 @@ const SHEET_HEADER_ROWS = {
   'Buyers list': 3,
   'Xld': 3,
   'Comission & Referral': 1,
+  'Mahana Prospects': 1,
 };
 
 // rowIndex（0始まりのデータ行）をシートの行番号（1始まり）に変換
