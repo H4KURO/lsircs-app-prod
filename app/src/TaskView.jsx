@@ -43,21 +43,33 @@ import {
   groupTasksByCategoryAndTag,
   DEFAULT_CATEGORY_LABEL,
   DEFAULT_TAG_LABEL,
-  getNextTaskStatus
+  getNextTaskStatus,
+  ALL_TASK_STATUS_DEFINITIONS,
 } from './taskUtils';
 
 const API_URL = '/api';
 const statusColorMap = {
-  Done: 'success.main',
-  Inprogress: 'warning.main',
   Started: 'info.main',
+  WaitingEstimate: 'info.main',
+  Inprogress: 'warning.main',
+  WaitingOwnerApproval: 'warning.main',
+  WaitingCompletionReport: 'warning.main',
+  Done: 'success.main',
 };
 
-const STATUS_DEFINITIONS = [
-  { value: 'Started', label: '着手前' },
-  { value: 'Inprogress', label: '進行中' },
-  { value: 'Done', label: '完了' },
-];
+const STATUS_LABEL_JA = {
+  Started: '着手前',
+  WaitingEstimate: '見積もり待ち',
+  Inprogress: '進行中',
+  WaitingOwnerApproval: 'オーナー承諾待ち',
+  WaitingCompletionReport: '完了報告待ち',
+  Done: '完了',
+};
+
+const STATUS_DEFINITIONS = ALL_TASK_STATUS_DEFINITIONS.map((d) => ({
+  value: d.value,
+  label: STATUS_LABEL_JA[d.value] ?? d.value,
+}));
 
 const UNKNOWN_STATUS_KEY = '__unknown';
 const DEFAULT_STATUS_LABEL = 'ステータス未設定';
@@ -873,7 +885,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
         tasks.find((candidate) => String(candidate.id) === normalizedId) ?? task,
       );
 
-      const nextStatus = getNextTaskStatus(baseTask.status);
+      const nextStatus = getNextTaskStatus(baseTask.status, baseTask.category);
       if (!nextStatus) {
         return;
       }
@@ -1042,7 +1054,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
     const hasSubtasks = subtaskSummary.total > 0;
     const normalizedTaskId =
       task?.id != null ? String(task.id) : task?.taskId != null ? String(task.taskId) : null;
-    const nextStatus = getNextTaskStatus(task.status);
+    const nextStatus = getNextTaskStatus(task.status, task.category);
     const nextStatusLabel = nextStatus ? getStatusLabel(nextStatus) : null;
     const isAdvancing = normalizedTaskId ? statusUpdatingIds.includes(normalizedTaskId) : false;
     const currentStatusLabel = getStatusLabel(task.status);

@@ -1,9 +1,27 @@
 export const DEFAULT_CATEGORY_LABEL = '未設定カテゴリ';
 export const DEFAULT_TAG_LABEL = '未設定タグ';
 
+export const PM_CATEGORY = 'PM';
+
 export const TASK_STATUS_DEFINITIONS = Object.freeze([
   { value: 'Started', translationKey: 'taskView.statuses.started' },
   { value: 'Inprogress', translationKey: 'taskView.statuses.inProgress' },
+  { value: 'Done', translationKey: 'taskView.statuses.done' },
+]);
+
+export const PM_TASK_STATUS_DEFINITIONS = Object.freeze([
+  { value: 'WaitingEstimate', translationKey: 'taskView.statuses.waitingEstimate' },
+  { value: 'WaitingOwnerApproval', translationKey: 'taskView.statuses.waitingOwnerApproval' },
+  { value: 'WaitingCompletionReport', translationKey: 'taskView.statuses.waitingCompletionReport' },
+  { value: 'Done', translationKey: 'taskView.statuses.done' },
+]);
+
+export const ALL_TASK_STATUS_DEFINITIONS = Object.freeze([
+  { value: 'Started', translationKey: 'taskView.statuses.started' },
+  { value: 'WaitingEstimate', translationKey: 'taskView.statuses.waitingEstimate' },
+  { value: 'Inprogress', translationKey: 'taskView.statuses.inProgress' },
+  { value: 'WaitingOwnerApproval', translationKey: 'taskView.statuses.waitingOwnerApproval' },
+  { value: 'WaitingCompletionReport', translationKey: 'taskView.statuses.waitingCompletionReport' },
   { value: 'Done', translationKey: 'taskView.statuses.done' },
 ]);
 
@@ -14,12 +32,19 @@ export const TASK_STATUS_INDEX_MAP = TASK_STATUS_VALUES.reduce((acc, status, ind
   return acc;
 }, {});
 
-export const getNextTaskStatus = (currentStatus) => {
-  if (!currentStatus || !(currentStatus in TASK_STATUS_INDEX_MAP)) {
-    return TASK_STATUS_VALUES[0] ?? null;
+export const getStatusDefinitions = (category) =>
+  category === PM_CATEGORY ? PM_TASK_STATUS_DEFINITIONS : TASK_STATUS_DEFINITIONS;
+
+export const getInitialStatus = (category) =>
+  getStatusDefinitions(category)[0]?.value ?? 'Started';
+
+export const getNextTaskStatus = (currentStatus, category) => {
+  const definitions = getStatusDefinitions(category);
+  const values = definitions.map((d) => d.value);
+  if (!currentStatus || !values.includes(currentStatus)) {
+    return values[0] ?? null;
   }
-  const currentIndex = TASK_STATUS_INDEX_MAP[currentStatus];
-  const nextStatus = TASK_STATUS_VALUES[currentIndex + 1];
+  const nextStatus = values[values.indexOf(currentStatus) + 1];
   return nextStatus ?? null;
 };
 

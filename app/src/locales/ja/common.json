@@ -82,6 +82,9 @@
     "statuses": {
       "started": "着手前",
       "inProgress": "進行中",
+      "waitingEstimate": "見積もり待ち",
+      "waitingOwnerApproval": "オーナー承諾待ち",
+      "waitingCompletionReport": "完了報告待ち",
       "done": "完了",
       "unknown": "ステータス未設定"
     },

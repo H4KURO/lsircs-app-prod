@@ -37,7 +37,7 @@ import SyncIcon from '@mui/icons-material/Sync';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { useTranslation } from 'react-i18next';
-import { normalizeTask, generateSubtaskId, TASK_STATUS_DEFINITIONS, TASK_STATUS_VALUES } from './taskUtils';
+import { normalizeTask, generateSubtaskId, TASK_STATUS_VALUES, getStatusDefinitions, getInitialStatus, PM_CATEGORY } from './taskUtils';
 import { AttachmentManager } from './AttachmentManager';
 
 const API_URL = '/api';
@@ -202,15 +202,6 @@ export function TaskDetailModal({
     ],
     [t],
   );
-  const statusOptions = useMemo(
-    () =>
-      TASK_STATUS_DEFINITIONS.map((definition) => ({
-        value: definition.value,
-        label: t(definition.translationKey, { defaultValue: definition.value }),
-      })),
-    [t],
-  );
-
   const [editableTask, setEditableTask] = useState(() => normalizeTask(task));
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
 
@@ -223,6 +214,15 @@ export function TaskDetailModal({
   // バイヤーリンクダイアログ
   const [buyerSearchOpen, setBuyerSearchOpen] = useState(false);
   const [buyerLinkTargetId, setBuyerLinkTargetId] = useState(null);
+
+  const statusOptions = useMemo(
+    () =>
+      getStatusDefinitions(editableTask?.category).map((definition) => ({
+        value: definition.value,
+        label: t(definition.translationKey, { defaultValue: definition.value }),
+      })),
+    [editableTask?.category, t],
+  );
 
   const resolvedStatusValue = useMemo(() => {
     const fallback = statusOptions[0]?.value ?? TASK_STATUS_VALUES[0] ?? '';
@@ -519,10 +519,13 @@ export function TaskDetailModal({
             options={categoryOptions}
             value={editableTask.category || null}
             onChange={(event, newValue) => {
-              setEditableTask((prev) => ({
-                ...prev,
-                category: typeof newValue === 'string' ? newValue : newValue || null,
-              }));
+              const newCategory = typeof newValue === 'string' ? newValue : newValue || null;
+              setEditableTask((prev) => {
+                const prevIsPM = prev.category === PM_CATEGORY;
+                const nextIsPM = newCategory === PM_CATEGORY;
+                const statusReset = prevIsPM !== nextIsPM ? { status: getInitialStatus(newCategory) } : {};
+                return { ...prev, category: newCategory, ...statusReset };
+              });
             }}
             renderInput={(params) => <TextField {...params} label={t('taskDetail.category')} />}
           />
