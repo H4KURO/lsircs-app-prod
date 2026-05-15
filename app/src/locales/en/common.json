@@ -82,6 +82,9 @@
     "statuses": {
       "started": "Not Started",
       "inProgress": "In Progress",
+      "waitingEstimate": "Waiting for Estimate",
+      "waitingOwnerApproval": "Waiting for Owner Approval",
+      "waitingCompletionReport": "Waiting for Completion Report",
       "done": "Completed",
       "unknown": "Status not set"
     },

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { List, ListItem, ListItemText, Typography, Button, Box, Stack, Chip, CircularProgress } from '@mui/material';
 import { useTranslation } from 'react-i18next';
-import { TASK_STATUS_DEFINITIONS, getNextTaskStatus } from './taskUtils';
+import { ALL_TASK_STATUS_DEFINITIONS, getNextTaskStatus } from './taskUtils';
 
 // ���̃R���|�[�l���g�́A�^�X�N�̔z����󂯎���ă��X�g�\�����邾���̃V���v���ȕ��i�ł�
 export function DashboardTaskList({ tasks, onTaskClick, onAdvanceStatus, advancingTaskIds = [] }) {
@@ -9,7 +9,7 @@ export function DashboardTaskList({ tasks, onTaskClick, onAdvanceStatus, advanci
 
   const statusLabelMap = useMemo(() => {
     const map = {};
-    TASK_STATUS_DEFINITIONS.forEach((definition) => {
+    ALL_TASK_STATUS_DEFINITIONS.forEach((definition) => {
       map[definition.value] = t(definition.translationKey, { defaultValue: definition.value });
     });
     return map;
@@ -28,7 +28,7 @@ export function DashboardTaskList({ tasks, onTaskClick, onAdvanceStatus, advanci
       {tasks.map((task) => {
         const rawTaskId = task?.id ?? task?.taskId ?? task?.key ?? task?.title;
         const taskId = rawTaskId != null ? String(rawTaskId) : undefined;
-        const nextStatus = getNextTaskStatus(task?.status);
+        const nextStatus = getNextTaskStatus(task?.status, task?.category);
         const statusLabel = statusLabelMap[task?.status] ?? t('taskView.statuses.unknown');
         const isAdvancing = taskId ? advancingIdSet.has(taskId) : false;
 

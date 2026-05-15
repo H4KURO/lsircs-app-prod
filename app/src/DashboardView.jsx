@@ -175,7 +175,7 @@ export function DashboardView({ user }) {
       allTasks.find((item) => String(item.id) === normalizedId) ?? task,
     );
 
-    const nextStatus = getNextTaskStatus(baseTask.status);
+    const nextStatus = getNextTaskStatus(baseTask.status, baseTask.category);
     if (!nextStatus) {
       return;
     }
