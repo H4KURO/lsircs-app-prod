@@ -13,3 +13,20 @@
 - `app/` : React フロントエンド (Vite)
 - `api/` : Azure Functions (Node.js 20)
 - `staticwebapp.config.json` : Azure SWA ルーティング設定
+
+## 仕様書の更新ルール
+
+`SPEC.md` はアプリの仕様書。**コードを変更したら必ず合わせて更新すること。**
+
+更新が必要なケース（例）:
+- 画面・機能の追加・削除・変更
+- API エンドポイントの追加・削除・変更
+- データモデル（フィールド・型）の変更
+- タスクステータスや選択肢の追加・変更
+- 外部連携（Slack・Google・AI等）の変更
+- Cosmos DB コレクション構成の変更
+
+更新手順:
+1. コード修正
+2. `SPEC.md` の該当セクションを更新（ファイル先頭の「最終更新」日付も更新）
+3. `git add` → `git commit` → `git push`
