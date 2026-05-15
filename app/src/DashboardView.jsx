@@ -73,13 +73,16 @@ export function DashboardView({ user }) {
     return savedSettings ? JSON.parse(savedSettings) : defaultSettings;
   });
 
+  const [currentUserDisplayName, setCurrentUserDisplayName] = useState(null);
+
   useEffect(() => {
     Promise.all([
       axios.get(`${API_URL}/GetTasks`),
       axios.get(`${API_URL}/GetAllUsers`),
       axios.get(`${API_URL}/GetCategories`),
       axios.get(`${API_URL}/GetAutomationRules`),
-    ]).then(([tasksRes, usersRes, categoriesRes, automationRes]) => {
+      axios.get(`${API_URL}/GetUserProfile`).catch(() => ({ data: null })),
+    ]).then(([tasksRes, usersRes, categoriesRes, automationRes, profileRes]) => {
       const normalized = normalizeTasks(tasksRes.data);
       setAllTasks(normalized);
 
@@ -91,6 +94,10 @@ export function DashboardView({ user }) {
 
       const automationData = Array.isArray(automationRes.data) ? automationRes.data : [];
       setAutomationRules(automationData);
+
+      if (profileRes.data?.displayName) {
+        setCurrentUserDisplayName(profileRes.data.displayName);
+      }
     });
   }, []);
 
@@ -252,8 +259,9 @@ export function DashboardView({ user }) {
 
   const myTasks = useMemo(() => {
     if (!user || !user.userDetails) return [];
-    return allTasks.filter((task) => Array.isArray(task.assignees) && task.assignees.includes(user.userDetails));
-  }, [allTasks, user]);
+    const myName = currentUserDisplayName || user.userDetails;
+    return allTasks.filter((task) => Array.isArray(task.assignees) && task.assignees.includes(myName));
+  }, [allTasks, user, currentUserDisplayName]);
 
   const upcomingTasks = useMemo(() => {
     const today = startOfToday();
