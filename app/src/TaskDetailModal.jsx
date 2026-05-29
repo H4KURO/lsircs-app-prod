@@ -828,6 +828,15 @@ export function TaskDetailModal({
                 <Autocomplete
                   options={buyerColumnOptions}
                   getOptionLabel={(option) => typeof option === 'string' ? option : `${option.name} (${option.letter})`}
+                  filterOptions={(options, { inputValue }) => {
+                    const q = inputValue.toLowerCase();
+                    if (!q) return options;
+                    return options.filter(
+                      (opt) =>
+                        opt.name.toLowerCase().includes(q) ||
+                        opt.letter.toLowerCase().includes(q),
+                    );
+                  }}
                   value={buyerColumnOptions.find((c) => c.name === sheetsSyncColumnName) || null}
                   onChange={(_e, newValue) => setSheetsSyncColumnName(newValue ? newValue.name : '')}
                   renderInput={(params) => (
@@ -836,11 +845,12 @@ export function TaskDetailModal({
                       label="同期する列"
                       size="small"
                       sx={{ width: 280 }}
-                      helperText="Buyers Listのヘッダー名で選択"
+                      helperText="列名で検索して選択"
                     />
                   )}
                   isOptionEqualToValue={(option, value) => option.name === value.name}
                   size="small"
+                  autoHighlight
                 />
                 <TextField
                   label="完了とみなす値"
