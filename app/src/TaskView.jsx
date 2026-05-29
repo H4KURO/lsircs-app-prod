@@ -22,10 +22,12 @@ import {
   FormControlLabel,
   Switch,
   CircularProgress,
+  InputAdornment,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import EditIcon from '@mui/icons-material/Edit';
+import SearchIcon from '@mui/icons-material/Search';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CircleIcon from '@mui/icons-material/Circle';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -460,6 +462,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   const [selectedTask, setSelectedTask] = useState(null);
   const [emailImportOpen, setEmailImportOpen] = useState(false);
   const [statusUpdatingIds, setStatusUpdatingIds] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const deepLinkHandledRef = useRef(null);
   const savePreferencesTimerRef = useRef(null);
@@ -721,29 +724,44 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
     return tasks.filter((task) => selectedCategorySet.has(getTaskCategoryKey(task)));
   }, [tasks, selectedCategorySet]);
 
+  const searchFilteredTasks = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return filteredTasks;
+    return filteredTasks.filter((task) => {
+      const fields = [
+        task.title,
+        task.description,
+        task.category,
+        ...(Array.isArray(task.tags) ? task.tags : []),
+        ...(Array.isArray(task.assignees) ? task.assignees : []),
+      ];
+      return fields.some((field) => typeof field === 'string' && field.toLowerCase().includes(query));
+    });
+  }, [filteredTasks, searchQuery]);
+
   const categoryToTagsMap = useMemo(() => {
     const activeCategories = selectedCategories.length > 0 ? selectedCategories : derivedCategories;
     if (activeCategories.length === 0) {
       return {};
     }
-    const grouped = groupTasksByCategoryAndTag(filteredTasks);
+    const grouped = groupTasksByCategoryAndTag(searchFilteredTasks);
     const result = {};
     activeCategories.forEach((category) => {
       result[category] = grouped[category] || { [DEFAULT_TAG_LABEL]: [] };
     });
     return result;
-  }, [filteredTasks, selectedCategories, derivedCategories]);
+  }, [searchFilteredTasks, selectedCategories, derivedCategories]);
 
   const statusSummary = useMemo(() => {
-    return filteredTasks.reduce((acc, task) => {
+    return searchFilteredTasks.reduce((acc, task) => {
       const key = normalizeStatusKey(task.status);
       acc[key] = (acc[key] || 0) + 1;
       return acc;
     }, {});
-  }, [filteredTasks]);
+  }, [searchFilteredTasks]);
 
   const upcomingDeadlines = useMemo(() => {
-    return filteredTasks
+    return searchFilteredTasks
       .filter((task) => task.deadline)
       .map((task) => {
         const timestamp = Date.parse(task.deadline);
@@ -756,25 +774,25 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
       .sort((a, b) => a.timestamp - b.timestamp)
       .slice(0, 3)
       .map(({ task }) => task);
-  }, [filteredTasks]);
+  }, [searchFilteredTasks]);
 
   const statusSections = useMemo(() => {
     if (layout !== 'status') {
       return [];
     }
     const effectiveSortMode = sortMode === 'statusDeadline' ? 'deadlineAsc' : sortMode;
-    return groupTasksByStatus(filteredTasks).map((section) => ({
+    return groupTasksByStatus(searchFilteredTasks).map((section) => ({
       ...section,
       tasks: sortTasksByMode(section.tasks, effectiveSortMode),
     }));
-  }, [layout, filteredTasks, sortMode]);
+  }, [layout, searchFilteredTasks, sortMode]);
 
   const assigneeColumns = useMemo(() => {
     if (layout !== 'assignee') {
       return [];
     }
     const effectiveSortMode = sortMode === 'statusDeadline' ? 'deadlineAsc' : sortMode;
-    const grouped = groupTasksByAssignee(filteredTasks);
+    const grouped = groupTasksByAssignee(searchFilteredTasks);
     const columns = [];
     const activeAssignees = selectedAssignees.length > 0 ? selectedAssignees : derivedAssignees;
 
@@ -797,7 +815,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
     }
 
     return columns;
-  }, [layout, filteredTasks, selectedAssignees, derivedAssignees, includeUnassignedColumn, sortMode]);
+  }, [layout, searchFilteredTasks, selectedAssignees, derivedAssignees, includeUnassignedColumn, sortMode]);
 
   const navCategories = selectedCategories.length > 0 ? selectedCategories : derivedCategories;
   const handleOpenCreateModal = () => {
@@ -1322,7 +1340,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
         {selectedCategories.map((category) => {
           const tagsInCategory = categoryToTagsMap[category] || {};
           const sortedTags = Object.keys(tagsInCategory).sort(sortByName);
-          const tasksInCategory = filteredTasks.filter(
+          const tasksInCategory = searchFilteredTasks.filter(
             (task) => getTaskCategoryKey(task) === category,
           );
           const totalCount = categoryGroupByTag
@@ -1564,7 +1582,7 @@ const renderStatusLayout = () => {
             flexWrap: 'wrap',
           }}
         >
-          <Chip label={`総数 ${filteredTasks.length} 件`} color="primary" size="small" />
+          <Chip label={`総数 ${searchFilteredTasks.length} 件`} color="primary" size="small" />
           {STATUS_DEFINITIONS.map((definition) => {
             const count = statusSummary[definition.value] || 0;
             if (count === 0) {
@@ -1599,6 +1617,22 @@ const renderStatusLayout = () => {
             variant={isSavingPreferences ? 'filled' : 'outlined'}
           />
         </Stack>
+        <TextField
+          size="small"
+          placeholder="キーワードで検索…"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon fontSize="small" />
+                </InputAdornment>
+              ),
+            },
+          }}
+          sx={{ flex: { xs: '1 1 100%', md: '0 0 220px' }, alignSelf: 'center' }}
+        />
         <Button
           startIcon={<EmailIcon />}
           variant="outlined"
