@@ -86,12 +86,18 @@ const normalizeSubtask = (subtask, index) => {
     (typeof subtask.title === 'string' && subtask.title ? `${subtask.title}-${index}` : null) ||
     generateSubtaskId();
 
+  const rawTags = Array.isArray(subtask.tags) ? subtask.tags : [];
+  const subtaskTags = rawTags
+    .map((tag) => (typeof tag === 'string' ? tag.trim() : ''))
+    .filter(Boolean);
+
   return {
     id: String(identifier),
     title,
     completed,
     order: typeof subtask.order === 'number' ? subtask.order : index,
     memo,
+    tags: subtaskTags,
     buyerLink: subtask.buyerLink ?? null,
   };
 };

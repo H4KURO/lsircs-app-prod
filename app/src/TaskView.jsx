@@ -1283,6 +1283,18 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
                           {subtask.memo}
                         </Typography>
                       ) : null}
+                      {Array.isArray(subtask.tags) && subtask.tags.length > 0 ? (
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.25 }}>
+                          {subtask.tags.map((tag) => (
+                            <Chip
+                              key={tag}
+                              label={tag}
+                              size="small"
+                              sx={{ fontSize: '0.65rem', height: 18 }}
+                            />
+                          ))}
+                        </Box>
+                      ) : null}
                     </Box>
                   </Box>
                 ))}
