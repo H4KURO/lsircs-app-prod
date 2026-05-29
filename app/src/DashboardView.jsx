@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { Box, Grid, Paper, Typography, Fab, IconButton, Chip, Stack } from '@mui/material';
+import { Box, Grid, Paper, Typography, Fab, IconButton, FormControl, Select, MenuItem, Checkbox, ListItemText, OutlinedInput } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import SettingsIcon from '@mui/icons-material/Settings';
 import TaskIcon from '@mui/icons-material/Task';
@@ -342,31 +342,38 @@ export function DashboardView({ user }) {
       <Grid container spacing={3}>
         <Grid item xs={12} md={8}>
           <Paper sx={{ p: 2, height: '60vh', minHeight: 500, display: 'flex', flexDirection: 'column' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, flexWrap: 'wrap', gap: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, gap: 1 }}>
               <Typography variant="h6">{t('dashboard.calendar')}</Typography>
-              <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
-                <Chip
-                  label="すべて"
-                  size="small"
-                  onClick={handleCalendarShowAll}
-                  color={(dashboardSettings.calendarSelectedCategories ?? []).length === 0 ? 'primary' : 'default'}
-                  variant={(dashboardSettings.calendarSelectedCategories ?? []).length === 0 ? 'filled' : 'outlined'}
-                />
-                {calendarCategories.map((category) => {
-                  const isSelected = (dashboardSettings.calendarSelectedCategories ?? []).includes(category);
-                  const color = categoryColorMap[category] || '#9e9e9e';
-                  return (
-                    <Chip
-                      key={category}
-                      label={category}
-                      size="small"
-                      onClick={() => handleCalendarCategoryToggle(category)}
-                      variant={isSelected ? 'filled' : 'outlined'}
-                      sx={isSelected ? { backgroundColor: color, color: '#fff', borderColor: color } : { borderColor: color, color: color }}
-                    />
-                  );
-                })}
-              </Stack>
+              <FormControl size="small" sx={{ minWidth: 160 }}>
+                <Select
+                  multiple
+                  displayEmpty
+                  value={dashboardSettings.calendarSelectedCategories ?? []}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setDashboardSettings((prev) => {
+                      const updated = { ...prev, calendarSelectedCategories: value };
+                      localStorage.setItem('dashboardSettings', JSON.stringify(updated));
+                      return updated;
+                    });
+                  }}
+                  input={<OutlinedInput />}
+                  renderValue={(selected) =>
+                    selected.length === 0 ? 'すべて' : selected.join(', ')
+                  }
+                >
+                  <MenuItem value="" onClick={handleCalendarShowAll}>
+                    <Checkbox checked={(dashboardSettings.calendarSelectedCategories ?? []).length === 0} />
+                    <ListItemText primary="すべて" />
+                  </MenuItem>
+                  {calendarCategories.map((category) => (
+                    <MenuItem key={category} value={category}>
+                      <Checkbox checked={(dashboardSettings.calendarSelectedCategories ?? []).includes(category)} />
+                      <ListItemText primary={category} />
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             </Box>
             <Box sx={{ flexGrow: 1, minHeight: 0 }}>
               <TaskCalendar
