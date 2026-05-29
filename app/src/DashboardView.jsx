@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { Box, Grid, Paper, Typography, Fab, IconButton } from '@mui/material';
+import { Box, Grid, Paper, Typography, Fab, IconButton, Chip, Stack } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import SettingsIcon from '@mui/icons-material/Settings';
 import TaskIcon from '@mui/icons-material/Task';
@@ -21,6 +21,7 @@ const defaultSettings = {
   showHighPriority: true,
   showMyTasks: true,
   showUpcoming: true,
+  calendarSelectedCategories: [],
 };
 
 const arraysEqual = (a = [], b = []) =>
@@ -252,6 +253,44 @@ export function DashboardView({ user }) {
     setSettingsOpen(false);
   };
 
+  const handleCalendarCategoryToggle = (categoryName) => {
+    setDashboardSettings((prev) => {
+      const current = Array.isArray(prev.calendarSelectedCategories) ? prev.calendarSelectedCategories : [];
+      const next = current.includes(categoryName)
+        ? current.filter((c) => c !== categoryName)
+        : [...current, categoryName];
+      const updated = { ...prev, calendarSelectedCategories: next };
+      localStorage.setItem('dashboardSettings', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const handleCalendarShowAll = () => {
+    setDashboardSettings((prev) => {
+      const updated = { ...prev, calendarSelectedCategories: [] };
+      localStorage.setItem('dashboardSettings', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const calendarCategories = useMemo(() => {
+    const fromCategories = (Array.isArray(categories) ? categories : [])
+      .map((c) => (typeof c?.name === 'string' ? c.name.trim() : ''))
+      .filter(Boolean);
+    const fromTasks = allTasks
+      .map((t) => (typeof t?.category === 'string' ? t.category.trim() : ''))
+      .filter(Boolean);
+    return Array.from(new Set([...fromCategories, ...fromTasks])).sort();
+  }, [categories, allTasks]);
+
+  const calendarTasks = useMemo(() => {
+    const selected = Array.isArray(dashboardSettings.calendarSelectedCategories)
+      ? dashboardSettings.calendarSelectedCategories
+      : [];
+    if (selected.length === 0) return allTasks;
+    return allTasks.filter((task) => selected.includes(typeof task?.category === 'string' ? task.category.trim() : ''));
+  }, [allTasks, dashboardSettings.calendarSelectedCategories]);
+
   const highPriorityTasks = useMemo(
     () => allTasks.filter((task) => task.priority === 'High'),
     [allTasks],
@@ -302,15 +341,40 @@ export function DashboardView({ user }) {
 
       <Grid container spacing={3}>
         <Grid item xs={12} md={8}>
-          <Paper sx={{ p: 2, height: '60vh', minHeight: 500 }}>
-            <Typography variant="h6" gutterBottom>
-              {t('dashboard.calendar')}
-            </Typography>
-            <TaskCalendar
-              tasks={allTasks}
-              categoryColors={categoryColorMap}
-              onTaskSelect={(task) => setSelectedTask(normalizeTask(task))}
-            />
+          <Paper sx={{ p: 2, height: '60vh', minHeight: 500, display: 'flex', flexDirection: 'column' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, flexWrap: 'wrap', gap: 1 }}>
+              <Typography variant="h6">{t('dashboard.calendar')}</Typography>
+              <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+                <Chip
+                  label="すべて"
+                  size="small"
+                  onClick={handleCalendarShowAll}
+                  color={(dashboardSettings.calendarSelectedCategories ?? []).length === 0 ? 'primary' : 'default'}
+                  variant={(dashboardSettings.calendarSelectedCategories ?? []).length === 0 ? 'filled' : 'outlined'}
+                />
+                {calendarCategories.map((category) => {
+                  const isSelected = (dashboardSettings.calendarSelectedCategories ?? []).includes(category);
+                  const color = categoryColorMap[category] || '#9e9e9e';
+                  return (
+                    <Chip
+                      key={category}
+                      label={category}
+                      size="small"
+                      onClick={() => handleCalendarCategoryToggle(category)}
+                      variant={isSelected ? 'filled' : 'outlined'}
+                      sx={isSelected ? { backgroundColor: color, color: '#fff', borderColor: color } : { borderColor: color, color: color }}
+                    />
+                  );
+                })}
+              </Stack>
+            </Box>
+            <Box sx={{ flexGrow: 1, minHeight: 0 }}>
+              <TaskCalendar
+                tasks={calendarTasks}
+                categoryColors={categoryColorMap}
+                onTaskSelect={(task) => setSelectedTask(normalizeTask(task))}
+              />
+            </Box>
           </Paper>
         </Grid>
 
