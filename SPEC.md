@@ -198,6 +198,7 @@ lsircs-app-prod/
 
 #### その他機能
 
+- **キーワード検索**: ヘッダーの検索ボックスに入力するとリアルタイムで絞り込み。対象フィールド: タイトル・説明・カテゴリ・タグ・担当者。全レイアウトに反映。
 - **メールインポート**: メール件名・本文からタスクを AI 生成（`EmailImportModal` → `ParseEmailToTask` API）
 - **ビュー設定の自動保存**: 600ms デバウンスで `UpdateTaskViewPreferences` API に保存
 - **URLディープリンク**: `?view=tasks&taskId={id}` でタスク直接アクセス
