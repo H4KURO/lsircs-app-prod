@@ -1,7 +1,7 @@
 # lsir-cs アプリケーション仕様書
 
 > **メンテナンス注意**: このファイルはアプリ変更のたびに更新すること（CLAUDE.md 参照）。  
-> 最終更新: 2026-05-29（サブタスクにタグフィールド追加）
+> 最終更新: 2026-05-29（sheetsSync列名安定化・タスクビューにバイヤーバッジ追加）
 
 ---
 
@@ -460,9 +460,10 @@ tags: string[],      // サブタスク固有のタグ
 |---|---|---|
 | GET | `/api/GetBuyers` | アクティブバイヤー取得 |
 | POST | `/api/UpdateBuyer` | バイヤー更新 |
-| POST | `/api/UpdateBuyerCell` | セル単体更新 |
+| POST | `/api/UpdateBuyerCell` | セル単体更新（`column` または `columnName` を受け付ける） |
 | POST | `/api/CreateBuyer` | バイヤー追加 |
 | GET | `/api/GetBuyerSyncStatus` | 同期ステータス確認 |
+| GET | `/api/GetBuyerListColumns` | Buyers List ヘッダー列一覧取得（`[{ letter, name }]`） |
 | GET | `/api/GenerateBuyersExcel` | Excel エクスポート |
 | GET | `/api/GetXldBuyers` | 解約・取消バイヤー取得 |
 | POST | `/api/UpdateXldBuyer` | 解約バイヤー更新 |
