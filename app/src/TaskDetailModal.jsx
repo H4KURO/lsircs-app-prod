@@ -46,6 +46,7 @@ const createBlankSubtask = () => ({
   id: generateSubtaskId(),
   title: '',
   memo: '',
+  tags: [],
   completed: false,
   buyerLink: null,
 });
@@ -407,6 +408,15 @@ export function TaskDetailModal({
     }));
   };
 
+  const handleSubtaskTagsChange = (subtaskId, newTags) => {
+    setEditableTask((prev) => ({
+      ...prev,
+      subtasks: (Array.isArray(prev.subtasks) ? prev.subtasks : []).map((s) =>
+        s.id === subtaskId ? { ...s, tags: newTags } : s,
+      ),
+    }));
+  };
+
   const handleAddSubtask = (title) => {
     const trimmed = title.trim();
     setEditableTask((prev) => {
@@ -705,6 +715,30 @@ export function TaskDetailModal({
                     label={t('taskDetail.subtaskMemoLabel', { defaultValue: 'Memo' })}
                     placeholder={t('taskDetail.subtaskMemoPlaceholder', { defaultValue: 'Add a memo' })}
                     size="small"
+                    sx={{ gridColumn: { xs: '1 / -1', sm: '2 / span 2' } }}
+                  />
+
+                  {/* タグ欄 */}
+                  <Autocomplete
+                    multiple
+                    freeSolo
+                    options={tagOptions}
+                    value={Array.isArray(subtask.tags) ? subtask.tags : []}
+                    onChange={(_event, newValue) => handleSubtaskTagsChange(subtask.id, newValue)}
+                    renderTags={(value, getTagProps) =>
+                      value.map((option, index) => {
+                        const { key, ...tagProps } = getTagProps({ index });
+                        return <Chip key={key} label={option} size="small" {...tagProps} />;
+                      })
+                    }
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        size="small"
+                        label={t('taskDetail.subtaskTagsLabel', { defaultValue: 'Tags' })}
+                        placeholder={t('taskDetail.subtaskTagsPlaceholder', { defaultValue: 'Add tags' })}
+                      />
+                    )}
                     sx={{ gridColumn: { xs: '1 / -1', sm: '2 / span 2' } }}
                   />
                 </Box>
