@@ -465,6 +465,16 @@ export function TaskDetailModal({
   );
   const completedCount = subtasks.filter((s) => s.completed).length;
 
+  const subtaskTagOptions = useMemo(() => {
+    const seen = new Set();
+    subtasks.forEach((s) => {
+      (Array.isArray(s.tags) ? s.tags : []).forEach((tag) => {
+        if (typeof tag === 'string' && tag.trim()) seen.add(tag.trim());
+      });
+    });
+    return Array.from(seen).sort();
+  }, [subtasks]);
+
   return (
     <>
       <Dialog open onClose={onClose} maxWidth="md" fullWidth>
@@ -718,11 +728,11 @@ export function TaskDetailModal({
                     sx={{ gridColumn: { xs: '1 / -1', sm: '2 / span 2' } }}
                   />
 
-                  {/* タグ欄 */}
+                  {/* タグ欄（サブタスク専用・タスクタグと独立） */}
                   <Autocomplete
                     multiple
                     freeSolo
-                    options={tagOptions}
+                    options={subtaskTagOptions}
                     value={Array.isArray(subtask.tags) ? subtask.tags : []}
                     onChange={(_event, newValue) => handleSubtaskTagsChange(subtask.id, newValue)}
                     renderTags={(value, getTagProps) =>
