@@ -156,6 +156,8 @@ lsircs-app-prod/
 - React Big Calendar によるカレンダー表示
 - タスクのデッドラインをカテゴリ色で表示
 - クリックでタスク詳細モーダルを開く
+- カテゴリフィルターチップ（「すべて」＋各カテゴリ）でカレンダー表示を絞り込み可能
+- フィルター選択状態は `dashboardSettings.calendarSelectedCategories` に保存（localStorage 永続化）
 
 **サイドパネル（表示/非表示をダッシュボード設定で切替）**:
 
