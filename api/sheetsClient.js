@@ -98,6 +98,50 @@ async function appendSheetValues(range, values) {
   return response.data;
 }
 
+function columnLetterToIndex(letter) {  // e.g. "EH" → 0-based index
+  let result = 0;
+  for (const char of letter.toUpperCase()) {
+    result = result * 26 + (char.charCodeAt(0) - 64);
+  }
+  return result - 1;
+}
+
+function indexToColumnLetter(index) {  // 0-based → e.g. "EH"
+  let letter = '';
+  let n = index + 1;
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    letter = String.fromCharCode(65 + rem) + letter;
+    n = Math.floor((n - 1) / 26);
+  }
+  return letter;
+}
+
+async function getSheetColumnNames(sheetName) {
+  // Returns [{ letter: 'A', name: 'Buyer Name' }, ...]
+  // Uses SHEET_HEADER_ROWS to know how many header rows to read
+  // Builds label same way as buildColumnLabels in frontend: join unique non-empty values across header rows with ' / '
+  const headerRows = SHEET_HEADER_ROWS[sheetName] ?? 1;
+  const allValues = await getSheetValues(`'${sheetName}'!1:${headerRows}`);
+  if (!allValues || allValues.length === 0) return [];
+  const maxCols = Math.max(...allValues.map((r) => r?.length ?? 0));
+  const result = [];
+  for (let col = 0; col < maxCols; col++) {
+    const parts = allValues
+      .map((row) => (row?.[col] != null && row[col] !== '' ? String(row[col]).trim() : null))
+      .filter(Boolean);
+    const unique = [...new Set(parts)];
+    result.push({ letter: indexToColumnLetter(col), name: unique.join(' / ') || `列${col + 1}` });
+  }
+  return result;
+}
+
+async function resolveColumnLetter(sheetName, columnName) {
+  const columns = await getSheetColumnNames(sheetName);
+  const found = columns.find((c) => c.name === columnName);
+  return found?.letter ?? null;
+}
+
 module.exports = {
   SPREADSHEET_ID,
   getSheetValues,
@@ -106,4 +150,8 @@ module.exports = {
   exportSpreadsheetAsExcel,
   getSheetDataRow,
   getBatchCellValues,
+  columnLetterToIndex,
+  indexToColumnLetter,
+  getSheetColumnNames,
+  resolveColumnLetter,
 };

@@ -35,6 +35,7 @@ import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import EmailIcon from '@mui/icons-material/Email';
+import LinkIcon from '@mui/icons-material/Link';
 import { TaskDetailModal } from './TaskDetailModal';
 import { EmailImportModal } from './EmailImportModal';
 import {
@@ -1274,6 +1275,14 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
                       >
                         {subtask.title || '未設定のサブタスク'}
                       </Typography>
+                      {subtask.buyerLink ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <LinkIcon sx={{ fontSize: '0.75rem', color: 'info.main' }} />
+                          <Typography variant="caption" color="info.main">
+                            {subtask.buyerLink.displayName}
+                          </Typography>
+                        </Box>
+                      ) : null}
                       {subtask.memo ? (
                         <Typography
                           variant="caption"

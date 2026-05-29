@@ -1,6 +1,6 @@
 const { app } = require('@azure/functions');
 const { getNamedContainer } = require('./cosmosClient');
-const { getBatchCellValues, getSheetDataRow } = require('./sheetsClient');
+const { getBatchCellValues, getSheetDataRow, resolveColumnLetter } = require('./sheetsClient');
 
 const tasksContainer = () =>
   getNamedContainer('Tasks', ['COSMOS_TASKS_CONTAINER', 'CosmosTasksContainer']);
@@ -35,9 +35,16 @@ app.http('GetBuyerSyncStatus', {
 
       // sheetsSyncが未設定なら空を返す
       const sheetsSync = task.sheetsSync;
-      if (!sheetsSync?.column) {
+      if (!sheetsSync?.column && !sheetsSync?.columnName) {
         return { status: 200, jsonBody: {} };
       }
+
+      // 列記号を解決（新形式: columnName → 列記号、旧形式: column をそのまま使用）
+      let columnLetter = sheetsSync.column;
+      if (!columnLetter && sheetsSync.columnName) {
+        columnLetter = await resolveColumnLetter('Buyers list', sheetsSync.columnName);
+      }
+      if (!columnLetter) return { status: 200, jsonBody: {} };
 
       // buyerLinkがあるサブタスクのみ対象
       const linkedSubtasks = (task.subtasks || []).filter(
@@ -50,7 +57,7 @@ app.http('GetBuyerSyncStatus', {
       // バッチでセル値を取得
       const ranges = linkedSubtasks.map((s) => {
         const sheetRow = getSheetDataRow(s.buyerLink.sheetName, s.buyerLink.rowIndex);
-        return `'${s.buyerLink.sheetName}'!${sheetsSync.column}${sheetRow}`;
+        return `'${s.buyerLink.sheetName}'!${columnLetter}${sheetRow}`;
       });
 
       const valueRanges = await getBatchCellValues(ranges);

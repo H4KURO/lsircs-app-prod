@@ -1,5 +1,5 @@
 const { app } = require('@azure/functions');
-const { updateSheetValues, getSheetDataRow } = require('./sheetsClient');
+const { updateSheetValues, getSheetDataRow, resolveColumnLetter } = require('./sheetsClient');
 
 function parseClientPrincipal(request) {
   const header = request.headers.get('x-ms-client-principal');
@@ -29,11 +29,15 @@ app.http('UpdateBuyerCell', {
       const payload = await request.json();
       const { sheetName, rowIndex, column, value } = payload;
 
-      if (!sheetName || rowIndex == null || !column) {
+      if (!sheetName || rowIndex == null || (!column && !payload.columnName)) {
         return { status: 400, body: 'sheetName, rowIndex, column are required.' };
       }
 
-      const col = String(column).toUpperCase();
+      let col = column ? String(column).toUpperCase() : null;
+      if (!col && payload.columnName) {
+        col = await resolveColumnLetter(sheetName || 'Buyers list', payload.columnName);
+      }
+      if (!col) return { status: 400, body: 'column or columnName is required.' };
       const sheetRow = getSheetDataRow(sheetName, rowIndex);
       const range = `'${sheetName}'!${col}${sheetRow}`;
 

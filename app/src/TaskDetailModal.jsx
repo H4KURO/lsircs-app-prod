@@ -207,10 +207,11 @@ export function TaskDetailModal({
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
 
   // Sheets連携
-  const [sheetsSyncColumn, setSheetsSyncColumn] = useState('');
+  const [sheetsSyncColumnName, setSheetsSyncColumnName] = useState('');
   const [sheetsSyncValue, setSheetsSyncValue] = useState('〇');
   const [sheetsSyncOpen, setSheetsSyncOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [buyerColumnOptions, setBuyerColumnOptions] = useState([]);
 
   // バイヤーリンクダイアログ
   const [buyerSearchOpen, setBuyerSearchOpen] = useState(false);
@@ -237,16 +238,36 @@ export function TaskDetailModal({
     const normalized = normalizeTask(task);
     setEditableTask(normalized);
     setNewSubtaskTitle('');
-    setSheetsSyncColumn(task?.sheetsSync?.column || '');
+    setSheetsSyncColumnName(task?.sheetsSync?.columnName || '');
     setSheetsSyncValue(task?.sheetsSync?.completionValue || '〇');
-    setSheetsSyncOpen(!!(task?.sheetsSync?.column));
+
+    // レガシー: column（列記号）しかない場合は列名に変換
+    const legacyLetter = task?.sheetsSync?.column;
+    if (legacyLetter && !task?.sheetsSync?.columnName) {
+      axios.get(`${API_URL}/GetBuyerListColumns`)
+        .then((res) => {
+          setBuyerColumnOptions(res.data || []);
+          const found = (res.data || []).find((c) => c.letter === legacyLetter);
+          if (found) setSheetsSyncColumnName(found.name);
+        })
+        .catch(() => {});
+    }
+    setSheetsSyncOpen(!!(task?.sheetsSync?.column || task?.sheetsSync?.columnName));
   }, [task]);
+
+  // Sheets連携セクションが開いたとき: 列オプションを取得
+  useEffect(() => {
+    if (!sheetsSyncOpen || buyerColumnOptions.length > 0) return;
+    axios.get(`${API_URL}/GetBuyerListColumns`)
+      .then((res) => setBuyerColumnOptions(res.data || []))
+      .catch(() => {});
+  }, [sheetsSyncOpen, buyerColumnOptions.length]);
 
   // タスクを開いたとき: Sheetsから完了状態を同期
   useEffect(() => {
     if (!task?.id) return;
-    const syncCol = task?.sheetsSync?.column;
-    if (!syncCol) return;
+    const syncPresent = task?.sheetsSync?.column || task?.sheetsSync?.columnName;
+    if (!syncPresent) return;
     const linked = (task.subtasks || []).filter((s) => s.buyerLink?.rowIndex != null);
     if (linked.length === 0) return;
 
@@ -341,8 +362,8 @@ export function TaskDetailModal({
       }),
     );
 
-    const sheetsSync = sheetsSyncColumn.trim()
-      ? { column: sheetsSyncColumn.trim().toUpperCase(), completionValue: sheetsSyncValue || '〇' }
+    const sheetsSync = sheetsSyncColumnName.trim()
+      ? { columnName: sheetsSyncColumnName.trim(), completionValue: sheetsSyncValue || '〇' }
       : null;
 
     const taskToSave = {
@@ -355,7 +376,7 @@ export function TaskDetailModal({
     onSave(taskToSave);
 
     // 変更されたサブタスクをSheetsに反映（fire-and-forget）
-    if (sheetsSync?.column) {
+    if (sheetsSync?.columnName) {
       const originalMap = new Map((task.subtasks || []).map((s) => [s.id, s]));
       sanitizedSubtasks.forEach((s) => {
         if (!s.buyerLink?.rowIndex != null || !s.buyerLink?.sheetName) return;
@@ -366,7 +387,7 @@ export function TaskDetailModal({
           .post(`${API_URL}/UpdateBuyerCell`, {
             sheetName: s.buyerLink.sheetName,
             rowIndex: s.buyerLink.rowIndex,
-            column: sheetsSync.column,
+            columnName: sheetsSync.columnName,
             value,
           })
           .catch((err) => console.error('Sheets write failed', err));
@@ -790,10 +811,10 @@ export function TaskDetailModal({
               sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
               onClick={() => setSheetsSyncOpen((v) => !v)}
             >
-              <SyncIcon fontSize="small" sx={{ mr: 1, color: sheetsSyncColumn ? 'success.main' : 'text.secondary' }} />
-              <Typography variant="subtitle2" color={sheetsSyncColumn ? 'success.main' : 'text.secondary'}>
+              <SyncIcon fontSize="small" sx={{ mr: 1, color: sheetsSyncColumnName ? 'success.main' : 'text.secondary' }} />
+              <Typography variant="subtitle2" color={sheetsSyncColumnName ? 'success.main' : 'text.secondary'}>
                 Buyers List 連携設定
-                {sheetsSyncColumn && ` (列: ${sheetsSyncColumn.toUpperCase()})`}
+                {sheetsSyncColumnName && ` (列: ${sheetsSyncColumnName})`}
               </Typography>
               <Box sx={{ flexGrow: 1 }} />
               {sheetsSyncOpen ? (
@@ -804,15 +825,22 @@ export function TaskDetailModal({
             </Box>
             <Collapse in={sheetsSyncOpen}>
               <Box sx={{ display: 'flex', gap: 2, mt: 1.5, flexWrap: 'wrap' }}>
-                <TextField
-                  label="同期する列（例: EH）"
-                  value={sheetsSyncColumn}
-                  onChange={(e) => setSheetsSyncColumn(e.target.value.toUpperCase())}
+                <Autocomplete
+                  options={buyerColumnOptions}
+                  getOptionLabel={(option) => typeof option === 'string' ? option : `${option.name} (${option.letter})`}
+                  value={buyerColumnOptions.find((c) => c.name === sheetsSyncColumnName) || null}
+                  onChange={(_e, newValue) => setSheetsSyncColumnName(newValue ? newValue.name : '')}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="同期する列"
+                      size="small"
+                      sx={{ width: 280 }}
+                      helperText="Buyers Listのヘッダー名で選択"
+                    />
+                  )}
+                  isOptionEqualToValue={(option, value) => option.name === value.name}
                   size="small"
-                  sx={{ width: 160 }}
-                  placeholder="EH"
-                  helperText="Buyers ListのGoogle Sheets列記号"
-                  inputProps={{ style: { textTransform: 'uppercase' } }}
                 />
                 <TextField
                   label="完了とみなす値"
