@@ -463,6 +463,20 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   const [emailImportOpen, setEmailImportOpen] = useState(false);
   const [statusUpdatingIds, setStatusUpdatingIds] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [expandedSubtaskIds, setExpandedSubtaskIds] = useState(new Set());
+
+  const handleToggleSubtaskExpand = useCallback((taskId) => {
+    if (!taskId) return;
+    setExpandedSubtaskIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) {
+        next.delete(taskId);
+      } else {
+        next.add(taskId);
+      }
+      return next;
+    });
+  }, []);
 
   const deepLinkHandledRef = useRef(null);
   const savePreferencesTimerRef = useRef(null);
@@ -1079,6 +1093,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
     const advanceTooltip = nextStatus
       ? `${currentStatusLabel} → ${nextStatusLabel}`
       : t('taskView.actions.statusMax');
+    const isSubtaskExpanded = normalizedTaskId ? expandedSubtaskIds.has(normalizedTaskId) : false;
 
     return (
       <Paper
@@ -1114,13 +1129,17 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
                   }
                   size="small"
                   color={subtaskSummary.completed === subtaskSummary.total ? 'success' : isPMTask(task) ? 'warning' : 'default'}
+                  onClick={(e) => { e.stopPropagation(); handleToggleSubtaskExpand(normalizedTaskId); }}
+                  onDelete={(e) => { e.stopPropagation(); handleToggleSubtaskExpand(normalizedTaskId); }}
+                  deleteIcon={isSubtaskExpanded ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
+                  sx={{ cursor: 'pointer' }}
                 />
               )}
             </Stack>
           </Box>
         </Box>
 
-        {hasSubtasks ? (
+        {hasSubtasks && isSubtaskExpanded ? (
           isPMTask(task) ? (
             /* ── PM フェーズ ステッパー ── */
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
@@ -1270,11 +1289,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
               </Stack>
             </Box>
           )
-        ) : (
-          <Typography variant="body2" color="text.secondary">
-            サブタスクはまだありません。
-          </Typography>
-        )}
+        ) : null}
 
         <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center">
           <Tooltip title={advanceTooltip}>
