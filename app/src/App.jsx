@@ -24,7 +24,6 @@ import {
   MenuItem,
 } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
-import GoogleIcon from "@mui/icons-material/Google";
 import MicrosoftIcon from "@mui/icons-material/Microsoft";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { SettingsView } from "./SettingsView";
@@ -211,14 +210,6 @@ function App() {
         {t("auth.signInPrompt")}
       </Typography>
       <List>
-        <ListItem disablePadding>
-          <ListItemButton component="a" href="/.auth/login/google">
-            <ListItemIcon>
-              <GoogleIcon />
-            </ListItemIcon>
-            <ListItemText primary={t("auth.google")} />
-          </ListItemButton>
-        </ListItem>
         <ListItem disablePadding>
           <ListItemButton component="a" href="/.auth/login/aad">
             <ListItemIcon>
