@@ -1,7 +1,7 @@
 # lsir-cs アプリケーション仕様書
 
 > **メンテナンス注意**: このファイルはアプリ変更のたびに更新すること（CLAUDE.md 参照）。  
-> 最終更新: 2026-05-29（sheetsSync列名安定化・タスクビューにバイヤーバッジ追加）
+> 最終更新: 2026-06-29（Mahana Prospects機能・PDFインポート機能を削除）
 
 ---
 
@@ -29,12 +29,10 @@
 **主な機能**:
 - タスク管理（担当者・カテゴリ・サブタスク・添付ファイル）
 - バイヤーリスト管理（Google Sheets 連携）
-- Mahana Prospects（ハワイ物件見込み顧客管理）
 - スプレッドシート閲覧（Google Sheets / Box 埋め込み）
 - ホワイトリストによるアクセス制御
 - Slack 通知・Slack コマンドからのタスク作成
 - メール本文からのタスク自動生成（AI解析）
-- PDF テキスト抽出
 
 ---
 
@@ -137,7 +135,6 @@ lsircs-app-prod/
 | ダッシュボード | `dashboard` | `DashboardView` | 統計カード・カレンダー・タスクリスト |
 | タスク | `tasks` | `TaskView` | メインタスク管理 |
 | バイヤーリスト | `buyers` | `BuyersListView` | Google Sheets 連携バイヤー管理 |
-| Mahana Prospects | `mahana` | `MahanaProspectsView` | ハワイ物件見込み顧客管理 |
 | スプレッドシート | `spreadsheet` | `SpreadsheetView` | Google Sheets / Box 埋め込み閲覧 |
 | 設定 | `settings` | `SettingsView` | カテゴリ・自動化ルール管理 |
 | プロフィール | `profile` | `ProfileView` | 表示名変更 |
@@ -223,44 +220,6 @@ Google Sheets データを3タブで表示・編集。
 - テキスト検索（全列対象）
 - 同期ステータス表示（`GetBuyerSyncStatus`）
 - Google Sheets 連携チップ表示
-
----
-
-### 5.4 Mahana Prospects (`MahanaProspectsView`)
-
-ハワイ物件「Mahana at Kaanapali」の見込み顧客管理。
-
-**カラム一覧（全23列: A〜W）**:
-
-| キー | ラベル | 型 |
-|---|---|---|
-| no | No. | number |
-| registrationDate | 登録日 | date |
-| source | ソース | text |
-| status | ステータス | select |
-| name | 氏名 | text |
-| email | Email | email |
-| phone | 電話番号 | phone |
-| country | 国 | text |
-| state | 地域 | text |
-| buildingPref | 希望物件 | text |
-| bedrooms | 希望間取り | text |
-| stacks | 希望スタック | text |
-| floorRange | 希望フロア帯 | text |
-| tourType | ツアー種別 | select |
-| appointmentDate | アポイント日 | date |
-| firstAppt | 初回 | checkbox |
-| howHeard | 情報源 | text |
-| brokerName | ブローカー名 | text |
-| brokerEmail | ブローカーEmail | email |
-| brokerPhone | ブローカー電話 | phone |
-| brokerCompany | ブローカー会社 | text |
-| salesExec | 担当セールス | text |
-| notes | 備考 | textarea |
-
-**ステータス選択肢**: Lead / Tour済 / Preference提出 / 検討中 / 契約 / 見送り / 移行済
-
-**PDF インポート**: PDF ファイルをアップロードして顧客情報を AI 抽出・登録（`PdfExtract` API）
 
 ---
 
@@ -470,14 +429,6 @@ tags: string[],      // サブタスク固有のタグ
 | GET | `/api/GetCommissions` | コミッション情報取得 |
 | POST | `/api/UpdateCommission` | コミッション更新 |
 
-### Mahana Prospects
-
-| メソッド | エンドポイント | 説明 |
-|---|---|---|
-| GET | `/api/GetMahanaProspects` | 見込み顧客一覧 |
-| POST | `/api/CreateMahanaProspect` | 見込み顧客追加 |
-| POST | `/api/UpdateMahanaProspect` | 見込み顧客更新 |
-
 ### ホワイトリスト（管理者のみ）
 
 | メソッド | エンドポイント | 説明 |
@@ -492,7 +443,6 @@ tags: string[],      // サブタスク固有のタグ
 | GET | `/api/HealthCheck` | 死活監視 |
 | POST | `/api/SlackCommand` | Slack スラッシュコマンド受信 |
 | POST | `/api/ParseEmailToTask` | メール本文から AI タスク生成 |
-| POST | `/api/PdfExtract` | PDF テキスト抽出（Claude API 経由） |
 
 ---
 
@@ -563,7 +513,6 @@ tags: string[],      // サブタスク固有のタグ
 | Users（UserProfiles） | `/id` | ユーザープロファイル |
 | AllowedUsers | `/id` | アクセスホワイトリスト |
 | TaskViewPreferences | `/userId` | ユーザー別ビュー設定 |
-| MahanaProspects | `/id` | Mahana 見込み顧客 |
 
 ---
 
@@ -586,15 +535,7 @@ tags: string[],      // サブタスク固有のタグ
 - フロントエンド: タスク画面のメールアイコンボタン → `EmailImportModal`
 - 解析結果をタスク詳細モーダルに自動入力
 
-### 10.3 PDF 抽出（Mahana Prospects）
-
-- `PdfExtract` API が PDF ファイルを受け取り
-- pdf-parse でテキスト抽出 → n8n webhook 経由で Claude API に送信
-- 構造化データを返却し Mahana Prospects フォームに自動入力
-
-**n8n 経由の理由**: Azure SWA（East Asia リージョン）から Anthropic API への直接接続が Cloudflare により 403 ブロックされるため
-
-### 10.4 Google Sheets 連携
+### 10.3 Google Sheets 連携
 
 - バイヤーリスト / Xld / Commission データを Google Sheets で管理
 - `googleSheetsClient.js` が OAuth 2.0 で認証
