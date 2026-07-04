@@ -215,6 +215,10 @@ export function TaskDetailModal({
 
   // バイヤーリンクダイアログ
   const [buyerSearchOpen, setBuyerSearchOpen] = useState(false);
+
+  // CRM顧客紐づけ
+  const [customers, setCustomers] = useState([]);
+  const linkedCustomerId = editableTask?.customerId ?? null;
   const [buyerLinkTargetId, setBuyerLinkTargetId] = useState(null);
 
   const statusOptions = useMemo(
@@ -254,6 +258,13 @@ export function TaskDetailModal({
     }
     setSheetsSyncOpen(!!(task?.sheetsSync?.column || task?.sheetsSync?.columnName));
   }, [task]);
+
+  // CRM顧客リストをモーダル初回表示時に取得
+  useEffect(() => {
+    axios.get(`${API_URL}/GetCustomers`)
+      .then((res) => setCustomers(Array.isArray(res.data) ? res.data : []))
+      .catch(() => {});
+  }, []);
 
   // Sheets連携セクションが開いたとき: 列オプションを取得
   useEffect(() => {
@@ -642,6 +653,30 @@ export function TaskDetailModal({
             onChange={handleChange}
             InputLabelProps={{ shrink: true }}
             fullWidth
+          />
+
+          <Autocomplete
+            options={customers}
+            getOptionLabel={(opt) => typeof opt === 'string' ? opt : `${opt.name}${opt.company ? ` (${opt.company})` : ''}`}
+            value={customers.find((c) => c.id === linkedCustomerId) || null}
+            onChange={(_e, newVal) =>
+              setEditableTask((prev) => ({ ...prev, customerId: newVal ? newVal.id : null }))
+            }
+            isOptionEqualToValue={(opt, val) => opt.id === val.id}
+            filterOptions={(options, { inputValue }) => {
+              const q = inputValue.toLowerCase();
+              if (!q) return options;
+              return options.filter((c) =>
+                c.name?.toLowerCase().includes(q) ||
+                c.company?.toLowerCase().includes(q) ||
+                c.email?.toLowerCase().includes(q)
+              );
+            }}
+            renderInput={(params) => (
+              <TextField {...params} label="紐づけ顧客 (CRM)" placeholder="顧客名・会社名で検索" />
+            )}
+            autoHighlight
+            clearOnEscape
           />
 
           <Divider />

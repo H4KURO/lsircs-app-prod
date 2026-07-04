@@ -277,6 +277,25 @@
       ]
     },
     {
+      "route": "/api/GetCustomers",
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/CreateCustomer",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/UpdateCustomer",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/DeleteCustomer",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
       "route": "/api/AppendSheetRow",
       "methods": [
         "POST"

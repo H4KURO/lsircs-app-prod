@@ -161,6 +161,7 @@ export const normalizeTask = (task) => {
     tags,
     subtasks,
     attachments: Array.isArray(task.attachments) ? task.attachments : [],
+    customerId: task.customerId ?? null,
   };
 };
 
