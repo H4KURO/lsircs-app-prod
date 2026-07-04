@@ -18,7 +18,7 @@ function parseClientPrincipal(request) {
 const ALLOWED_UPDATE_FIELDS = [
   'name', 'email', 'phone', 'company', 'country', 'region', 'status',
   'source', 'assignedTo', 'propertyInterest', 'preferredBedrooms',
-  'budget', 'lastContactedAt', 'nextFollowUpAt', 'notes',
+  'budget', 'lastContactedAt', 'nextFollowUpAt', 'notes', 'buyerLink',
 ];
 
 const FIELD_LABELS = {

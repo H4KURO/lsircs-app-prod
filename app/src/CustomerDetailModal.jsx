@@ -17,7 +17,14 @@ import {
   CircularProgress,
   Alert,
   Typography,
+  Chip,
+  Divider,
+  Tooltip,
+  IconButton,
 } from '@mui/material';
+import LinkIcon from '@mui/icons-material/Link';
+import LinkOffIcon from '@mui/icons-material/LinkOff';
+import { BuyerSearchDialog } from './BuyerSearchDialog';
 
 const API_URL = '/api';
 
@@ -45,6 +52,8 @@ const BLANK_FORM = {
 export function CustomerDetailModal({ open, onClose, customer, onSaved, onDeleted }) {
   const isEdit = customer != null;
   const [form, setForm] = useState(BLANK_FORM);
+  const [buyerLink, setBuyerLink] = useState(null);
+  const [buyerSearchOpen, setBuyerSearchOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -68,8 +77,10 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
           nextFollowUpAt: customer.nextFollowUpAt ?? '',
           notes: customer.notes ?? '',
         });
+        setBuyerLink(customer.buyerLink ?? null);
       } else {
         setForm(BLANK_FORM);
+        setBuyerLink(null);
       }
       setError('');
     }
@@ -88,7 +99,7 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
     setError('');
     try {
       const endpoint = isEdit ? 'UpdateCustomer' : 'CreateCustomer';
-      const body = isEdit ? { id: customer.id, ...form } : form;
+      const body = isEdit ? { id: customer.id, ...form, buyerLink } : { ...form, buyerLink };
       const res = await axios.post(`${API_URL}/${endpoint}`, body);
       onSaved(res.data);
       onClose();
@@ -307,6 +318,41 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
             />
           </Grid>
 
+          {/* Buyers List 紐づけ */}
+          <Grid item xs={12}>
+            <Divider sx={{ my: 0.5 }} />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ minWidth: 120 }}>
+                Buyers List 紐づけ
+              </Typography>
+              {buyerLink ? (
+                <>
+                  <Chip
+                    icon={<LinkIcon sx={{ fontSize: '0.9rem' }} />}
+                    label={buyerLink.displayName}
+                    color="info"
+                    size="small"
+                    variant="outlined"
+                  />
+                  <Tooltip title="紐づけを解除">
+                    <IconButton size="small" onClick={() => setBuyerLink(null)}>
+                      <LinkOffIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </>
+              ) : (
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<LinkIcon />}
+                  onClick={() => setBuyerSearchOpen(true)}
+                >
+                  バイヤーと紐づける
+                </Button>
+              )}
+            </Box>
+          </Grid>
+
           {/* 備考 */}
           <Grid item xs={12}>
             <TextField
@@ -345,6 +391,12 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
           {isEdit ? '保存' : '作成'}
         </Button>
       </DialogActions>
+
+      <BuyerSearchDialog
+        open={buyerSearchOpen}
+        onClose={() => setBuyerSearchOpen(false)}
+        onSelect={(link) => setBuyerLink(link)}
+      />
     </Dialog>
   );
 }

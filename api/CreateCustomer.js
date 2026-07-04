@@ -51,6 +51,7 @@ app.http('CreateCustomer', {
         lastContactedAt: payload.lastContactedAt ?? null,
         nextFollowUpAt: payload.nextFollowUpAt ?? null,
         notes: payload.notes ?? null,
+        buyerLink: payload.buyerLink ?? null,
         createdAt: now,
         updatedAt: now,
         createdBy: clientPrincipal.userDetails,

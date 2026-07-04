@@ -20,6 +20,7 @@ import {
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
+import LinkIcon from '@mui/icons-material/Link';
 import { CustomerDetailModal } from './CustomerDetailModal';
 
 const API_URL = '/api';
@@ -198,12 +199,13 @@ export function CRMView() {
                   <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>次回フォロー</TableCell>
                   <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>最終接触日</TableCell>
                   <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>情報ソース</TableCell>
+                  <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>BL連携</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {filteredCustomers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} align="center" sx={{ color: 'text.secondary', py: 4 }}>
+                    <TableCell colSpan={8} align="center" sx={{ color: 'text.secondary', py: 4 }}>
                       {searchText || statusFilter !== 'すべて'
                         ? '該当する顧客が見つかりません'
                         : '顧客データがありません'}
@@ -239,6 +241,20 @@ export function CRMView() {
                       </TableCell>
                       <TableCell sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>
                         {customer.source ?? '—'}
+                      </TableCell>
+                      <TableCell>
+                        {customer.buyerLink ? (
+                          <Chip
+                            icon={<LinkIcon sx={{ fontSize: '0.8rem !important' }} />}
+                            label={customer.buyerLink.displayName}
+                            size="small"
+                            color="info"
+                            variant="outlined"
+                            sx={{ fontSize: '0.7rem', maxWidth: 120 }}
+                          />
+                        ) : (
+                          <Typography sx={{ color: 'text.disabled', fontSize: '0.8rem' }}>—</Typography>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))
