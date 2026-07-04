@@ -1,7 +1,7 @@
 # lsir-cs アプリケーション仕様書
 
 > **メンテナンス注意**: このファイルはアプリ変更のたびに更新すること（CLAUDE.md 参照）。  
-> 最終更新: 2026-06-29（Mahana Prospects機能・PDFインポート機能を削除）
+> 最終更新: 2026-07-04（CRM顧客管理機能を追加）
 
 ---
 
@@ -135,6 +135,7 @@ lsircs-app-prod/
 | ダッシュボード | `dashboard` | `DashboardView` | 統計カード・カレンダー・タスクリスト |
 | タスク | `tasks` | `TaskView` | メインタスク管理 |
 | バイヤーリスト | `buyers` | `BuyersListView` | Google Sheets 連携バイヤー管理 |
+| 顧客管理 (CRM) | `crm` | `CRMView` | 顧客情報の一元管理 |
 | スプレッドシート | `spreadsheet` | `SpreadsheetView` | Google Sheets / Box 埋め込み閲覧 |
 | 設定 | `settings` | `SettingsView` | カテゴリ・自動化ルール管理 |
 | プロフィール | `profile` | `ProfileView` | 表示名変更 |
@@ -220,6 +221,40 @@ Google Sheets データを3タブで表示・編集。
 - テキスト検索（全列対象）
 - 同期ステータス表示（`GetBuyerSyncStatus`）
 - Google Sheets 連携チップ表示
+
+---
+
+### 5.4 顧客管理 (`CRMView`)
+
+ZOHO・Appfolio・WP等の分散した顧客情報を一元管理するCRM機能。
+
+**顧客フィールド**:
+
+| フィールド | 説明 |
+|---|---|
+| name | 氏名（必須） |
+| email | メールアドレス |
+| phone | 電話番号 |
+| company | 会社名 |
+| country | 国 |
+| region | 地域 |
+| status | ステータス（Lead / 商談中 / 契約済み / フォローアップ / 見送り） |
+| source | 情報ソース（ZOHO / Appfolio / WP / Qドライブ / 手動入力） |
+| assignedTo | 担当者（displayName） |
+| propertyInterest | 希望物件 |
+| preferredBedrooms | 希望間取り |
+| budget | 予算 |
+| lastContactedAt | 最終接触日（YYYY-MM-DD） |
+| nextFollowUpAt | 次回フォロー日（YYYY-MM-DD） |
+| notes | 備考 |
+
+**機能**:
+- 顧客一覧（テキスト検索・ステータスフィルター）
+- 顧客作成・編集・削除
+- タスクとの紐づけ（`TaskDetailModal` に顧客選択欄）
+- 顧客情報更新時にDXチームへSlack通知（`SLACK_DX_CHANNEL_ID`）
+
+**Slack DX通知**: 顧客情報変更時（変更がある場合のみ）に `SLACK_DX_CHANNEL_ID` チャンネルへ送信。ZOHOへの手動反映依頼として活用。
 
 ---
 
@@ -429,6 +464,15 @@ tags: string[],      // サブタスク固有のタグ
 | GET | `/api/GetCommissions` | コミッション情報取得 |
 | POST | `/api/UpdateCommission` | コミッション更新 |
 
+### CRM（顧客管理）
+
+| メソッド | エンドポイント | 説明 |
+|---|---|---|
+| GET | `/api/GetCustomers` | 顧客一覧取得 |
+| POST | `/api/CreateCustomer` | 顧客作成 |
+| POST | `/api/UpdateCustomer` | 顧客更新（DX Slack通知付き） |
+| POST | `/api/DeleteCustomer` | 顧客削除 |
+
 ### ホワイトリスト（管理者のみ）
 
 | メソッド | エンドポイント | 説明 |
@@ -513,6 +557,7 @@ tags: string[],      // サブタスク固有のタグ
 | Users（UserProfiles） | `/id` | ユーザープロファイル |
 | AllowedUsers | `/id` | アクセスホワイトリスト |
 | TaskViewPreferences | `/userId` | ユーザー別ビュー設定 |
+| Customers | `/id` | CRM顧客データ（env: `COSMOS_CUSTOMERS_CONTAINER`） |
 
 ---
 

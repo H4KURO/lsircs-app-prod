@@ -63,7 +63,7 @@ app.http('UpdateCustomer', {
         existingCustomer = resource;
       } catch (readError) {
         const msg = readError.message || '';
-        if (msg.includes('Resource Not Found') || readError.code === 404) {
+        if (msg.includes('Resource NotFound') || msg.includes('Resource Not Found') || readError.code === 404) {
           return { status: 404, body: 'Customer not found.' };
         }
         throw readError;
@@ -101,9 +101,11 @@ app.http('UpdateCustomer', {
 
       const { resource } = await container.item(id, id).replace(updatedCustomer);
 
-      await notifyDxTeamCustomerUpdated(resource, changedFields, context, {
-        actorName: clientPrincipal.userDetails,
-      });
+      if (changedFields.length > 0) {
+        await notifyDxTeamCustomerUpdated(resource, changedFields, context, {
+          actorName: clientPrincipal.userDetails,
+        });
+      }
 
       return { status: 200, jsonBody: resource };
     } catch (error) {

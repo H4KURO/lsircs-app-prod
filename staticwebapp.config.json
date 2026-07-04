@@ -49,39 +49,6 @@
       ]
     },
     {
-      "route": "/api/GetCustomers",
-      "allowedRoles": [
-        "anonymous"
-      ]
-    },
-    {
-      "route": "/api/CreateCustomer",
-      "methods": [
-        "POST"
-      ],
-      "allowedRoles": [
-        "anonymous"
-      ]
-    },
-    {
-      "route": "/api/UpdateCustomer/{id}",
-      "methods": [
-        "PUT"
-      ],
-      "allowedRoles": [
-        "anonymous"
-      ]
-    },
-    {
-      "route": "/api/DeleteCustomer/{id}",
-      "methods": [
-        "DELETE"
-      ],
-      "allowedRoles": [
-        "anonymous"
-      ]
-    },
-    {
       "route": "/api/GetInvoices",
       "allowedRoles": [
         "anonymous"
