@@ -203,9 +203,48 @@ async function notifyTaskStatusChanged(task, previousStatus, context, metadata =
   return postToSlack({ text, blocks }, context, metadata);
 }
 
+const dxChannel = process.env.SLACK_DX_CHANNEL_ID;
+
+async function notifyDxTeamCustomerUpdated(customer, changedFields, context, metadata = {}) {
+  if (!slackBotToken || !dxChannel) return false;
+
+  const actor = metadata.actorName || 'Unknown';
+  const text = `🔄 [CRM更新] 顧客情報が変更されました - ${customer.name}`;
+
+  const fieldLines = changedFields.map((f) => `• ${f}`).join('\n');
+
+  const blocks = [
+    { type: 'header', text: { type: 'plain_text', text: `🔄 CRM顧客情報 更新通知` } },
+    {
+      type: 'section',
+      fields: [
+        { type: 'mrkdwn', text: `*顧客名*: ${customer.name}` },
+        { type: 'mrkdwn', text: `*担当者*: ${customer.assignedTo || 'なし'}` },
+        { type: 'mrkdwn', text: `*ステータス*: ${customer.status || 'なし'}` },
+        { type: 'mrkdwn', text: `*更新者*: ${actor}` },
+      ],
+    },
+    {
+      type: 'section',
+      text: { type: 'mrkdwn', text: `*変更内容*:\n${fieldLines || '（詳細不明）'}` },
+    },
+    {
+      type: 'section',
+      text: { type: 'mrkdwn', text: `⚠️ *ZOHOへの反映が必要な場合はご対応をお願いします*` },
+    },
+    {
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: `更新日時: ${customer.updatedAt}` }],
+    },
+  ];
+
+  return postToSlack({ text, blocks }, context, { channel: dxChannel });
+}
+
 module.exports = {
   notifyTaskCreated,
   notifyTaskStatusChanged,
   buildTaskLink,
   SLACK_ENABLED,
+  notifyDxTeamCustomerUpdated,
 };
