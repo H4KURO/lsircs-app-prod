@@ -585,10 +585,15 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   }, [initialTaskId, tasks]);
 
   useEffect(() => {
+    // Skip reporting null while waiting for the deep-linked task to be found in the loaded task list.
+    // Without this guard, the initial null selectedTask clears deepLinkTaskId in the parent before tasks load.
+    if (!selectedTask && initialTaskId && deepLinkHandledRef.current !== initialTaskId) {
+      return;
+    }
     if (typeof onSelectedTaskChange === 'function') {
       onSelectedTaskChange(selectedTask ? selectedTask.id : null);
     }
-  }, [onSelectedTaskChange, selectedTask]);
+  }, [onSelectedTaskChange, selectedTask, initialTaskId]);
 
   const derivedCategories = useMemo(() => {
     const fromTasks = extractCategoryList(tasks);
