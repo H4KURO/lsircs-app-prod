@@ -43,7 +43,7 @@ function getStatusColor(status) {
   }
 }
 
-export function CRMView() {
+export function CRMView({ onNavigateToTask }) {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -272,6 +272,7 @@ export function CRMView() {
         customer={selectedCustomer}
         onSaved={handleSaved}
         onDeleted={handleDeleted}
+        onNavigateToTask={onNavigateToTask}
       />
     </Box>
   );

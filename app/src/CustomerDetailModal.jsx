@@ -58,7 +58,7 @@ const BLANK_FORM = {
   notes: '',
 };
 
-export function CustomerDetailModal({ open, onClose, customer, onSaved, onDeleted }) {
+export function CustomerDetailModal({ open, onClose, customer, onSaved, onDeleted, onNavigateToTask }) {
   const isEdit = customer != null;
   const [form, setForm] = useState(BLANK_FORM);
   const [buyerLink, setBuyerLink] = useState(null);
@@ -407,10 +407,10 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
                                 <IconButton
                                   size="small"
                                   onClick={() => {
-                                    const url = new URL(window.location.href);
-                                    url.searchParams.set('view', 'tasks');
-                                    url.searchParams.set('taskId', task.id);
-                                    window.location.href = url.toString();
+                                    onClose();
+                                    if (onNavigateToTask) {
+                                      onNavigateToTask(task.id);
+                                    }
                                   }}
                                 >
                                   <OpenInNewIcon sx={{ fontSize: '0.9rem' }} />

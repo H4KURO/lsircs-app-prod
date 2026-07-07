@@ -311,7 +311,7 @@ function App() {
       case "buyers":
         return <BuyersListView />;
       case "crm":
-        return <CRMView />;
+        return <CRMView onNavigateToTask={handleTaskSelectionChange} />;
       case "spreadsheet":
         return <SpreadsheetView />;
       case "whitelist":
