@@ -1,5 +1,5 @@
 // app/src/CustomerDetailModal.jsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import {
   Dialog,
@@ -21,9 +21,18 @@ import {
   Divider,
   Tooltip,
   IconButton,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
 } from '@mui/material';
 import LinkIcon from '@mui/icons-material/Link';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
+import TaskAltIcon from '@mui/icons-material/TaskAlt';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { BuyerSearchDialog } from './BuyerSearchDialog';
 
 const API_URL = '/api';
@@ -56,6 +65,13 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
   const [buyerSearchOpen, setBuyerSearchOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [allTasks, setAllTasks] = useState([]);
+  const [loadingTasks, setLoadingTasks] = useState(false);
+
+  const linkedTasks = useMemo(
+    () => (customer ? allTasks.filter((t) => t.customerId === customer.id) : []),
+    [allTasks, customer],
+  );
 
   useEffect(() => {
     if (open) {
@@ -83,6 +99,16 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
         setBuyerLink(null);
       }
       setError('');
+      if (isEdit) {
+        setLoadingTasks(true);
+        axios
+          .get(`${API_URL}/GetTasks`)
+          .then((res) => setAllTasks(Array.isArray(res.data) ? res.data : []))
+          .catch(() => {})
+          .finally(() => setLoadingTasks(false));
+      } else {
+        setAllTasks([]);
+      }
     }
   }, [open, customer, isEdit]);
 
@@ -317,6 +343,89 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
               InputLabelProps={{ shrink: true }}
             />
           </Grid>
+
+          {/* 関連タスク */}
+          {isEdit && (
+            <Grid item xs={12}>
+              <Divider sx={{ my: 0.5 }} />
+              <Box sx={{ mt: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  <TaskAltIcon fontSize="small" color="action" />
+                  <Typography variant="body2" fontWeight={600}>
+                    関連タスク
+                  </Typography>
+                  {linkedTasks.length > 0 && (
+                    <Chip label={linkedTasks.length} size="small" />
+                  )}
+                </Box>
+                {loadingTasks ? (
+                  <CircularProgress size={20} />
+                ) : linkedTasks.length === 0 ? (
+                  <Typography variant="body2" color="text.disabled" sx={{ pl: 0.5 }}>
+                    紐づいているタスクはありません
+                  </Typography>
+                ) : (
+                  <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>タイトル</TableCell>
+                          <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>ステータス</TableCell>
+                          <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>担当者</TableCell>
+                          <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>期限</TableCell>
+                          <TableCell sx={{ width: 32 }} />
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {linkedTasks.map((task) => (
+                          <TableRow key={task.id}>
+                            <TableCell sx={{ fontSize: '0.8rem', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {task.title}
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                label={task.status}
+                                size="small"
+                                color={
+                                  task.status === 'Done' ? 'success'
+                                  : task.status === 'Inprogress' ? 'warning'
+                                  : 'default'
+                                }
+                                sx={{ fontSize: '0.65rem', height: 18 }}
+                              />
+                            </TableCell>
+                            <TableCell sx={{ fontSize: '0.8rem', color: 'text.secondary' }}>
+                              {Array.isArray(task.assignees) && task.assignees.length > 0
+                                ? task.assignees.join(', ')
+                                : task.assignee ?? '—'}
+                            </TableCell>
+                            <TableCell sx={{ fontSize: '0.8rem', color: 'text.secondary', whiteSpace: 'nowrap' }}>
+                              {task.deadline ? task.deadline.split('T')[0] : '—'}
+                            </TableCell>
+                            <TableCell padding="none">
+                              <Tooltip title="タスクを開く">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => {
+                                    const url = new URL(window.location.href);
+                                    url.searchParams.set('view', 'tasks');
+                                    url.searchParams.set('taskId', task.id);
+                                    window.location.href = url.toString();
+                                  }}
+                                >
+                                  <OpenInNewIcon sx={{ fontSize: '0.9rem' }} />
+                                </IconButton>
+                              </Tooltip>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+              </Box>
+            </Grid>
+          )}
 
           {/* Buyers List 紐づけ */}
           <Grid item xs={12}>
