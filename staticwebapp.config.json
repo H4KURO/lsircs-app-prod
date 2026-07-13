@@ -263,6 +263,25 @@
       "allowedRoles": ["anonymous"]
     },
     {
+      "route": "/api/GetProjects",
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/CreateProject",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/UpdateProject",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/DeleteProject",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
       "route": "/api/AppendSheetRow",
       "methods": [
         "POST"

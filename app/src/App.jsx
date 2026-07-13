@@ -36,10 +36,12 @@ import { WhitelistView } from "./WhitelistView";
 import { SpreadsheetView } from "./SpreadsheetView";
 import { BuyersListView } from "./BuyersListView";
 import { CRMView } from "./CRMView";
+import { ProjectsView } from "./ProjectsView";
 import SecurityIcon from "@mui/icons-material/Security";
 import TableViewIcon from "@mui/icons-material/TableView";
 import PeopleIcon from "@mui/icons-material/People";
 import ContactsIcon from "@mui/icons-material/Contacts";
+import FolderSpecialIcon from "@mui/icons-material/FolderSpecial";
 import CircularProgress from "@mui/material/CircularProgress";
 
 const ALLOWED_VIEWS = new Set([
@@ -51,6 +53,7 @@ const ALLOWED_VIEWS = new Set([
   "spreadsheet",
   "buyers",
   "crm",
+  "projects",
 ]);
 
 const parseInitialLocation = () => {
@@ -198,6 +201,7 @@ function App() {
       { text: t("nav.tasks"), view: "tasks" },
       { text: "バイヤーリスト", view: "buyers", icon: <PeopleIcon /> },
       { text: "顧客管理 (CRM)", view: "crm", icon: <ContactsIcon /> },
+      { text: "プロジェクト管理", view: "projects", icon: <FolderSpecialIcon /> },
       { text: "スプレッドシート", view: "spreadsheet", icon: <TableViewIcon /> },
       { text: t("nav.settings"), view: "settings", icon: <SettingsIcon /> },
     ],
@@ -312,6 +316,8 @@ function App() {
         return <BuyersListView />;
       case "crm":
         return <CRMView onNavigateToTask={handleTaskSelectionChange} />;
+      case "projects":
+        return <ProjectsView />;
       case "spreadsheet":
         return <SpreadsheetView />;
       case "whitelist":
