@@ -16,6 +16,11 @@ import {
   TableRow,
   CircularProgress,
   InputAdornment,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Typography,
 } from '@mui/material';
 import LinkIcon from '@mui/icons-material/Link';
 import SearchIcon from '@mui/icons-material/Search';
@@ -38,19 +43,47 @@ function buildColumnLabels(headers) {
 
 export function BuyerSearchDialog({ open, onClose, onSelect }) {
   const [searchText, setSearchText] = useState('');
+  const [projects, setProjects] = useState([]);
+  const [selectedProjectId, setSelectedProjectId] = useState('');
   const [data, setData] = useState({ headers: [], rows: [] });
-  const [loading, setLoading] = useState(false);
+  const [loadingProjects, setLoadingProjects] = useState(false);
+  const [loadingBuyers, setLoadingBuyers] = useState(false);
 
+  // プロジェクト一覧を取得（ダイアログ初回オープン時）
   useEffect(() => {
     if (!open) return;
-    setLoading(true);
     setSearchText('');
+    setData({ headers: [], rows: [] });
+    setLoadingProjects(true);
     axios
-      .get(`${API_URL}/GetBuyers`)
+      .get(`${API_URL}/GetProjects`)
+      .then((res) => {
+        const active = (res.data || []).filter((p) => p.status !== 'inactive');
+        setProjects(active);
+        if (active.length > 0) {
+          setSelectedProjectId(active[0].id);
+        } else {
+          setSelectedProjectId('');
+        }
+      })
+      .catch((err) => console.error('GetProjects failed', err))
+      .finally(() => setLoadingProjects(false));
+  }, [open]);
+
+  // 選択プロジェクトが変わったらバイヤーを取得
+  useEffect(() => {
+    if (!open) return;
+    if (loadingProjects) return;
+    setData({ headers: [], rows: [] });
+    setSearchText('');
+    setLoadingBuyers(true);
+    const params = selectedProjectId ? `?projectId=${selectedProjectId}` : '';
+    axios
+      .get(`${API_URL}/GetBuyers${params}`)
       .then((res) => setData(res.data))
       .catch((err) => console.error('GetBuyers failed', err))
-      .finally(() => setLoading(false));
-  }, [open]);
+      .finally(() => setLoadingBuyers(false));
+  }, [open, selectedProjectId, loadingProjects]);
 
   const columnLabels = useMemo(() => buildColumnLabels(data.headers), [data.headers]);
   const PREVIEW = 6;
@@ -70,8 +103,11 @@ export function BuyerSearchDialog({ open, onClose, onSelect }) {
       .filter((c) => c != null && c !== '')
       .slice(0, 3)
       .join(' · ');
+    const selectedProject = projects.find((p) => p.id === selectedProjectId);
     onSelect({
-      sheetName: 'Buyers list',
+      projectId: selectedProjectId || null,
+      projectName: selectedProject?.name ?? null,
+      sheetName: data.sheetName || 'Buyers list',
       rowIndex,
       displayName: displayName || `行${rowIndex + 1}`,
     });
@@ -85,6 +121,36 @@ export function BuyerSearchDialog({ open, onClose, onSelect }) {
         バイヤーと紐づける
       </DialogTitle>
       <DialogContent>
+        {/* プロジェクト選択 */}
+        {loadingProjects ? (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <CircularProgress size={18} />
+            <Typography variant="body2" color="text.secondary">プロジェクト読み込み中...</Typography>
+          </Box>
+        ) : projects.length === 0 ? (
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="body2" color="text.secondary">
+              プロジェクトが登録されていません。プロジェクト管理から追加してください。
+            </Typography>
+          </Box>
+        ) : (
+          <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+            <InputLabel>プロジェクト</InputLabel>
+            <Select
+              label="プロジェクト"
+              value={selectedProjectId}
+              onChange={(e) => setSelectedProjectId(e.target.value)}
+            >
+              {projects.map((p) => (
+                <MenuItem key={p.id} value={p.id}>
+                  {p.name}{p.developer ? ` — ${p.developer}` : ''}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        )}
+
+        {/* 検索 */}
         <TextField
           placeholder="名前・ユニット番号などで検索..."
           size="small"
@@ -101,7 +167,8 @@ export function BuyerSearchDialog({ open, onClose, onSelect }) {
           sx={{ mb: 2 }}
           autoFocus
         />
-        {loading ? (
+
+        {loadingBuyers ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
             <CircularProgress />
           </Box>

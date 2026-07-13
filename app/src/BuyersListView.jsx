@@ -28,6 +28,10 @@ import {
   Divider,
   Grid,
   Snackbar,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SearchIcon from '@mui/icons-material/Search';
@@ -259,7 +263,7 @@ function BuyerDataTable({ columnLabels, rows, onEditRow, summaryColCount = 8 }) 
 }
 
 // ── シートパネル（共通） ────────────────────────────────────
-function SheetPanel({ fetchEndpoint, updateEndpoint, headerRowCount = 3, summaryColCount = 8 }) {
+function SheetPanel({ fetchEndpoint, updateEndpoint, headerRowCount = 3, summaryColCount = 8, projectId }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [columnLabels, setColumnLabels] = useState([]);
@@ -273,7 +277,8 @@ function SheetPanel({ fetchEndpoint, updateEndpoint, headerRowCount = 3, summary
     setLoading(true);
     setError('');
     try {
-      const res = await axios.get(`${API_URL}/${fetchEndpoint}`);
+      const params = projectId ? `?projectId=${projectId}` : '';
+      const res = await axios.get(`${API_URL}/${fetchEndpoint}${params}`);
       const { headers, rows: dataRows } = res.data;
       const labels =
         headerRowCount === 1
@@ -286,7 +291,7 @@ function SheetPanel({ fetchEndpoint, updateEndpoint, headerRowCount = 3, summary
     } finally {
       setLoading(false);
     }
-  }, [fetchEndpoint, headerRowCount]);
+  }, [fetchEndpoint, headerRowCount, projectId]);
 
   useEffect(() => {
     fetchData();
@@ -369,6 +374,23 @@ function SheetPanel({ fetchEndpoint, updateEndpoint, headerRowCount = 3, summary
 // ── メインコンポーネント ────────────────────────────────────
 export function BuyersListView() {
   const [activeTab, setActiveTab] = useState(0);
+  const [projects, setProjects] = useState([]);
+  const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [loadingProjects, setLoadingProjects] = useState(true);
+
+  useEffect(() => {
+    axios
+      .get(`${API_URL}/GetProjects`)
+      .then((res) => {
+        const active = (res.data || []).filter((p) => p.status !== 'inactive');
+        setProjects(active);
+        if (active.length > 0) setSelectedProjectId(active[0].id);
+      })
+      .catch((err) => console.error('GetProjects failed', err))
+      .finally(() => setLoadingProjects(false));
+  }, []);
+
+  const selectedProject = projects.find((p) => p.id === selectedProjectId);
 
   const tabs = [
     {
@@ -377,6 +399,7 @@ export function BuyersListView() {
       updateEndpoint: 'UpdateBuyer',
       headerRowCount: 3,
       summaryColCount: 8,
+      useProject: true,
     },
     {
       label: 'Xld（解約・取消）',
@@ -384,6 +407,7 @@ export function BuyersListView() {
       updateEndpoint: 'UpdateXldBuyer',
       headerRowCount: 3,
       summaryColCount: 8,
+      useProject: false,
     },
     {
       label: 'Commission & Referral',
@@ -391,6 +415,7 @@ export function BuyersListView() {
       updateEndpoint: 'UpdateCommission',
       headerRowCount: 1,
       summaryColCount: 13,
+      useProject: false,
     },
   ];
 
@@ -416,6 +441,37 @@ export function BuyersListView() {
         </Tooltip>
       </Box>
 
+      {/* プロジェクト選択 */}
+      <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+        {loadingProjects ? (
+          <CircularProgress size={20} />
+        ) : projects.length === 0 ? (
+          <Typography variant="body2" color="text.secondary">
+            プロジェクトが未登録です。「プロジェクト管理」から追加してください。
+          </Typography>
+        ) : (
+          <FormControl size="small" sx={{ minWidth: 260 }}>
+            <InputLabel>プロジェクト</InputLabel>
+            <Select
+              label="プロジェクト"
+              value={selectedProjectId}
+              onChange={(e) => setSelectedProjectId(e.target.value)}
+            >
+              {projects.map((p) => (
+                <MenuItem key={p.id} value={p.id}>
+                  {p.name}{p.developer ? ` — ${p.developer}` : ''}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        )}
+        {selectedProject?.developer && (
+          <Typography variant="body2" color="text.secondary">
+            開発業者: {selectedProject.developer}
+          </Typography>
+        )}
+      </Box>
+
       <Paper elevation={2} sx={{ overflow: 'hidden' }}>
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
           <Tabs
@@ -433,11 +489,12 @@ export function BuyersListView() {
         {tabs.map((tab, i) =>
           activeTab === i ? (
             <SheetPanel
-              key={tab.fetchEndpoint}
+              key={`${tab.fetchEndpoint}-${tab.useProject ? selectedProjectId : ''}`}
               fetchEndpoint={tab.fetchEndpoint}
               updateEndpoint={tab.updateEndpoint}
               headerRowCount={tab.headerRowCount}
               summaryColCount={tab.summaryColCount}
+              projectId={tab.useProject ? selectedProjectId : undefined}
             />
           ) : null
         )}

@@ -74,6 +74,17 @@ async function getSheetValues(range) {
   return response.data.values || [];
 }
 
+async function getSheetValuesById(spreadsheetId, range) {
+  const sheets = await getSheetsClient();
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range,
+    valueRenderOption: 'UNFORMATTED_VALUE',
+    dateTimeRenderOption: 'FORMATTED_STRING',
+  });
+  return response.data.values || [];
+}
+
 async function updateSheetValues(range, values) {
   const sheets = await getSheetsClient();
   const response = await sheets.spreadsheets.values.update({
@@ -144,6 +155,7 @@ async function resolveColumnLetter(sheetName, columnName) {
 module.exports = {
   SPREADSHEET_ID,
   getSheetValues,
+  getSheetValuesById,
   updateSheetValues,
   appendSheetValues,
   exportSpreadsheetAsExcel,

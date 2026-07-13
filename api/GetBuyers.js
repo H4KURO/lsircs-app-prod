@@ -1,8 +1,12 @@
 const { app } = require('@azure/functions');
-const { getSheetValues } = require('./sheetsClient');
+const { getSheetValues, getSheetValuesById } = require('./sheetsClient');
+const { getNamedContainer } = require('./cosmosClient');
 
-// Sheet name for Buyers list (active)
-const BUYERS_SHEET = 'Buyers list';
+const DEFAULT_SHEET = 'Buyers list';
+const DEFAULT_HEADER_ROWS = 3;
+
+const projectsContainer = () =>
+  getNamedContainer('Projects', ['COSMOS_PROJECTS_CONTAINER']);
 
 function parseClientPrincipal(request) {
   const header = request.headers.get('x-ms-client-principal');
@@ -14,10 +18,6 @@ function parseClientPrincipal(request) {
   }
 }
 
-// GET /api/GetBuyers
-// Returns all rows from "Buyers list" sheet as { headers: [[...],[...],[...]], rows: [[...], ...] }
-// headers = first 3 rows (3-level merged header)
-// rows = data rows starting from row 4
 app.http('GetBuyers', {
   methods: ['GET'],
   authLevel: 'anonymous',
@@ -28,24 +28,52 @@ app.http('GetBuyers', {
     }
 
     try {
-      const allValues = await getSheetValues(`'${BUYERS_SHEET}'`);
-      if (!allValues || allValues.length === 0) {
-        return { status: 200, jsonBody: { headers: [], rows: [] } };
+      const url = new URL(request.url);
+      const projectId = url.searchParams.get('projectId');
+
+      let sheetName = DEFAULT_SHEET;
+      let spreadsheetId = null;
+      let headerRows = DEFAULT_HEADER_ROWS;
+      let projectName = null;
+
+      if (projectId) {
+        const container = projectsContainer();
+        let project;
+        try {
+          const { resource } = await container.item(projectId, projectId).read();
+          project = resource;
+        } catch (readErr) {
+          const msg = readErr.message || '';
+          if (msg.includes('Resource NotFound') || msg.includes('Resource Not Found') || readErr.code === 404) {
+            return { status: 404, body: 'Project not found.' };
+          }
+          throw readErr;
+        }
+        if (!project) return { status: 404, body: 'Project not found.' };
+        sheetName = project.sheetName;
+        spreadsheetId = project.spreadsheetId;
+        headerRows = project.headerRows ?? DEFAULT_HEADER_ROWS;
+        projectName = project.name;
       }
 
-      // First 3 rows are header rows (3-level merged header)
-      const headers = allValues.slice(0, 3);
-      // Data rows start from row 4 (index 3)
-      const rows = allValues.slice(3);
+      const range = `'${sheetName}'`;
+      const allValues = spreadsheetId
+        ? await getSheetValuesById(spreadsheetId, range)
+        : await getSheetValues(range);
+
+      if (!allValues || allValues.length === 0) {
+        return {
+          status: 200,
+          jsonBody: { headers: [], rows: [], totalRows: 0, sheetName, projectName },
+        };
+      }
+
+      const headers = allValues.slice(0, headerRows);
+      const rows = allValues.slice(headerRows);
 
       return {
         status: 200,
-        jsonBody: {
-          headers,
-          rows,
-          totalRows: rows.length,
-          sheetName: BUYERS_SHEET,
-        },
+        jsonBody: { headers, rows, totalRows: rows.length, sheetName, projectName },
       };
     } catch (error) {
       context.log('GetBuyers failed', error);
