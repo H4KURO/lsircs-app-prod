@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import axios from 'axios';
 import {
   Dialog,
@@ -26,6 +26,8 @@ import {
   InputAdornment,
   CircularProgress,
   Tooltip,
+  Switch,
+  FormControlLabel,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -34,9 +36,11 @@ import LinkIcon from '@mui/icons-material/Link';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
 import SearchIcon from '@mui/icons-material/Search';
 import SyncIcon from '@mui/icons-material/Sync';
+import RepeatIcon from '@mui/icons-material/Repeat';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { useTranslation } from 'react-i18next';
+import ReactMarkdown from 'react-markdown';
 import { normalizeTask, generateSubtaskId, TASK_STATUS_VALUES, getStatusDefinitions, getInitialStatus, PM_CATEGORY } from './taskUtils';
 import { AttachmentManager } from './AttachmentManager';
 import { BuyerSearchDialog } from './BuyerSearchDialog';
@@ -81,6 +85,9 @@ export function TaskDetailModal({
   const [sheetsSyncOpen, setSheetsSyncOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [buyerColumnOptions, setBuyerColumnOptions] = useState([]);
+
+  // Markdown プレビュー
+  const [descPreview, setDescPreview] = useState(false);
 
   // バイヤーリンクダイアログ
   const [buyerSearchOpen, setBuyerSearchOpen] = useState(false);
@@ -134,6 +141,43 @@ export function TaskDetailModal({
       .then((res) => setCustomers(Array.isArray(res.data) ? res.data : []))
       .catch(() => {});
   }, []);
+
+  // コメント
+  const [comments, setComments] = useState(task?.comments || []);
+  const [newComment, setNewComment] = useState('');
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
+
+  useEffect(() => {
+    setComments(task?.comments || []);
+  }, [task]);
+
+  const handleAddComment = useCallback(async () => {
+    if (!newComment.trim()) return;
+    setCommentSubmitting(true);
+    try {
+      const { data } = await axios.post(`${API_URL}/AddTaskComment`, {
+        taskId: editableTask.id,
+        text: newComment.trim(),
+      });
+      setComments(prev => [...prev, data]);
+      setNewComment('');
+    } catch (err) {
+      console.error('AddTaskComment failed', err);
+    } finally {
+      setCommentSubmitting(false);
+    }
+  }, [newComment, editableTask.id]);
+
+  const handleDeleteComment = useCallback(async (commentId) => {
+    try {
+      await axios.delete(`${API_URL}/DeleteTaskComment`, {
+        data: { taskId: editableTask.id, commentId },
+      });
+      setComments(prev => prev.filter(c => c.id !== commentId));
+    } catch (err) {
+      console.error('DeleteTaskComment failed', err);
+    }
+  }, [editableTask.id]);
 
   // Sheets連携セクションが開いたとき: 列オプションを取得
   useEffect(() => {
@@ -402,16 +446,69 @@ export function TaskDetailModal({
             variant="outlined"
             fullWidth
           />
-          <TextField
-            label={t('taskDetail.description')}
-            name="description"
-            value={editableTask.description || ''}
-            onChange={handleChange}
-            variant="outlined"
-            multiline
-            rows={4}
-            fullWidth
-          />
+          {/* 説明（Markdown対応） */}
+          <Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+                {t('taskDetail.description')}
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 0.5 }}>
+                <Button
+                  size="small"
+                  variant={!descPreview ? 'contained' : 'text'}
+                  sx={{ minWidth: 56, fontSize: '0.72rem', py: 0.3 }}
+                  onClick={() => setDescPreview(false)}
+                >
+                  編集
+                </Button>
+                <Button
+                  size="small"
+                  variant={descPreview ? 'contained' : 'text'}
+                  sx={{ minWidth: 56, fontSize: '0.72rem', py: 0.3 }}
+                  onClick={() => setDescPreview(true)}
+                >
+                  プレビュー
+                </Button>
+              </Box>
+            </Box>
+            {descPreview ? (
+              <Box
+                sx={{
+                  minHeight: 108,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: 1,
+                  p: 1.5,
+                  fontSize: '0.9rem',
+                  lineHeight: 1.7,
+                  color: editableTask.description ? 'text.primary' : 'text.disabled',
+                  '& h1,& h2,& h3': { mt: 1.5, mb: 0.5, fontWeight: 600 },
+                  '& p': { mb: 0.75 },
+                  '& ul,& ol': { pl: 2.5, mb: 0.75 },
+                  '& code': { fontFamily: 'monospace', fontSize: '0.82em', bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 },
+                  '& pre': { bgcolor: 'action.hover', p: 1.5, borderRadius: 1, overflow: 'auto', '& code': { bgcolor: 'transparent', p: 0 } },
+                  '& a': { color: 'primary.main' },
+                  '& hr': { borderColor: 'divider', my: 1 },
+                  '& blockquote': { borderLeft: '3px solid', borderColor: 'divider', pl: 1.5, color: 'text.secondary', my: 0.5 },
+                }}
+              >
+                {editableTask.description
+                  ? <ReactMarkdown>{editableTask.description}</ReactMarkdown>
+                  : '説明なし'}
+              </Box>
+            ) : (
+              <TextField
+                name="description"
+                value={editableTask.description || ''}
+                onChange={handleChange}
+                variant="outlined"
+                multiline
+                rows={4}
+                fullWidth
+                placeholder="Markdown 記法が使えます（見出し、リスト、コードブロックなど）"
+              />
+            )}
+          </Box>
           <TextField
             select
             label={t('taskDetail.statusLabel', { defaultValue: 'Status' })}
@@ -770,6 +867,127 @@ export function TaskDetailModal({
                 設定後、サブタスクに🔗でバイヤーを紐づけると開くたびにSheetsの状態が反映されます
               </Typography>
             </Collapse>
+          </Box>
+
+          {/* 繰り返しタスク */}
+          <Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <RepeatIcon fontSize="small" color="action" />
+              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>繰り返し</Typography>
+            </Box>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={!!editableTask.recurringConfig?.enabled}
+                  onChange={e =>
+                    setEditableTask(prev => ({
+                      ...prev,
+                      recurringConfig: {
+                        ...(prev.recurringConfig || {}),
+                        enabled: e.target.checked,
+                        frequency: prev.recurringConfig?.frequency || 'weekly',
+                      },
+                    }))
+                  }
+                />
+              }
+              label="完了時に次のタスクを自動生成"
+            />
+            {editableTask.recurringConfig?.enabled && (
+              <Box sx={{ mt: 1, pl: 1 }}>
+                <TextField
+                  select
+                  label="繰り返し頻度"
+                  size="small"
+                  value={editableTask.recurringConfig?.frequency || 'weekly'}
+                  onChange={e =>
+                    setEditableTask(prev => ({
+                      ...prev,
+                      recurringConfig: { ...(prev.recurringConfig || {}), frequency: e.target.value },
+                    }))
+                  }
+                  sx={{ width: 180 }}
+                >
+                  <MenuItem value="daily">毎日</MenuItem>
+                  <MenuItem value="weekly">毎週</MenuItem>
+                  <MenuItem value="biweekly">隔週</MenuItem>
+                  <MenuItem value="monthly">毎月</MenuItem>
+                </TextField>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                  「完了」にしたとき、同じ内容のタスクが次の期限で自動作成されます
+                </Typography>
+              </Box>
+            )}
+          </Box>
+
+          {/* コメント */}
+          <Box>
+            <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600 }}>
+              コメント {comments.length > 0 && `(${comments.length})`}
+            </Typography>
+            {comments.length > 0 && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mb: 2 }}>
+                {comments.map(c => (
+                  <Box
+                    key={c.id}
+                    sx={{
+                      bgcolor: 'action.hover',
+                      borderRadius: 1,
+                      p: 1.5,
+                      position: 'relative',
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 0.5 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 700 }}>
+                        {c.authorDisplayName}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                        {new Date(c.createdAt).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </Typography>
+                    </Box>
+                    <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+                      {c.text}
+                    </Typography>
+                    <IconButton
+                      size="small"
+                      sx={{ position: 'absolute', top: 4, right: 4, opacity: 0.5, '&:hover': { opacity: 1 } }}
+                      onClick={() => handleDeleteComment(c.id)}
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                ))}
+              </Box>
+            )}
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
+              <TextField
+                fullWidth
+                size="small"
+                multiline
+                maxRows={4}
+                placeholder="コメントを追加..."
+                value={newComment}
+                onChange={e => setNewComment(e.target.value)}
+                onKeyDown={e => {
+                  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddComment();
+                  }
+                }}
+              />
+              <Button
+                variant="contained"
+                size="small"
+                disabled={!newComment.trim() || commentSubmitting}
+                onClick={handleAddComment}
+                sx={{ flexShrink: 0, alignSelf: 'flex-end' }}
+              >
+                {commentSubmitting ? <CircularProgress size={16} /> : '送信'}
+              </Button>
+            </Box>
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+              ⌘Enter / Ctrl+Enter で送信
+            </Typography>
           </Box>
         </DialogContent>
         <DialogActions>

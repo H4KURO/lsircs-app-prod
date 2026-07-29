@@ -282,6 +282,16 @@
       "allowedRoles": ["anonymous"]
     },
     {
+      "route": "/api/AddTaskComment",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/DeleteTaskComment",
+      "methods": ["DELETE"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
       "route": "/api/AppendSheetRow",
       "methods": [
         "POST"

@@ -43,6 +43,9 @@ import PeopleIcon from "@mui/icons-material/People";
 import ContactsIcon from "@mui/icons-material/Contacts";
 import FolderSpecialIcon from "@mui/icons-material/FolderSpecial";
 import CircularProgress from "@mui/material/CircularProgress";
+import SearchIcon from "@mui/icons-material/Search";
+import { Tooltip } from "@mui/material";
+import { GlobalSearch } from "./GlobalSearch";
 
 const ALLOWED_VIEWS = new Set([
   "dashboard",
@@ -111,11 +114,23 @@ function App() {
   const [deepLinkTaskId, setDeepLinkTaskId] = useState(initialLocation.taskId);
   const { t, i18n } = useTranslation();
   const [language, setLanguage] = useState(() => (i18n.language || "ja").split("-")[0]);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   useEffect(() => {
     const taskIdForSync = currentView === "tasks" ? deepLinkTaskId : null;
     syncLocation(currentView, taskIdForSync);
   }, [currentView, deepLinkTaskId]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setSearchOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   useEffect(() => {
     async function fetchUser() {
@@ -367,9 +382,22 @@ function App() {
               <MenuItem value="en">{t("language.en")}</MenuItem>
             </Select>
           </FormControl>
+          {user && (
+            <Tooltip title="グローバル検索 (⌘K)">
+              <IconButton color="inherit" onClick={() => setSearchOpen(true)} sx={{ mr: 1 }}>
+                <SearchIcon />
+              </IconButton>
+            </Tooltip>
+          )}
           {user && <Chip label={user.userDetails} color="info" />}
         </Toolbar>
       </AppBar>
+
+      <GlobalSearch
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        onSelectTask={handleTaskSelectionChange}
+      />
 
       <Drawer
         variant="temporary"
