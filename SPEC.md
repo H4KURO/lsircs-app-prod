@@ -1,7 +1,7 @@
 # lsir-cs アプリケーション仕様書
 
 > **メンテナンス注意**: このファイルはアプリ変更のたびに更新すること（CLAUDE.md 参照）。  
-> 最終更新: 2026-07-04（CRM顧客管理機能を追加）
+> 最終更新: 2026-07-29（プロジェクト管理機能追加・バイヤーリストのプロジェクト連携・CRMタスクリンクのSPA遷移修正）
 
 ---
 
@@ -28,8 +28,10 @@
 **用途**: LIST Sotheby's International Realty 向け業務管理ツール  
 **主な機能**:
 - タスク管理（担当者・カテゴリ・サブタスク・添付ファイル）
-- バイヤーリスト管理（Google Sheets 連携）
+- バイヤーリスト管理（Google Sheets 連携・プロジェクト別複数スプレッドシート対応）
+- プロジェクト管理（Cosmos DB によるプロジェクト台帳）
 - スプレッドシート閲覧（Google Sheets / Box 埋め込み）
+- 顧客管理（CRM）
 - ホワイトリストによるアクセス制御
 - Slack 通知・Slack コマンドからのタスク作成
 - メール本文からのタスク自動生成（AI解析）
@@ -134,8 +136,9 @@ lsircs-app-prod/
 |---|---|---|---|
 | ダッシュボード | `dashboard` | `DashboardView` | 統計カード・カレンダー・タスクリスト |
 | タスク | `tasks` | `TaskView` | メインタスク管理 |
-| バイヤーリスト | `buyers` | `BuyersListView` | Google Sheets 連携バイヤー管理 |
+| バイヤーリスト | `buyers` | `BuyersListView` | Google Sheets 連携バイヤー管理（プロジェクト切替対応） |
 | 顧客管理 (CRM) | `crm` | `CRMView` | 顧客情報の一元管理 |
+| プロジェクト管理 | `projects` | `ProjectsView` | プロジェクト台帳の管理 |
 | スプレッドシート | `spreadsheet` | `SpreadsheetView` | Google Sheets / Box 埋め込み閲覧 |
 | 設定 | `settings` | `SettingsView` | カテゴリ・自動化ルール管理 |
 | プロフィール | `profile` | `ProfileView` | 表示名変更 |
@@ -207,11 +210,17 @@ lsircs-app-prod/
 
 ### 5.3 バイヤーリスト (`BuyersListView`)
 
-Google Sheets データを3タブで表示・編集。
+Google Sheets データを3タブで表示・編集。プロジェクト台帳と連携し、プロジェクト別にバイヤーリストを切り替えられる。
+
+**プロジェクト選択**:
+- 画面上部にプロジェクトのドロップダウンセレクター表示
+- `GetProjects` API でアクティブプロジェクト一覧を取得、最初のプロジェクトをデフォルト選択
+- 「Buyers List」タブのみプロジェクト選択が有効（`GetBuyers?projectId=xxx`）
+- Xld / Commission タブはプロジェクト選択の影響を受けない（既存動作を維持）
 
 | タブ | API (fetch) | API (update) | 説明 |
 |---|---|---|---|
-| Buyers List（アクティブ） | `GetBuyers` | `UpdateBuyer` | アクティブなバイヤー |
+| Buyers List（アクティブ） | `GetBuyers?projectId=xxx` | `UpdateBuyer` | アクティブなバイヤー（プロジェクト別） |
 | Xld（解約・取消） | `GetXldBuyers` | `UpdateXldBuyer` | 解約・取消済みバイヤー |
 | Commission & Referral | `GetCommissions` | `UpdateCommission` | 手数料・紹介情報 |
 
@@ -252,13 +261,41 @@ ZOHO・Appfolio・WP等の分散した顧客情報を一元管理するCRM機能
 - 顧客一覧（テキスト検索・ステータスフィルター）
 - 顧客作成・編集・削除
 - タスクとの紐づけ（`TaskDetailModal` に顧客選択欄）
+- 顧客詳細モーダルの「タスクを開く」ボタンはSPA遷移（`onNavigateToTask` コールバック経由）でタスク詳細モーダルを直接開く
 - 顧客情報更新時にDXチームへSlack通知（`SLACK_DX_CHANNEL_ID`）
 
 **Slack DX通知**: 顧客情報変更時（変更がある場合のみ）に `SLACK_DX_CHANNEL_ID` チャンネルへ送信。ZOHOへの手動反映依頼として活用。
 
 ---
 
-### 5.5 スプレッドシート (`SpreadsheetView`)
+### 5.5 プロジェクト管理 (`ProjectsView`)
+
+バイヤーリスト管理に使う Google Sheets プロジェクトの台帳。チームメンバー全員が操作可能（管理者専用ではない）。
+
+**プロジェクトデータモデル**:
+
+| フィールド | 説明 |
+|---|---|
+| `id` | Cosmos DB ドキュメントID（自動生成UUID） |
+| `name` | プロジェクト名（必須） |
+| `developer` | 開発業者名（任意） |
+| `spreadsheetId` | Google スプレッドシートID（必須） |
+| `sheetName` | バイヤーリストのシート（タブ）名（必須） |
+| `headerRows` | ヘッダー行数（デフォルト: 3） |
+| `status` | `'active'` \| `'inactive'`（デフォルト: `'active'`） |
+| `createdAt` / `updatedAt` | ISO8601 |
+
+**UI構成**:
+- プロジェクト一覧テーブル（プロジェクト名・開発業者・スプレッドシートID・シート名・ヘッダー行数・ステータス）
+- ステータスチップ: active → 緑「有効」、inactive → グレー「無効」
+- 追加・編集・削除ダイアログ
+- スプレッドシートIDは一覧上で先頭20文字のみ表示（完全IDはダイアログで確認）
+
+**注意**: `BuyersListView` / `BuyerSearchDialog` はアクティブ（`status !== 'inactive'`）プロジェクトのみ表示する。
+
+---
+
+### 5.6 スプレッドシート (`SpreadsheetView`)
 
 Google Sheets / Box ドキュメントを iframe で埋め込み閲覧・編集。
 
@@ -280,7 +317,7 @@ Google Sheets / Box ドキュメントを iframe で埋め込み閲覧・編集�
 
 ---
 
-### 5.6 設定 (`SettingsView`)
+### 5.7 設定 (`SettingsView`)
 
 #### カテゴリ管理
 
@@ -306,7 +343,7 @@ Google Sheets / Box ドキュメントを iframe で埋め込み閲覧・編集�
 
 ---
 
-### 5.7 プロフィール (`ProfileView`)
+### 5.8 プロフィール (`ProfileView`)
 
 | 項目 | 操作 |
 |---|---|
@@ -315,7 +352,7 @@ Google Sheets / Box ドキュメントを iframe で埋め込み閲覧・編集�
 
 ---
 
-### 5.8 ホワイトリスト管理 (`WhitelistView`)（管理者のみ）
+### 5.9 ホワイトリスト管理 (`WhitelistView`)（管理者のみ）
 
 - ユーザー一覧表示
 - ユーザー追加（メールアドレス必須、名前任意）
@@ -377,6 +414,8 @@ tags: string[],      // サブタスク固有のタグ
   completed: boolean,
   order: number,
   buyerLink: {         // バイヤーリストへのリンク（任意）
+    projectId: string | null,   // プロジェクトID（Cosmos DB）
+    projectName: string | null, // プロジェクト名
     sheetName: string,
     rowIndex: number,
     displayName: string,
@@ -452,7 +491,7 @@ tags: string[],      // サブタスク固有のタグ
 
 | メソッド | エンドポイント | 説明 |
 |---|---|---|
-| GET | `/api/GetBuyers` | アクティブバイヤー取得 |
+| GET | `/api/GetBuyers` | アクティブバイヤー取得（`?projectId=xxx` でプロジェクト別スプレッドシートから取得） |
 | POST | `/api/UpdateBuyer` | バイヤー更新 |
 | POST | `/api/UpdateBuyerCell` | セル単体更新（`column` または `columnName` を受け付ける） |
 | POST | `/api/CreateBuyer` | バイヤー追加 |
@@ -472,6 +511,15 @@ tags: string[],      // サブタスク固有のタグ
 | POST | `/api/CreateCustomer` | 顧客作成 |
 | POST | `/api/UpdateCustomer` | 顧客更新（DX Slack通知付き） |
 | POST | `/api/DeleteCustomer` | 顧客削除 |
+
+### プロジェクト管理
+
+| メソッド | エンドポイント | 説明 |
+|---|---|---|
+| GET | `/api/GetProjects` | プロジェクト一覧取得（name昇順） |
+| POST | `/api/CreateProject` | プロジェクト作成（name・spreadsheetId・sheetName 必須） |
+| POST | `/api/UpdateProject` | プロジェクト更新（id必須。更新可能フィールド: name・developer・spreadsheetId・sheetName・headerRows・status） |
+| POST | `/api/DeleteProject` | プロジェクト削除 |
 
 ### ホワイトリスト（管理者のみ）
 
@@ -558,6 +606,7 @@ tags: string[],      // サブタスク固有のタグ
 | AllowedUsers | `/id` | アクセスホワイトリスト |
 | TaskViewPreferences | `/userId` | ユーザー別ビュー設定 |
 | Customers | `/id` | CRM顧客データ（env: `COSMOS_CUSTOMERS_CONTAINER`） |
+| Projects | `/id` | プロジェクト台帳（env: `COSMOS_PROJECTS_CONTAINER`） |
 
 ---
 
@@ -583,11 +632,19 @@ tags: string[],      // サブタスク固有のタグ
 ### 10.3 Google Sheets 連携
 
 - バイヤーリスト / Xld / Commission データを Google Sheets で管理
-- `googleSheetsClient.js` が OAuth 2.0 で認証
+- `sheetsClient.js` がサービスアカウント JSON で認証
 - `GetSheetData` / `AppendSheetRow` / `UpdateSheetRow` / `DeleteSheetRow` で操作
 
+**マルチスプレッドシート対応**:
+- `sheetsClient.js` の `getSheetValuesById(spreadsheetId, range)` 関数により任意のスプレッドシートIDを指定可能
+- `GetBuyers?projectId=xxx` 時は Projects コンテナの `spreadsheetId` を使用してプロジェクト専用スプレッドシートへアクセス
+- projectId 未指定時はデフォルトスプレッドシート（環境変数 `GOOGLE_SHEETS_SPREADSHEET_ID`）を使用（後方互換）
+- 各プロジェクトのスプレッドシートにはサービスアカウント `naluhana-sheets@lsircs-app.iam.gserviceaccount.com` の閲覧権限が必要
+
 **必要な環境変数**:
-- `GOOGLE_SA_JSON_B64`（サービスアカウント JSON の Base64）
+- `GOOGLE_SHEETS_CREDENTIALS`（サービスアカウント JSON — `client_email` と `private_key` を含む）
+- `GOOGLE_SHEETS_SPREADSHEET_ID`（デフォルトスプレッドシートID）
+- `GOOGLE_SA_CLIENT_EMAIL`（参考用のみ — 実際の認証は `GOOGLE_SHEETS_CREDENTIALS` の `client_email` を使用）
 
 ---
 
@@ -629,9 +686,14 @@ git push origin main
 | `CosmosDbConnectionString` | Cosmos DB 接続文字列 |
 | `COSMOS_TASKS_CONTAINER` | タスクコレクション名 |
 | `COSMOS_USERS_CONTAINER` | ユーザーコレクション名 |
+| `COSMOS_CUSTOMERS_CONTAINER` | 顧客（CRM）コレクション名 |
+| `COSMOS_PROJECTS_CONTAINER` | プロジェクト台帳コレクション名（Azure Portal の Advanced Edit JSON で設定） |
 | `SLACK_BOT_TOKEN` | Slack Bot トークン |
 | `SLACK_SIGNING_SECRET` | Slack 署名検証 |
 | `SLACK_CHANNEL_ID` | 通知先チャンネル ID |
-| `GOOGLE_SA_JSON_B64` | Google サービスアカウント（Base64） |
+| `SLACK_DX_CHANNEL_ID` | CRM顧客更新通知先チャンネル ID |
+| `GOOGLE_SHEETS_CREDENTIALS` | Google サービスアカウント JSON（`client_email` と `private_key` を含む） |
+| `GOOGLE_SHEETS_SPREADSHEET_ID` | デフォルトスプレッドシートID（`1-gTbb5a1oA9ecY159KQMWA5gGr0gDvoa_UO8tlv4whs`） |
+| `GOOGLE_SA_CLIENT_EMAIL` | サービスアカウントのメール（参考用 — 認証には未使用） |
 | `N8N_WEBHOOK_URL` | n8n 経由 Claude API URL |
 | `BOX_IMPORT_STORAGE_CONNECTION` | Box ストレージ接続 |
