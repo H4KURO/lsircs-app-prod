@@ -27,6 +27,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
@@ -44,6 +46,7 @@ import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import { TaskDetailModal } from './TaskDetailModal';
 import { TaskTimelineView } from './TaskTimelineView';
+import { TaskCalendar } from './TaskCalendar';
 import { EmailImportModal } from './EmailImportModal';
 import {
   normalizeTask,
@@ -120,8 +123,17 @@ const CATEGORY_TASK_ORDER_LABEL_MAP = CATEGORY_TASK_ORDER_OPTIONS.reduce((acc, o
 const LAYOUT_OPTIONS = [
   { value: 'category', label: 'カテゴリ × タグ' },
   { value: 'status', label: '進捗（ステータス）' },
+  { value: 'list', label: 'リスト' },
+  { value: 'calendar', label: 'カレンダー' },
   { value: 'assignee', label: '担当者' },
   { value: 'timeline', label: 'タイムライン（ガント）' },
+];
+
+const PRIMARY_VIEW_TABS = [
+  { value: 'status', label: 'カンバン' },
+  { value: 'list', label: 'リスト' },
+  { value: 'calendar', label: 'カレンダー' },
+  { value: 'timeline', label: 'タイムライン' },
 ];
 
 const ALLOWED_LAYOUTS = new Set(LAYOUT_OPTIONS.map((option) => option.value));
@@ -470,6 +482,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [isSavingPreferences, setIsSavingPreferences] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
+  const [listPanelTask, setListPanelTask] = useState(null);
 
   // カスタムビュー保存
   const [savedViews, setSavedViews] = useState([]);
@@ -816,7 +829,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   }, [searchFilteredTasks]);
 
   const statusSections = useMemo(() => {
-    if (layout !== 'status') {
+    if (layout !== 'status' && layout !== 'list') {
       return [];
     }
     const effectiveSortMode = sortMode === 'statusDeadline' ? 'deadlineAsc' : sortMode;
@@ -1588,7 +1601,164 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
       </Box>
     );
   };
-const renderStatusLayout = () => {
+const renderListLayout = () => {
+    const allTasks = searchFilteredTasks;
+    if (allTasks.length === 0) {
+      return (
+        <Paper sx={{ p: { xs: 3, md: 4 } }}>
+          <Typography color="text.secondary">表示できるタスクがありません。</Typography>
+        </Paper>
+      );
+    }
+
+    return (
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 380px' }, gap: 2, alignItems: 'start' }}>
+        {/* Left: status-grouped list */}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {statusSections.map((section) => (
+            <Paper key={section.key} variant="outlined" sx={{ overflow: 'hidden' }}>
+              <Box sx={{ px: 2, py: 1.25, bgcolor: 'action.hover', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Typography variant="subtitle2">{section.label}</Typography>
+                <Chip label={`${section.tasks.length} 件`} size="small" />
+              </Box>
+              <Stack divider={<Divider />}>
+                {section.tasks.map((task) => {
+                  const isSelected = listPanelTask?.id === task.id;
+                  return (
+                    <Box
+                      key={task.id}
+                      onClick={() => setListPanelTask(isSelected ? null : task)}
+                      sx={{
+                        px: 2, py: 1.25,
+                        cursor: 'pointer',
+                        bgcolor: isSelected ? 'primary.main' : 'transparent',
+                        color: isSelected ? 'primary.contrastText' : 'inherit',
+                        display: 'flex', alignItems: 'center', gap: 1.5,
+                        '&:hover': { bgcolor: isSelected ? 'primary.dark' : 'action.hover' },
+                        transition: 'background 0.12s',
+                      }}
+                    >
+                      <CircleIcon sx={{ color: isSelected ? 'rgba(255,255,255,0.6)' : getStatusColor(task.status), fontSize: '0.75rem', flexShrink: 0 }} />
+                      <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+                        <Typography variant="body2" noWrap sx={{ fontWeight: 500 }}>
+                          {task.title || 'タイトル未設定'}
+                        </Typography>
+                        {task.deadline && (
+                          <Typography variant="caption" sx={{ opacity: isSelected ? 0.8 : 0.6 }}>
+                            期限: {getDeadlineLabel(task.deadline)}
+                          </Typography>
+                        )}
+                      </Box>
+                      {Array.isArray(task.assignees) && task.assignees.length > 0 && (
+                        <Typography variant="caption" noWrap sx={{ flexShrink: 0, opacity: isSelected ? 0.8 : 0.6, maxWidth: 100 }}>
+                          {task.assignees[0]}
+                        </Typography>
+                      )}
+                    </Box>
+                  );
+                })}
+              </Stack>
+            </Paper>
+          ))}
+        </Box>
+
+        {/* Right: detail panel */}
+        <Paper
+          sx={{
+            p: 2.5,
+            position: { md: 'sticky' },
+            top: { md: 24 },
+            alignSelf: 'start',
+            minHeight: 200,
+          }}
+        >
+          {listPanelTask ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
+                <Typography variant="h6" sx={{ fontWeight: 600, lineHeight: 1.3 }}>
+                  {listPanelTask.title || 'タイトル未設定'}
+                </Typography>
+                <Tooltip title="編集">
+                  <IconButton size="small" onClick={() => handleEditTask(listPanelTask)}>
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+
+              <Stack direction="row" spacing={1} flexWrap="wrap">
+                <Chip label={getStatusLabel(listPanelTask.status)} size="small" sx={{ color: getStatusColor(listPanelTask.status), borderColor: getStatusColor(listPanelTask.status) }} variant="outlined" />
+                {listPanelTask.deadline && <Chip label={`期限: ${getDeadlineLabel(listPanelTask.deadline)}`} size="small" />}
+                {Array.isArray(listPanelTask.assignees) && listPanelTask.assignees.length > 0 && (
+                  <Chip label={`担当: ${listPanelTask.assignees.join(', ')}`} size="small" />
+                )}
+              </Stack>
+
+              {listPanelTask.category && (
+                <Typography variant="caption" color="text.secondary">
+                  カテゴリ: {getCategoryLabel(listPanelTask.category)}
+                </Typography>
+              )}
+
+              {listPanelTask.description && (
+                <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
+                  {listPanelTask.description}
+                </Typography>
+              )}
+
+              {Array.isArray(listPanelTask.tags) && listPanelTask.tags.length > 0 && (
+                <Stack direction="row" spacing={0.5} flexWrap="wrap">
+                  {listPanelTask.tags.map((tag) => (
+                    <Chip key={tag} label={tag} size="small" variant="outlined" />
+                  ))}
+                </Stack>
+              )}
+
+              {Array.isArray(listPanelTask.subtasks) && listPanelTask.subtasks.length > 0 && (
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>
+                    サブタスク ({listPanelTask.subtasks.filter((s) => s.completed).length}/{listPanelTask.subtasks.length})
+                  </Typography>
+                  <Stack spacing={0.5}>
+                    {listPanelTask.subtasks.map((subtask) => (
+                      <Box key={subtask.id} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        {subtask.completed
+                          ? <CheckCircleIcon sx={{ fontSize: '0.9rem', color: 'success.main' }} />
+                          : <RadioButtonUncheckedIcon sx={{ fontSize: '0.9rem', color: 'action.disabled' }} />}
+                        <Typography
+                          variant="body2"
+                          sx={{ textDecoration: subtask.completed ? 'line-through' : 'none', color: subtask.completed ? 'text.disabled' : 'text.primary' }}
+                        >
+                          {subtask.title}
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Stack>
+                </Box>
+              )}
+
+              <Divider />
+              <Stack direction="row" spacing={1} justifyContent="flex-end">
+                <Button size="small" variant="outlined" onClick={() => handleEditTask(listPanelTask)} startIcon={<EditIcon />}>
+                  編集
+                </Button>
+                <Button size="small" color="error" onClick={() => { handleDeleteTask(listPanelTask.id); setListPanelTask(null); }} startIcon={<DeleteIcon />}>
+                  削除
+                </Button>
+              </Stack>
+            </Box>
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 160, gap: 1 }}>
+              <Typography variant="body2" color="text.secondary">
+                左のリストからタスクを選択してください
+              </Typography>
+            </Box>
+          )}
+        </Paper>
+      </Box>
+    );
+  };
+
+  const renderStatusLayout = () => {
     if (statusSections.length === 0) {
       return (
         <Paper sx={{ p: { xs: 3, md: 4 } }}>
@@ -2017,15 +2187,46 @@ const renderStatusLayout = () => {
             gap: { xs: 2, md: 3 },
           }}
         >
-          <Paper sx={{ p: { xs: 2, md: 3 } }}>
-            <Typography variant="h6">タスク一覧</Typography>
-            <Typography variant="body2" color="text.secondary">
-              選択したビューに応じてタスクを表示します。並び替えは右のメニューから変更できます。
-            </Typography>
+          <Paper sx={{ p: { xs: 1.5, md: 2 } }}>
+            <ToggleButtonGroup
+              value={PRIMARY_VIEW_TABS.some((t) => t.value === layout) ? layout : null}
+              exclusive
+              onChange={(_, val) => {
+                if (val) {
+                  updatePreferences((prev) => ({ ...prev, layout: val }));
+                }
+              }}
+              size="small"
+              sx={{ flexWrap: 'wrap' }}
+            >
+              {PRIMARY_VIEW_TABS.map((tab) => (
+                <ToggleButton
+                  key={tab.value}
+                  value={tab.value}
+                  sx={{
+                    px: 2,
+                    fontWeight: 600,
+                    fontSize: '0.8rem',
+                    '&.Mui-selected': { bgcolor: 'primary.main', color: '#fff', '&:hover': { bgcolor: 'primary.dark' } },
+                  }}
+                >
+                  {tab.label}
+                </ToggleButton>
+              ))}
+            </ToggleButtonGroup>
           </Paper>
 
           {layout === 'category' && renderCategoryLayout()}
           {layout === 'status' && renderStatusLayout()}
+          {layout === 'list' && renderListLayout()}
+          {layout === 'calendar' && (
+            <Paper sx={{ p: 0, overflow: 'hidden' }}>
+              <TaskCalendar
+                tasks={searchFilteredTasks}
+                onTaskSelect={handleEditTask}
+              />
+            </Paper>
+          )}
           {layout === 'assignee' && renderAssigneeLayout()}
           {layout === 'timeline' && (
             <TaskTimelineView
