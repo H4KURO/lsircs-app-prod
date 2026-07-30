@@ -113,6 +113,93 @@ const CATEGORY_TASK_ORDER_OPTIONS = [
   { value: 'deadlineAsc', label: '期日が近い順' },
 ];
 
+const FILTER_FIELDS = [
+  { value: 'status', label: 'ステータス' },
+  { value: 'importance', label: '重要度' },
+  { value: 'deadline', label: '期限' },
+  { value: 'assignee', label: '担当者' },
+  { value: 'tag', label: 'タグ' },
+  { value: 'category', label: 'カテゴリ' },
+];
+
+const FILTER_OPERATORS = {
+  status: [
+    { value: 'is', label: 'が次と等しい' },
+    { value: 'isNot', label: 'が次と等しくない' },
+  ],
+  importance: [
+    { value: 'is', label: 'が次と等しい' },
+    { value: 'isNot', label: 'が次と等しくない' },
+  ],
+  deadline: [
+    { value: 'before', label: 'が次より前' },
+    { value: 'after', label: 'が次より後' },
+    { value: 'isEmpty', label: 'が未設定' },
+    { value: 'isNotEmpty', label: 'が設定済み' },
+  ],
+  assignee: [
+    { value: 'contains', label: 'を含む' },
+    { value: 'notContains', label: 'を含まない' },
+  ],
+  tag: [
+    { value: 'contains', label: 'を含む' },
+    { value: 'notContains', label: 'を含まない' },
+  ],
+  category: [
+    { value: 'is', label: 'が次と等しい' },
+    { value: 'isNot', label: 'が次と等しくない' },
+  ],
+};
+
+const IMPORTANCE_FILTER_OPTIONS = [
+  { value: 2, label: '高' },
+  { value: 1, label: '中' },
+  { value: 0, label: '低' },
+];
+
+const applyFilterCondition = (task, condition, derivedCategories, DEFAULT_CATEGORY_LABEL) => {
+  const { field, operator, value } = condition;
+  switch (field) {
+    case 'status': {
+      const s = task.status || '';
+      const match = s === value;
+      return operator === 'is' ? match : !match;
+    }
+    case 'importance': {
+      const match = task.importance === value;
+      return operator === 'is' ? match : !match;
+    }
+    case 'deadline': {
+      if (operator === 'isEmpty') return !task.deadline;
+      if (operator === 'isNotEmpty') return Boolean(task.deadline);
+      if (!task.deadline || !value) return false;
+      const ts = Date.parse(task.deadline);
+      const vts = Date.parse(value);
+      if (Number.isNaN(ts) || Number.isNaN(vts)) return false;
+      return operator === 'before' ? ts < vts : ts > vts;
+    }
+    case 'assignee': {
+      const assignees = Array.isArray(task.assignees)
+        ? task.assignees.map((a) => (typeof a === 'string' ? a : a?.name ?? '').toLowerCase())
+        : [];
+      const match = assignees.some((a) => a.includes((value || '').toLowerCase()));
+      return operator === 'contains' ? match : !match;
+    }
+    case 'tag': {
+      const tags = Array.isArray(task.tags) ? task.tags.map((t) => t.toLowerCase()) : [];
+      const match = tags.some((t) => t.includes((value || '').toLowerCase()));
+      return operator === 'contains' ? match : !match;
+    }
+    case 'category': {
+      const cat = (task.category || DEFAULT_CATEGORY_LABEL).trim();
+      const match = cat === value;
+      return operator === 'is' ? match : !match;
+    }
+    default:
+      return true;
+  }
+};
+
 const sortLabelMap = [...TASK_SORT_OPTIONS, ...CATEGORY_TASK_ORDER_OPTIONS].reduce((acc, option) => {
   acc[option.value] = option.label;
   return acc;
@@ -487,6 +574,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   const [selectedTask, setSelectedTask] = useState(null);
   const [listPanelTask, setListPanelTask] = useState(null);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [filterConditions, setFilterConditions] = useState([]);
 
   // カスタムビュー保存
   const [savedViews, setSavedViews] = useState([]);
@@ -795,29 +883,69 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
     });
   }, [filteredTasks, searchQuery]);
 
+  const conditionFilteredTasks = useMemo(() => {
+    const active = filterConditions.filter(
+      (c) => c.field && c.operator && (c.operator === 'isEmpty' || c.operator === 'isNotEmpty' || c.value !== '' && c.value != null),
+    );
+    if (active.length === 0) return searchFilteredTasks;
+    return searchFilteredTasks.filter((task) => {
+      let result = applyFilterCondition(task, active[0], derivedCategories, DEFAULT_CATEGORY_LABEL);
+      for (let i = 1; i < active.length; i++) {
+        const match = applyFilterCondition(task, active[i], derivedCategories, DEFAULT_CATEGORY_LABEL);
+        result = active[i].logic === 'OR' ? result || match : result && match;
+      }
+      return result;
+    });
+  }, [searchFilteredTasks, filterConditions, derivedCategories]);
+
+  const addFilterCondition = useCallback(() => {
+    setFilterConditions((prev) => [
+      ...prev,
+      { id: Date.now(), logic: 'AND', field: 'status', operator: 'is', value: '' },
+    ]);
+  }, []);
+
+  const removeFilterCondition = useCallback((id) => {
+    setFilterConditions((prev) => prev.filter((c) => c.id !== id));
+  }, []);
+
+  const updateFilterCondition = useCallback((id, patch) => {
+    setFilterConditions((prev) =>
+      prev.map((c) => {
+        if (c.id !== id) return c;
+        const next = { ...c, ...patch };
+        if (patch.field && patch.field !== c.field) {
+          next.operator = FILTER_OPERATORS[patch.field]?.[0]?.value ?? 'is';
+          next.value = '';
+        }
+        return next;
+      }),
+    );
+  }, []);
+
   const categoryToTagsMap = useMemo(() => {
     const activeCategories = selectedCategories.length > 0 ? selectedCategories : derivedCategories;
     if (activeCategories.length === 0) {
       return {};
     }
-    const grouped = groupTasksByCategoryAndTag(searchFilteredTasks);
+    const grouped = groupTasksByCategoryAndTag(conditionFilteredTasks);
     const result = {};
     activeCategories.forEach((category) => {
       result[category] = grouped[category] || { [DEFAULT_TAG_LABEL]: [] };
     });
     return result;
-  }, [searchFilteredTasks, selectedCategories, derivedCategories]);
+  }, [conditionFilteredTasks, selectedCategories, derivedCategories]);
 
   const statusSummary = useMemo(() => {
-    return searchFilteredTasks.reduce((acc, task) => {
+    return conditionFilteredTasks.reduce((acc, task) => {
       const key = normalizeStatusKey(task.status);
       acc[key] = (acc[key] || 0) + 1;
       return acc;
     }, {});
-  }, [searchFilteredTasks]);
+  }, [conditionFilteredTasks]);
 
   const upcomingDeadlines = useMemo(() => {
-    return searchFilteredTasks
+    return conditionFilteredTasks
       .filter((task) => task.deadline)
       .map((task) => {
         const timestamp = Date.parse(task.deadline);
@@ -830,25 +958,25 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
       .sort((a, b) => a.timestamp - b.timestamp)
       .slice(0, 3)
       .map(({ task }) => task);
-  }, [searchFilteredTasks]);
+  }, [conditionFilteredTasks]);
 
   const statusSections = useMemo(() => {
     if (layout !== 'status' && layout !== 'list') {
       return [];
     }
     const effectiveSortMode = sortMode === 'statusDeadline' ? 'deadlineAsc' : sortMode;
-    return groupTasksByStatus(searchFilteredTasks).map((section) => ({
+    return groupTasksByStatus(conditionFilteredTasks).map((section) => ({
       ...section,
       tasks: sortTasksByMode(section.tasks, effectiveSortMode),
     }));
-  }, [layout, searchFilteredTasks, sortMode]);
+  }, [layout, conditionFilteredTasks, sortMode]);
 
   const assigneeColumns = useMemo(() => {
     if (layout !== 'assignee') {
       return [];
     }
     const effectiveSortMode = sortMode === 'statusDeadline' ? 'deadlineAsc' : sortMode;
-    const grouped = groupTasksByAssignee(searchFilteredTasks);
+    const grouped = groupTasksByAssignee(conditionFilteredTasks);
     const columns = [];
     const activeAssignees = selectedAssignees.length > 0 ? selectedAssignees : derivedAssignees;
 
@@ -871,7 +999,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
     }
 
     return columns;
-  }, [layout, searchFilteredTasks, selectedAssignees, derivedAssignees, includeUnassignedColumn, sortMode]);
+  }, [layout, conditionFilteredTasks, selectedAssignees, derivedAssignees, includeUnassignedColumn, sortMode]);
 
   const navCategories = selectedCategories.length > 0 ? selectedCategories : derivedCategories;
   const handleOpenCreateModal = () => {
@@ -1470,7 +1598,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
         {selectedCategories.map((category) => {
           const tagsInCategory = categoryToTagsMap[category] || {};
           const sortedTags = Object.keys(tagsInCategory).sort(sortByName);
-          const tasksInCategory = searchFilteredTasks.filter(
+          const tasksInCategory = conditionFilteredTasks.filter(
             (task) => getTaskCategoryKey(task) === category,
           );
           const totalCount = categoryGroupByTag
@@ -1606,7 +1734,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
     );
   };
 const renderListLayout = () => {
-    const allTasks = searchFilteredTasks;
+    const allTasks = conditionFilteredTasks;
     if (allTasks.length === 0) {
       return (
         <Paper sx={{ p: { xs: 3, md: 4 } }}>
@@ -1978,7 +2106,7 @@ const renderListLayout = () => {
           </Typography>
         </Box>
         <Stack direction="row" spacing={1} sx={{ flex: { xs: '1 1 100%', md: '1 1 240px' }, flexWrap: 'wrap' }}>
-          <Chip label={`総数 ${searchFilteredTasks.length} 件`} color="primary" size="small" />
+          <Chip label={`総数 ${conditionFilteredTasks.length} 件`} color="primary" size="small" />
           {STATUS_DEFINITIONS.map((definition) => {
             const count = statusSummary[definition.value] || 0;
             if (count === 0) return null;
@@ -2093,6 +2221,124 @@ const renderListLayout = () => {
             </Box>
           )}
 
+          {/* ── AND/OR Filter Conditions ── */}
+          <Box sx={{ flex: '1 1 100%' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.75 }}>
+              <Typography variant="caption" color="text.secondary">フィルター条件</Typography>
+              <Button size="small" startIcon={<AddIcon />} onClick={addFilterCondition} sx={{ minWidth: 0, px: 1 }}>
+                条件を追加
+              </Button>
+            </Box>
+            {filterConditions.length === 0 && (
+              <Typography variant="caption" color="text.disabled">条件なし（全件表示）</Typography>
+            )}
+            <Stack spacing={0.75}>
+              {filterConditions.map((cond, idx) => {
+                const operators = FILTER_OPERATORS[cond.field] || [];
+                const needsValue = cond.operator !== 'isEmpty' && cond.operator !== 'isNotEmpty';
+                return (
+                  <Box key={cond.id} sx={{ display: 'flex', gap: 0.75, alignItems: 'center', flexWrap: 'wrap' }}>
+                    {idx > 0 && (
+                      <Select
+                        size="small"
+                        value={cond.logic}
+                        onChange={(e) => updateFilterCondition(cond.id, { logic: e.target.value })}
+                        sx={{ minWidth: 64 }}
+                      >
+                        <MenuItem value="AND">AND</MenuItem>
+                        <MenuItem value="OR">OR</MenuItem>
+                      </Select>
+                    )}
+                    {idx === 0 && <Box sx={{ minWidth: 64 }} />}
+                    <Select
+                      size="small"
+                      value={cond.field}
+                      onChange={(e) => updateFilterCondition(cond.id, { field: e.target.value })}
+                      sx={{ minWidth: 100 }}
+                    >
+                      {FILTER_FIELDS.map((f) => (
+                        <MenuItem key={f.value} value={f.value}>{f.label}</MenuItem>
+                      ))}
+                    </Select>
+                    <Select
+                      size="small"
+                      value={cond.operator}
+                      onChange={(e) => updateFilterCondition(cond.id, { operator: e.target.value })}
+                      sx={{ minWidth: 120 }}
+                    >
+                      {operators.map((op) => (
+                        <MenuItem key={op.value} value={op.value}>{op.label}</MenuItem>
+                      ))}
+                    </Select>
+                    {needsValue && cond.field === 'status' && (
+                      <Select
+                        size="small"
+                        value={cond.value}
+                        onChange={(e) => updateFilterCondition(cond.id, { value: e.target.value })}
+                        sx={{ minWidth: 140 }}
+                        displayEmpty
+                      >
+                        <MenuItem value=""><em>選択</em></MenuItem>
+                        {STATUS_DEFINITIONS.map((s) => (
+                          <MenuItem key={s.value} value={s.value}>{s.label}</MenuItem>
+                        ))}
+                      </Select>
+                    )}
+                    {needsValue && cond.field === 'importance' && (
+                      <Select
+                        size="small"
+                        value={cond.value}
+                        onChange={(e) => updateFilterCondition(cond.id, { value: e.target.value })}
+                        sx={{ minWidth: 80 }}
+                        displayEmpty
+                      >
+                        <MenuItem value=""><em>選択</em></MenuItem>
+                        {IMPORTANCE_FILTER_OPTIONS.map((opt) => (
+                          <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                        ))}
+                      </Select>
+                    )}
+                    {needsValue && cond.field === 'deadline' && (
+                      <TextField
+                        size="small"
+                        type="date"
+                        value={cond.value}
+                        onChange={(e) => updateFilterCondition(cond.id, { value: e.target.value })}
+                        sx={{ minWidth: 140 }}
+                      />
+                    )}
+                    {needsValue && cond.field === 'category' && (
+                      <Select
+                        size="small"
+                        value={cond.value}
+                        onChange={(e) => updateFilterCondition(cond.id, { value: e.target.value })}
+                        sx={{ minWidth: 140 }}
+                        displayEmpty
+                      >
+                        <MenuItem value=""><em>選択</em></MenuItem>
+                        {derivedCategories.map((cat) => (
+                          <MenuItem key={cat} value={cat}>{cat}</MenuItem>
+                        ))}
+                      </Select>
+                    )}
+                    {needsValue && (cond.field === 'assignee' || cond.field === 'tag') && (
+                      <TextField
+                        size="small"
+                        placeholder={cond.field === 'tag' ? 'タグ名' : '担当者名'}
+                        value={cond.value}
+                        onChange={(e) => updateFilterCondition(cond.id, { value: e.target.value })}
+                        sx={{ minWidth: 120 }}
+                      />
+                    )}
+                    <IconButton size="small" onClick={() => removeFilterCondition(cond.id)} color="default">
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                );
+              })}
+            </Stack>
+          </Box>
+
           {/* Category filter */}
           <Box sx={{ flex: '1 1 240px', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
             <Autocomplete
@@ -2191,12 +2437,12 @@ const renderListLayout = () => {
         {layout === 'list' && renderListLayout()}
         {layout === 'calendar' && (
           <Paper sx={{ p: 0, overflow: 'hidden', height: 680 }}>
-            <TaskCalendar tasks={searchFilteredTasks} onTaskSelect={handleEditTask} />
+            <TaskCalendar tasks={conditionFilteredTasks} onTaskSelect={handleEditTask} />
           </Paper>
         )}
         {layout === 'assignee' && renderAssigneeLayout()}
         {layout === 'timeline' && (
-          <TaskTimelineView tasks={searchFilteredTasks} onEditTask={handleEditTask} />
+          <TaskTimelineView tasks={conditionFilteredTasks} onEditTask={handleEditTask} />
         )}
       </Box>
 
