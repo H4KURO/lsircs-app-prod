@@ -33,6 +33,7 @@ import {
   List,
   ListItemButton,
   ListItemText,
+  Menu,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -142,6 +143,10 @@ export function TaskDetailModal({
   const [newComment, setNewComment] = useState('');
   const [commentSubmitting, setCommentSubmitting] = useState(false);
 
+  // テンプレート（新規作成モードのみ）
+  const [templates, setTemplates] = useState([]);
+  const [templateMenuAnchor, setTemplateMenuAnchor] = useState(null);
+
   // バイヤーリンクダイアログ
   const [buyerSearchOpen, setBuyerSearchOpen] = useState(false);
 
@@ -200,6 +205,28 @@ export function TaskDetailModal({
     axios.get(`${API_URL}/GetAllUsers`)
       .then(r => setAllUsers(r.data || []))
       .catch(() => {});
+  }, []);
+
+  // テンプレート一覧（新規作成モードのみ）
+  useEffect(() => {
+    if (task?.id) return;
+    axios.get(`${API_URL}/GetTaskTemplates`)
+      .then(r => setTemplates(Array.isArray(r.data) ? r.data : []))
+      .catch(() => {});
+  }, [task?.id]);
+
+  const handleApplyTemplate = useCallback((tmpl) => {
+    setEditableTask(prev => ({
+      ...prev,
+      description: tmpl.description || prev.description,
+      category: tmpl.category || prev.category,
+      priority: tmpl.priority || prev.priority,
+      tags: tmpl.tags?.length ? tmpl.tags : prev.tags,
+      subtasks: tmpl.subtasks?.length
+        ? tmpl.subtasks.map(s => ({ ...s, id: generateSubtaskId(), completed: false }))
+        : prev.subtasks,
+    }));
+    setTemplateMenuAnchor(null);
   }, []);
 
   const handleCommentChange = useCallback((e) => {
@@ -521,6 +548,34 @@ export function TaskDetailModal({
         <DialogTitle>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             {task.id ? t('taskDetail.editTitle') : t('taskDetail.createTitle')}
+            {!task.id && templates.length > 0 && (
+              <>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  sx={{ ml: 'auto', fontSize: '0.75rem' }}
+                  onClick={e => setTemplateMenuAnchor(e.currentTarget)}
+                >
+                  テンプレートを適用
+                </Button>
+                <Menu
+                  anchorEl={templateMenuAnchor}
+                  open={!!templateMenuAnchor}
+                  onClose={() => setTemplateMenuAnchor(null)}
+                >
+                  {templates.map(tmpl => (
+                    <MenuItem key={tmpl.id} onClick={() => handleApplyTemplate(tmpl)}>
+                      <Box>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{tmpl.name}</Typography>
+                        {tmpl.category && (
+                          <Typography variant="caption" color="text.secondary">{tmpl.category}</Typography>
+                        )}
+                      </Box>
+                    </MenuItem>
+                  ))}
+                </Menu>
+              </>
+            )}
             {syncing && (
               <Chip
                 icon={<SyncIcon sx={{ fontSize: '0.9rem !important' }} />}

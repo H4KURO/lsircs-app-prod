@@ -19,6 +19,7 @@ import AddIcon from '@mui/icons-material/Add';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import { MuiColorInput } from 'mui-color-input';
 import { generateSubtaskId } from './taskUtils';
+import { TaskTemplateManager } from './TaskTemplateManager';
 
 const API_URL = '/api';
 const DEFAULT_CATEGORY_COLOR = '#1976d2';
@@ -80,10 +81,14 @@ export function SettingsView() {
   const [deletingRuleId, setDeletingRuleId] = useState(null);
   const [newRule, setNewRule] = useState(createEmptyAutomationRule());
   const [isAddingRule, setIsAddingRule] = useState(false);
+  const [categoryOptions, setCategoryOptions] = useState([]);
+  const [tagOptions, setTagOptions] = useState([]);
 
   const loadCategories = async () => {
     const res = await axios.get(`${API_URL}/GetCategories`);
-    setCategories(res.data ?? []);
+    const cats = res.data ?? [];
+    setCategories(cats);
+    setCategoryOptions(cats.map(c => typeof c === 'string' ? c : c?.name ?? '').filter(Boolean));
   };
 
   const loadAutomationRules = async () => {
@@ -619,6 +624,17 @@ export function SettingsView() {
               ))
             )}
           </Stack>
+        </Paper>
+
+        {/* タスクテンプレート */}
+        <Paper sx={{ p: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <Typography variant="h6">タスクテンプレート</Typography>
+          </Box>
+          <TaskTemplateManager
+            categoryOptions={categoryOptions}
+            tagOptions={tagOptions}
+          />
         </Paper>
       </Stack>
     </Box>

@@ -23,6 +23,10 @@ import {
   Switch,
   CircularProgress,
   InputAdornment,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
@@ -36,6 +40,8 @@ import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import EmailIcon from '@mui/icons-material/Email';
 import LinkIcon from '@mui/icons-material/Link';
+import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
+import BookmarkIcon from '@mui/icons-material/Bookmark';
 import { TaskDetailModal } from './TaskDetailModal';
 import { EmailImportModal } from './EmailImportModal';
 import {
@@ -461,6 +467,11 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [isSavingPreferences, setIsSavingPreferences] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
+
+  // カスタムビュー保存
+  const [savedViews, setSavedViews] = useState([]);
+  const [saveViewDialogOpen, setSaveViewDialogOpen] = useState(false);
+  const [saveViewName, setSaveViewName] = useState('');
   const [emailImportOpen, setEmailImportOpen] = useState(false);
   const [statusUpdatingIds, setStatusUpdatingIds] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -517,7 +528,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        const [tasksRes, usersRes, rulesRes, preferencesRes, categoriesRes] = await Promise.all([
+        const [tasksRes, usersRes, rulesRes, preferencesRes, categoriesRes, savedViewsRes] = await Promise.all([
           axios.get(`${API_URL}/GetTasks`),
           axios.get(`${API_URL}/GetAllUsers`),
           axios.get(`${API_URL}/GetAutomationRules`).catch((error) => {
@@ -532,6 +543,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
             console.error('Failed to load categories', error);
             return { data: [] };
           }),
+          axios.get(`${API_URL}/GetSavedViews`).catch(() => ({ data: [] })),
         ]);
 
         const normalizedTasks = normalizeTasks(tasksRes.data);
@@ -553,6 +565,10 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
         setServerPreferences(normalizedPreferences);
         latestPreferencesRef.current = normalizedPreferences;
         setPreferencesLoaded(true);
+
+        if (Array.isArray(savedViewsRes?.data)) {
+          setSavedViews(savedViewsRes.data);
+        }
       } catch (error) {
         console.error('Failed to load task data', error);
         setPreferencesLoaded(true);
@@ -1003,6 +1019,55 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
 
   const handleResetSelection = () => {
     updatePreferences((prev) => ({ ...prev, selectedCategories: derivedCategories }));
+  };
+
+  const handleOpenSaveViewDialog = () => {
+    setSaveViewName('');
+    setSaveViewDialogOpen(true);
+  };
+
+  const handleSaveView = async () => {
+    const name = saveViewName.trim();
+    if (!name) return;
+    const viewToSave = {
+      name,
+      layout: preferences.layout,
+      sortMode: preferences.sortMode,
+      selectedCategories: preferences.selectedCategories,
+      selectedAssignees: preferences.selectedAssignees,
+      includeUnassignedColumn: preferences.includeUnassignedColumn,
+      categoryGroupByTag: preferences.categoryGroupByTag,
+      categoryTaskOrder: preferences.categoryTaskOrder,
+    };
+    try {
+      const { data } = await axios.post(`${API_URL}/SaveView`, viewToSave);
+      setSavedViews(data);
+      setSaveViewDialogOpen(false);
+    } catch (err) {
+      console.error('SaveView failed', err);
+    }
+  };
+
+  const handleDeleteSavedView = async (viewId) => {
+    try {
+      const { data } = await axios.delete(`${API_URL}/DeleteSavedView/${viewId}`);
+      setSavedViews(data);
+    } catch (err) {
+      console.error('DeleteSavedView failed', err);
+    }
+  };
+
+  const handleApplySavedView = (view) => {
+    updatePreferences((prev) => ({
+      ...prev,
+      layout: view.layout || prev.layout,
+      sortMode: view.sortMode || prev.sortMode,
+      selectedCategories: Array.isArray(view.selectedCategories) ? view.selectedCategories : prev.selectedCategories,
+      selectedAssignees: Array.isArray(view.selectedAssignees) ? view.selectedAssignees : prev.selectedAssignees,
+      includeUnassignedColumn: typeof view.includeUnassignedColumn === 'boolean' ? view.includeUnassignedColumn : prev.includeUnassignedColumn,
+      categoryGroupByTag: typeof view.categoryGroupByTag === 'boolean' ? view.categoryGroupByTag : prev.categoryGroupByTag,
+      categoryTaskOrder: view.categoryTaskOrder || prev.categoryTaskOrder,
+    }));
   };
 
   const handleSortModeChange = (event) => {
@@ -1728,10 +1793,40 @@ const renderStatusLayout = () => {
             alignSelf: 'start',
           }}
         >
-          <Typography variant="h6">表示設定</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography variant="h6">表示設定</Typography>
+            <Tooltip title="現在のフィルター設定を保存">
+              <IconButton size="small" onClick={handleOpenSaveViewDialog}>
+                <BookmarkAddIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
           <Typography variant="body2" color="text.secondary">
             表示するカテゴリや並び順、レイアウトを指定できます。設定はユーザーごとに自動保存されます。
           </Typography>
+
+          {savedViews.length > 0 && (
+            <Box>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                保存済みビュー
+              </Typography>
+              <Stack direction="row" flexWrap="wrap" gap={0.75}>
+                {savedViews.map((view) => (
+                  <Chip
+                    key={view.id}
+                    label={view.name}
+                    icon={<BookmarkIcon sx={{ fontSize: '0.9rem !important' }} />}
+                    size="small"
+                    onClick={() => handleApplySavedView(view)}
+                    onDelete={() => handleDeleteSavedView(view.id)}
+                    variant="outlined"
+                    color="primary"
+                    sx={{ cursor: 'pointer' }}
+                  />
+                ))}
+              </Stack>
+            </Box>
+          )}
 
           <FormControl size="small">
             <InputLabel id="task-view-layout-label">ビュー</InputLabel>
@@ -2033,6 +2128,29 @@ const renderStatusLayout = () => {
           tagOptions={tagOptions}
         />
       )}
+
+      {/* カスタムビュー保存ダイアログ */}
+      <Dialog open={saveViewDialogOpen} onClose={() => setSaveViewDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>ビューを保存</DialogTitle>
+        <DialogContent sx={{ pt: '12px !important' }}>
+          <TextField
+            autoFocus
+            fullWidth
+            label="ビュー名"
+            placeholder="例: 自分の進行中タスク"
+            value={saveViewName}
+            onChange={e => setSaveViewName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleSaveView(); }}
+            helperText="現在のレイアウト・カテゴリ・担当者フィルターを名前付きで保存します"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSaveViewDialogOpen(false)}>キャンセル</Button>
+          <Button variant="contained" onClick={handleSaveView} disabled={!saveViewName.trim()}>
+            保存
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

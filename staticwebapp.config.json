@@ -292,6 +292,39 @@
       "allowedRoles": ["anonymous"]
     },
     {
+      "route": "/api/GetSavedViews",
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/SaveView",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/DeleteSavedView/:id",
+      "methods": ["DELETE"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/GetTaskTemplates",
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/CreateTaskTemplate",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/UpdateTaskTemplate/:id",
+      "methods": ["PUT"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/DeleteTaskTemplate/:id",
+      "methods": ["DELETE"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
       "route": "/api/AppendSheetRow",
       "methods": [
         "POST"

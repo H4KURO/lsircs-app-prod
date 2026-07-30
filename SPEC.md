@@ -1,7 +1,7 @@
 # lsir-cs アプリケーション仕様書
 
 > **メンテナンス注意**: このファイルはアプリ変更のたびに更新すること（CLAUDE.md 参照）。  
-> 最終更新: 2026-07-29（プロジェクト管理機能追加・バイヤーリストのプロジェクト連携・CRMタスクリンクのSPA遷移修正）
+> 最終更新: 2026-07-30（Phase 1 完了機能追加・Phase 2 計画追加・recurringConfig/comments フィールド追加・TaskTemplates コレクション追加）
 
 ---
 
@@ -19,6 +19,7 @@
 10. [外部連携](#10-外部連携)
 11. [多言語対応](#11-多言語対応)
 12. [デプロイ](#12-デプロイ)
+13. [ロードマップ](#13-ロードマップ)
 
 ---
 
@@ -369,7 +370,7 @@ Google Sheets / Box ドキュメントを iframe で埋め込み閲覧・編集�
 {
   id: string,              // Cosmos DB ドキュメントID
   title: string,
-  description: string,
+  description: string,     // Markdown テキスト
   status: 'Started' | 'Inprogress' | 'Done',
   priority: 'High' | 'Medium' | 'Low',
   importance: 0 | 1 | 2,  // 0=低, 1=中, 2=高
@@ -380,8 +381,25 @@ Google Sheets / Box ドキュメントを iframe で埋め込み閲覧・編集�
   deadline: string | null, // ISO8601 日付文字列
   subtasks: Subtask[],
   attachments: Attachment[],
+  comments: Comment[],     // タスクコメント配列
+  recurringConfig: {       // 繰り返しタスク設定（任意）
+    enabled: boolean,
+    frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly',
+  } | null,
   createdAt: string,
   updatedAt: string,
+}
+```
+
+#### Comment データモデル
+
+```javascript
+{
+  id: string,          // UUID
+  authorName: string,  // displayName
+  authorEmail: string,
+  body: string,        // コメント本文（@mention 含む）
+  createdAt: string,   // ISO8601
 }
 ```
 
@@ -430,7 +448,7 @@ tags: string[],      // サブタスク固有のタグ
 | フィールド | 入力形式 |
 |---|---|
 | タイトル | テキスト（必須） |
-| 説明 | 複数行テキスト |
+| 説明 | Markdown エディタ（プレビュー/編集 トグル・ツールバー付き） |
 | ステータス | セレクト（3択） |
 | 優先度 | セレクト（High/Medium/Low） |
 | 重要度 | セレクト（高/中/低） |
@@ -438,8 +456,44 @@ tags: string[],      // サブタスク固有のタグ
 | 担当者 | 複数選択オートコンプリート |
 | タグ | 複数選択（自由入力可） |
 | 期限 | 日付ピッカー |
+| 繰り返し設定 | ON/OFF トグル＋頻度セレクト（daily/weekly/biweekly/monthly） |
 | サブタスク | テーブル形式（追加・削除・並替）。各サブタスクにメモ・タグ編集あり |
 | 添付ファイル | `AttachmentManager` コンポーネント |
+| コメント | コメント一覧＋入力欄（@mention補完付き）＋削除 |
+
+---
+
+## 6.5 Phase 1 完了機能
+
+### 6.5.1 Markdown 説明欄
+
+- `description` フィールドを Markdown テキストとして保存・表示
+- タスク詳細モーダル内でプレビュー/編集をトグルで切り替え
+- ツールバー: FormatBold・FormatItalic・FormatListBulleted 等のアイコンボタン
+
+### 6.5.2 グローバル検索（`GlobalSearch.jsx`）
+
+- ショートカット: `⌘K`（Mac）/ `Ctrl+K`（Windows）でオープン
+- タスクと顧客（Customers）をクライアントサイドで横断検索
+- 検索対象: タスクのタイトル・説明・カテゴリ・タグ / 顧客の氏名・メール・会社名
+
+### 6.5.3 タスクコメント
+
+- タスクドキュメントの `comments` 配列に追記・削除
+- API: `POST /api/AddTaskComment`、`DELETE /api/DeleteTaskComment`
+- コメント欄は `TaskDetailModal` 内に表示
+
+### 6.5.4 繰り返しタスク
+
+- タスクに `recurringConfig: { enabled, frequency }` フィールドを付与
+- ステータスが `Done` に変わった際に次の繰り返しタスクを自動生成
+  - `frequency` に応じて `deadline` を算出（daily: +1日 / weekly: +7日 / biweekly: +14日 / monthly: +1ヶ月）
+  - 新タスクのステータスは `Started` にリセット
+
+### 6.5.5 @mention 補完（コメント入力欄）
+
+- コメント入力中に `@` を入力すると AllowedUsers からのユーザー候補を表示
+- `GetAllUsers` API が `AllowedUsers` コレクションとの照合結果のみ返すよう変更（`isAllowed !== false` のユーザーのみ）
 
 ---
 
@@ -453,6 +507,8 @@ tags: string[],      // サブタスク固有のタグ
 | POST | `/api/CreateTask` | タスク作成 |
 | PUT | `/api/UpdateTask/{id}` | タスク更新 |
 | DELETE | `/api/DeleteTask/{id}` | タスク削除 |
+| POST | `/api/AddTaskComment` | タスクにコメント追加 |
+| DELETE | `/api/DeleteTaskComment` | タスクのコメント削除 |
 
 ### ユーザー・プロファイル
 
@@ -486,6 +542,23 @@ tags: string[],      // サブタスク固有のタグ
 |---|---|---|
 | GET | `/api/GetTaskViewPreferences` | ビュー設定取得 |
 | PUT | `/api/UpdateTaskViewPreferences` | ビュー設定保存 |
+
+### カスタムビュー保存
+
+| メソッド | エンドポイント | 説明 |
+|---|---|---|
+| GET | `/api/GetSavedViews` | 保存済みビュー一覧取得 |
+| POST | `/api/SaveView` | ビュー保存（名前付き） |
+| DELETE | `/api/DeleteSavedView/{id}` | 保存済みビュー削除 |
+
+### タスクテンプレート
+
+| メソッド | エンドポイント | 説明 |
+|---|---|---|
+| GET | `/api/GetTaskTemplates` | テンプレート一覧取得 |
+| POST | `/api/CreateTaskTemplate` | テンプレート作成 |
+| PUT | `/api/UpdateTaskTemplate/{id}` | テンプレート更新 |
+| DELETE | `/api/DeleteTaskTemplate/{id}` | テンプレート削除 |
 
 ### バイヤーリスト
 
@@ -599,14 +672,15 @@ tags: string[],      // サブタスク固有のタグ
 
 | コレクション名 | パーティションキー | 用途 |
 |---|---|---|
-| Tasks | `/id` | タスクデータ |
+| Tasks | `/id` | タスクデータ（comments・recurringConfig フィールド含む） |
 | Categories | `/id` | カテゴリ定義 |
 | AutomationRules | `/id` | 自動化ルール |
-| Users（UserProfiles） | `/id` | ユーザープロファイル |
+| Users（UserProfiles） | `/id` | ユーザープロファイル（savedViews フィールド含む） |
 | AllowedUsers | `/id` | アクセスホワイトリスト |
 | TaskViewPreferences | `/userId` | ユーザー別ビュー設定 |
 | Customers | `/id` | CRM顧客データ（env: `COSMOS_CUSTOMERS_CONTAINER`） |
 | Projects | `/id` | プロジェクト台帳（env: `COSMOS_PROJECTS_CONTAINER`） |
+| TaskTemplates | `/id` | タスクテンプレート（Phase 2） |
 
 ---
 
@@ -697,3 +771,17 @@ git push origin main
 | `GOOGLE_SA_CLIENT_EMAIL` | サービスアカウントのメール（参考用 — 認証には未使用） |
 | `N8N_WEBHOOK_URL` | n8n 経由 Claude API URL |
 | `BOX_IMPORT_STORAGE_CONNECTION` | Box ストレージ接続 |
+
+---
+
+## 13. ロードマップ
+
+### PHASE 2 - ビュー & ワークフロー強化
+
+| 機能 | ステータス | 概要 |
+|---|---|---|
+| カスタムビュー保存 | 実装中 | フィルター状態（layout/sortMode/selectedCategories/selectedAssignees）を名前付きで保存し、ワンクリックで切り替え。savedViews はユーザープロファイル（Users コレクション）に保存。API: GetSavedViews / SaveView / DeleteSavedView/{id} |
+| タスクテンプレート | 実装中 | よく使うタスク構成（サブタスク・カテゴリ・タグ）をテンプレートとして保存し、新規タスク作成時に適用。新規 Cosmos コレクション `TaskTemplates`。API: GetTaskTemplates / CreateTaskTemplate / UpdateTaskTemplate/{id} / DeleteTaskTemplate/{id} |
+| タイムライン表示 | 計画中 | ガントチャート形式でタスクをプロジェクト/担当者別に表示 |
+| タスク依存関係 | 計画中 | タスク間の前後関係（ブロッカー）設定 |
+| ダッシュボード拡張 | 計画中 | チーム進捗ウィジェット・担当者別タスク数・期限超過数などのウィジェット追加 |
