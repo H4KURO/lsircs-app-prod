@@ -45,6 +45,8 @@ import LinkIcon from '@mui/icons-material/Link';
 import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import FilterListIcon from '@mui/icons-material/FilterList';
+import GridViewIcon from '@mui/icons-material/GridView';
+import AttachFileIcon from '@mui/icons-material/AttachFile';
 import { TaskDetailModal } from './TaskDetailModal';
 import { TaskTimelineView } from './TaskTimelineView';
 import { TaskCalendar } from './TaskCalendar';
@@ -216,12 +218,14 @@ const LAYOUT_OPTIONS = [
   { value: 'list', label: 'リスト' },
   { value: 'calendar', label: 'カレンダー' },
   { value: 'assignee', label: '担当者' },
+  { value: 'gallery', label: 'ギャラリー' },
   { value: 'timeline', label: 'タイムライン（ガント）' },
 ];
 
 const PRIMARY_VIEW_TABS = [
   { value: 'status', label: 'カンバン' },
   { value: 'list', label: 'リスト' },
+  { value: 'gallery', label: 'ギャラリー' },
   { value: 'calendar', label: 'カレンダー' },
   { value: 'timeline', label: 'タイムライン' },
 ];
@@ -1997,6 +2001,120 @@ const renderListLayout = () => {
     );
   };
 
+  const renderGalleryLayout = () => {
+    if (conditionFilteredTasks.length === 0) {
+      return (
+        <Paper sx={{ p: { xs: 3, md: 4 } }}>
+          <Typography color="text.secondary">表示できるタスクがありません。</Typography>
+        </Paper>
+      );
+    }
+
+    return (
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+          gap: 2,
+        }}
+      >
+        {conditionFilteredTasks.map((task) => {
+          const { total, completed, percent } = calculateSubtaskSummary(task.subtasks);
+          const coverAttachment = Array.isArray(task.attachments)
+            ? task.attachments.find((a) => a.type?.startsWith('image/'))
+            : null;
+          const importanceColor = task.importance === 2 ? 'error.main' : task.importance === 1 ? 'warning.main' : 'success.main';
+          const importanceLabel = task.importance === 2 ? '高' : task.importance === 1 ? '中' : '低';
+
+          return (
+            <Paper
+              key={task.id}
+              variant="outlined"
+              sx={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', cursor: 'pointer', transition: 'box-shadow 0.15s', '&:hover': { boxShadow: 4 } }}
+              onClick={() => handleEditTask(task)}
+            >
+              {/* Cover image or status-colored band */}
+              {coverAttachment ? (
+                <Box
+                  component="img"
+                  src={coverAttachment.url || coverAttachment.data}
+                  alt=""
+                  sx={{ width: '100%', height: 120, objectFit: 'cover' }}
+                />
+              ) : (
+                <Box sx={{ height: 6, bgcolor: getStatusColor(task.status) }} />
+              )}
+
+              <Box sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1, flexGrow: 1 }}>
+                <Typography
+                  variant="body2"
+                  sx={{ fontWeight: 600, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+                >
+                  {task.title || 'タイトル未設定'}
+                </Typography>
+
+                <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                  <Chip
+                    label={STATUS_LABEL_JA[task.status] ?? task.status ?? '未設定'}
+                    size="small"
+                    sx={{ height: 18, fontSize: '0.65rem', bgcolor: getStatusColor(task.status), color: '#fff' }}
+                  />
+                  <Chip
+                    label={`重要度: ${importanceLabel}`}
+                    size="small"
+                    sx={{ height: 18, fontSize: '0.65rem', color: importanceColor, borderColor: importanceColor }}
+                    variant="outlined"
+                  />
+                </Stack>
+
+                {Array.isArray(task.assignees) && task.assignees.length > 0 && (
+                  <Typography variant="caption" color="text.secondary" noWrap>
+                    {task.assignees.slice(0, 2).join(' · ')}{task.assignees.length > 2 ? ` +${task.assignees.length - 2}` : ''}
+                  </Typography>
+                )}
+
+                {task.deadline && (
+                  <Typography variant="caption" color="text.secondary">
+                    期限: {getDeadlineLabel(task.deadline)}
+                  </Typography>
+                )}
+
+                {total > 0 && (
+                  <Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.25 }}>
+                      <Typography variant="caption" color="text.secondary">サブタスク</Typography>
+                      <Typography variant="caption" color="text.secondary">{completed}/{total}</Typography>
+                    </Box>
+                    <LinearProgress variant="determinate" value={percent} sx={{ height: 4, borderRadius: 2 }} />
+                  </Box>
+                )}
+
+                {Array.isArray(task.attachments) && task.attachments.length > 0 && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <AttachFileIcon sx={{ fontSize: '0.75rem', color: 'text.disabled' }} />
+                    <Typography variant="caption" color="text.disabled">{task.attachments.length}</Typography>
+                  </Box>
+                )}
+              </Box>
+
+              <Box
+                sx={{ px: 1.5, py: 0.75, borderTop: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Tooltip title="編集">
+                  <IconButton size="small" onClick={() => handleEditTask(task)}><EditIcon fontSize="small" /></IconButton>
+                </Tooltip>
+                <Tooltip title="削除">
+                  <IconButton size="small" onClick={() => handleDeleteTask(task.id)}><DeleteIcon fontSize="small" /></IconButton>
+                </Tooltip>
+              </Box>
+            </Paper>
+          );
+        })}
+      </Box>
+    );
+  };
+
   const groupTasksSecondary = (tasks, groupBy) => {
     if (!groupBy) return null;
     const groups = new Map();
@@ -2497,6 +2615,7 @@ const renderListLayout = () => {
         {layout === 'category' && renderCategoryLayout()}
         {layout === 'status' && renderStatusLayout()}
         {layout === 'list' && renderListLayout()}
+        {layout === 'gallery' && renderGalleryLayout()}
         {layout === 'calendar' && (
           <Paper sx={{ p: 0, overflow: 'hidden', height: 680 }}>
             <TaskCalendar tasks={conditionFilteredTasks} onTaskSelect={handleEditTask} />

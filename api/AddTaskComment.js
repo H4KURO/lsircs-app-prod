@@ -27,7 +27,7 @@ app.http('AddTaskComment', {
     if (!principal) return { status: 401, body: 'Unauthorized.' };
 
     try {
-      const { taskId, text, mentionedDisplayNames } = await request.json();
+      const { taskId, text, replyTo, mentionedDisplayNames } = await request.json();
       if (!taskId || !text?.trim()) {
         return { status: 400, body: 'taskId and text are required.' };
       }
@@ -42,6 +42,7 @@ app.http('AddTaskComment', {
         authorDisplayName: principal.userDetails || principal.userId,
         authorUserId: principal.userId,
         createdAt: new Date().toISOString(),
+        ...(replyTo ? { replyTo } : {}),
       };
 
       const comments = [...(task.comments || []), comment];

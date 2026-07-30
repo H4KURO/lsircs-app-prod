@@ -45,20 +45,12 @@ import SyncIcon from '@mui/icons-material/Sync';
 import RepeatIcon from '@mui/icons-material/Repeat';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
-import FormatBoldIcon from '@mui/icons-material/FormatBold';
-import FormatItalicIcon from '@mui/icons-material/FormatItalic';
-import FormatStrikethroughIcon from '@mui/icons-material/FormatStrikethrough';
-import TitleIcon from '@mui/icons-material/Title';
-import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
-import FormatListNumberedIcon from '@mui/icons-material/FormatListNumbered';
-import FormatQuoteIcon from '@mui/icons-material/FormatQuote';
-import CodeIcon from '@mui/icons-material/Code';
-import HorizontalRuleIcon from '@mui/icons-material/HorizontalRule';
+import ReplyIcon from '@mui/icons-material/Reply';
 import { useTranslation } from 'react-i18next';
-import ReactMarkdown from 'react-markdown';
 import { normalizeTask, generateSubtaskId, TASK_STATUS_VALUES, getStatusDefinitions, getInitialStatus, PM_CATEGORY } from './taskUtils';
 import { AttachmentManager } from './AttachmentManager';
 import { BuyerSearchDialog } from './BuyerSearchDialog';
+import { RichTextEditor } from './RichTextEditor';
 
 const API_URL = '/api';
 
@@ -102,36 +94,6 @@ export function TaskDetailModal({
   const [syncing, setSyncing] = useState(false);
   const [buyerColumnOptions, setBuyerColumnOptions] = useState([]);
 
-  // Markdown プレビュー & ツールバー
-  const [descPreview, setDescPreview] = useState(false);
-  const descInputRef = useRef(null);
-
-  const applyMarkdown = useCallback((type) => {
-    const el = descInputRef.current;
-    if (!el) return;
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const value = el.value;
-    const selected = value.slice(start, end);
-    let newVal, newStart, newEnd;
-    switch (type) {
-      case 'bold': { const t = selected || 'テキスト'; newVal = value.slice(0, start) + `**${t}**` + value.slice(end); newStart = start + 2; newEnd = newStart + t.length; break; }
-      case 'italic': { const t = selected || 'テキスト'; newVal = value.slice(0, start) + `*${t}*` + value.slice(end); newStart = start + 1; newEnd = newStart + t.length; break; }
-      case 'strike': { const t = selected || 'テキスト'; newVal = value.slice(0, start) + `~~${t}~~` + value.slice(end); newStart = start + 2; newEnd = newStart + t.length; break; }
-      case 'h2': { const ls = value.lastIndexOf('\n', start - 1) + 1; newVal = value.slice(0, ls) + '## ' + value.slice(ls); newStart = start + 3; newEnd = end + 3; break; }
-      case 'ul': { const ls = value.lastIndexOf('\n', start - 1) + 1; newVal = value.slice(0, ls) + '- ' + value.slice(ls); newStart = start + 2; newEnd = end + 2; break; }
-      case 'ol': { const ls = value.lastIndexOf('\n', start - 1) + 1; newVal = value.slice(0, ls) + '1. ' + value.slice(ls); newStart = start + 3; newEnd = end + 3; break; }
-      case 'quote': { const ls = value.lastIndexOf('\n', start - 1) + 1; newVal = value.slice(0, ls) + '> ' + value.slice(ls); newStart = start + 2; newEnd = end + 2; break; }
-      case 'code': { const t = selected || 'コード'; newVal = value.slice(0, start) + '`' + t + '`' + value.slice(end); newStart = start + 1; newEnd = newStart + t.length; break; }
-      case 'codeblock': { const t = selected || 'コード'; newVal = value.slice(0, start) + '```\n' + t + '\n```' + value.slice(end); newStart = start + 4; newEnd = newStart + t.length; break; }
-      case 'link': { const t = selected || 'リンクテキスト'; newVal = value.slice(0, start) + `[${t}](url)` + value.slice(end); newStart = start + t.length + 3; newEnd = newStart + 3; break; }
-      case 'hr': { newVal = value.slice(0, start) + '\n---\n' + value.slice(end); newStart = start + 5; newEnd = newStart; break; }
-      default: return;
-    }
-    setEditableTask(prev => ({ ...prev, description: newVal }));
-    requestAnimationFrame(() => { el.focus(); el.setSelectionRange(newStart, newEnd); });
-  }, []);
-
   // @メンション
   const [allUsers, setAllUsers] = useState([]);
   const [mentionAnchor, setMentionAnchor] = useState(null);
@@ -143,6 +105,7 @@ export function TaskDetailModal({
   const [comments, setComments] = useState(task?.comments || []);
   const [newComment, setNewComment] = useState('');
   const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [replyingTo, setReplyingTo] = useState(null); // { id, authorDisplayName }
 
   // テンプレート（新規作成モードのみ）
   const [templates, setTemplates] = useState([]);
@@ -291,16 +254,18 @@ export function TaskDetailModal({
       const { data } = await axios.post(`${API_URL}/AddTaskComment`, {
         taskId: editableTask.id,
         text: trimmed,
+        replyTo: replyingTo?.id ?? null,
         mentionedDisplayNames: mentionedUsers.map((u) => u.displayName),
       });
       setComments(prev => [...prev, data]);
       setNewComment('');
+      setReplyingTo(null);
     } catch (err) {
       console.error('AddTaskComment failed', err);
     } finally {
       setCommentSubmitting(false);
     }
-  }, [newComment, editableTask.id, allUsers]);
+  }, [newComment, editableTask.id, allUsers, replyingTo]);
 
   const handleDeleteComment = useCallback(async (commentId) => {
     try {
@@ -608,102 +573,17 @@ export function TaskDetailModal({
             variant="outlined"
             fullWidth
           />
-          {/* 説明（Markdown対応） */}
+          {/* 説明（リッチテキストエディター） */}
           <Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
-                {t('taskDetail.description')}
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 0.5 }}>
-                <Button
-                  size="small"
-                  variant={!descPreview ? 'contained' : 'text'}
-                  sx={{ minWidth: 56, fontSize: '0.72rem', py: 0.3 }}
-                  onClick={() => setDescPreview(false)}
-                >
-                  編集
-                </Button>
-                <Button
-                  size="small"
-                  variant={descPreview ? 'contained' : 'text'}
-                  sx={{ minWidth: 56, fontSize: '0.72rem', py: 0.3 }}
-                  onClick={() => setDescPreview(true)}
-                >
-                  プレビュー
-                </Button>
-              </Box>
-            </Box>
-            {!descPreview && (
-              <Box sx={{ display: 'flex', gap: 0.25, flexWrap: 'wrap', mb: 0.5, p: 0.5, bgcolor: 'action.hover', borderRadius: 1 }}>
-                {[
-                  { type: 'bold', icon: <FormatBoldIcon fontSize="small" />, title: '太字 (Ctrl+B)' },
-                  { type: 'italic', icon: <FormatItalicIcon fontSize="small" />, title: '斜体' },
-                  { type: 'strike', icon: <FormatStrikethroughIcon fontSize="small" />, title: '取り消し線' },
-                  { divider: true },
-                  { type: 'h2', icon: <TitleIcon fontSize="small" />, title: '見出し (## )' },
-                  { type: 'ul', icon: <FormatListBulletedIcon fontSize="small" />, title: '箇条書き (- )' },
-                  { type: 'ol', icon: <FormatListNumberedIcon fontSize="small" />, title: '番号付きリスト' },
-                  { type: 'quote', icon: <FormatQuoteIcon fontSize="small" />, title: '引用 (> )' },
-                  { divider: true },
-                  { type: 'code', icon: <CodeIcon fontSize="small" />, title: 'インラインコード' },
-                  { type: 'codeblock', icon: <Box sx={{ fontSize: '0.65rem', fontFamily: 'monospace', lineHeight: 1 }}>```</Box>, title: 'コードブロック' },
-                  { type: 'link', icon: <LinkIcon fontSize="small" />, title: 'リンク [text](url)' },
-                  { type: 'hr', icon: <HorizontalRuleIcon fontSize="small" />, title: '区切り線 ---' },
-                ].map((item, i) =>
-                  item.divider
-                    ? <Box key={i} sx={{ width: '1px', bgcolor: 'divider', mx: 0.25, alignSelf: 'stretch' }} />
-                    : (
-                      <Tooltip key={item.type} title={item.title} arrow>
-                        <IconButton
-                          size="small"
-                          sx={{ p: 0.4, borderRadius: 0.5 }}
-                          onMouseDown={e => { e.preventDefault(); applyMarkdown(item.type); }}
-                        >
-                          {item.icon}
-                        </IconButton>
-                      </Tooltip>
-                    )
-                )}
-              </Box>
-            )}
-            {descPreview ? (
-              <Box
-                sx={{
-                  minHeight: 108,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  borderRadius: 1,
-                  p: 1.5,
-                  fontSize: '0.9rem',
-                  lineHeight: 1.7,
-                  color: editableTask.description ? 'text.primary' : 'text.disabled',
-                  '& h1,& h2,& h3': { mt: 1.5, mb: 0.5, fontWeight: 600 },
-                  '& p': { mb: 0.75 },
-                  '& ul,& ol': { pl: 2.5, mb: 0.75 },
-                  '& code': { fontFamily: 'monospace', fontSize: '0.82em', bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 },
-                  '& pre': { bgcolor: 'action.hover', p: 1.5, borderRadius: 1, overflow: 'auto', '& code': { bgcolor: 'transparent', p: 0 } },
-                  '& a': { color: 'primary.main' },
-                  '& hr': { borderColor: 'divider', my: 1 },
-                  '& blockquote': { borderLeft: '3px solid', borderColor: 'divider', pl: 1.5, color: 'text.secondary', my: 0.5 },
-                }}
-              >
-                {editableTask.description
-                  ? <ReactMarkdown>{editableTask.description}</ReactMarkdown>
-                  : '説明なし'}
-              </Box>
-            ) : (
-              <TextField
-                name="description"
-                inputRef={descInputRef}
-                value={editableTask.description || ''}
-                onChange={handleChange}
-                variant="outlined"
-                multiline
-                rows={4}
-                fullWidth
-                placeholder="Markdown 記法が使えます（見出し、リスト、コードブロックなど）"
-              />
-            )}
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, display: 'block', mb: 0.5 }}>
+              {t('taskDetail.description')}
+            </Typography>
+            <RichTextEditor
+              value={editableTask.description || ''}
+              onChange={(html) => setEditableTask((prev) => ({ ...prev, description: html }))}
+              placeholder="説明を入力（見出し・リスト・コードブロックなど）"
+              minHeight={120}
+            />
           </Box>
           <TextField
             select
@@ -1277,43 +1157,84 @@ export function TaskDetailModal({
             )}
           </Box>
 
-          {/* コメント */}
+          {/* コメント（スレッド形式） */}
           <Box>
             <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600 }}>
               コメント {comments.length > 0 && `(${comments.length})`}
             </Typography>
-            {comments.length > 0 && (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mb: 2 }}>
-                {comments.map(c => (
-                  <Box
-                    key={c.id}
-                    sx={{
-                      bgcolor: 'action.hover',
-                      borderRadius: 1,
-                      p: 1.5,
-                      position: 'relative',
-                    }}
-                  >
-                    <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 0.5 }}>
-                      <Typography variant="caption" sx={{ fontWeight: 700 }}>
-                        {c.authorDisplayName}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-                        {new Date(c.createdAt).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                      </Typography>
-                    </Box>
-                    <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
-                      {c.text}
+            {(() => {
+              // スレッド構造に整理：replyTo がないものがルート、あるものが返信
+              const roots = comments.filter(c => !c.replyTo);
+              const repliesMap = comments.reduce((acc, c) => {
+                if (c.replyTo) {
+                  if (!acc[c.replyTo]) acc[c.replyTo] = [];
+                  acc[c.replyTo].push(c);
+                }
+                return acc;
+              }, {});
+
+              const renderComment = (c, isReply = false) => (
+                <Box
+                  key={c.id}
+                  sx={{
+                    bgcolor: isReply ? 'transparent' : 'action.hover',
+                    border: isReply ? '1px solid' : 'none',
+                    borderColor: 'divider',
+                    borderRadius: 1,
+                    p: 1.5,
+                    position: 'relative',
+                    ml: isReply ? 3 : 0,
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 0.5, pr: 5 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 700 }}>{c.authorDisplayName}</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                      {new Date(c.createdAt).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </Typography>
+                    {isReply && <Typography variant="caption" color="primary.main" sx={{ fontSize: '0.68rem' }}>返信</Typography>}
+                  </Box>
+                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{c.text}</Typography>
+                  <Box sx={{ position: 'absolute', top: 4, right: 4, display: 'flex', gap: 0.25 }}>
+                    {!isReply && (
+                      <Tooltip title="返信">
+                        <IconButton
+                          size="small"
+                          sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}
+                          onClick={() => { setReplyingTo({ id: c.id, authorDisplayName: c.authorDisplayName }); commentInputRef.current?.focus(); }}
+                        >
+                          <ReplyIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
                     <IconButton
                       size="small"
-                      sx={{ position: 'absolute', top: 4, right: 4, opacity: 0.5, '&:hover': { opacity: 1 } }}
+                      sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}
                       onClick={() => handleDeleteComment(c.id)}
                     >
                       <DeleteIcon fontSize="small" />
                     </IconButton>
                   </Box>
-                ))}
+                </Box>
+              );
+
+              return roots.length > 0 ? (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mb: 2 }}>
+                  {roots.map(c => (
+                    <Box key={c.id} sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                      {renderComment(c, false)}
+                      {(repliesMap[c.id] || []).map(r => renderComment(r, true))}
+                    </Box>
+                  ))}
+                </Box>
+              ) : null;
+            })()}
+            {replyingTo && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, px: 1, py: 0.5, bgcolor: 'primary.50', borderRadius: 1, border: '1px solid', borderColor: 'primary.light' }}>
+                <ReplyIcon fontSize="small" color="primary" />
+                <Typography variant="caption" color="primary.main">{replyingTo.authorDisplayName} への返信</Typography>
+                <IconButton size="small" sx={{ ml: 'auto' }} onClick={() => setReplyingTo(null)}>
+                  <DeleteIcon fontSize="inherit" />
+                </IconButton>
               </Box>
             )}
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end', position: 'relative' }}>
@@ -1322,7 +1243,7 @@ export function TaskDetailModal({
                 size="small"
                 multiline
                 maxRows={4}
-                placeholder="コメントを追加... （@名前 でメンション）"
+                placeholder={replyingTo ? `${replyingTo.authorDisplayName} に返信...` : 'コメントを追加... （@名前 でメンション）'}
                 value={newComment}
                 inputRef={commentInputRef}
                 onChange={handleCommentChange}
