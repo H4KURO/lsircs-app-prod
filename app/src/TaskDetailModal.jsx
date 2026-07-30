@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import axios from 'axios';
 import {
   Dialog,
@@ -28,6 +28,11 @@ import {
   Tooltip,
   Switch,
   FormControlLabel,
+  Popper,
+  Paper,
+  List,
+  ListItemButton,
+  ListItemText,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -39,6 +44,15 @@ import SyncIcon from '@mui/icons-material/Sync';
 import RepeatIcon from '@mui/icons-material/Repeat';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import FormatBoldIcon from '@mui/icons-material/FormatBold';
+import FormatItalicIcon from '@mui/icons-material/FormatItalic';
+import FormatStrikethroughIcon from '@mui/icons-material/FormatStrikethrough';
+import TitleIcon from '@mui/icons-material/Title';
+import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
+import FormatListNumberedIcon from '@mui/icons-material/FormatListNumbered';
+import FormatQuoteIcon from '@mui/icons-material/FormatQuote';
+import CodeIcon from '@mui/icons-material/Code';
+import HorizontalRuleIcon from '@mui/icons-material/HorizontalRule';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import { normalizeTask, generateSubtaskId, TASK_STATUS_VALUES, getStatusDefinitions, getInitialStatus, PM_CATEGORY } from './taskUtils';
@@ -86,8 +100,42 @@ export function TaskDetailModal({
   const [syncing, setSyncing] = useState(false);
   const [buyerColumnOptions, setBuyerColumnOptions] = useState([]);
 
-  // Markdown プレビュー
+  // Markdown プレビュー & ツールバー
   const [descPreview, setDescPreview] = useState(false);
+  const descInputRef = useRef(null);
+
+  const applyMarkdown = useCallback((type) => {
+    const el = descInputRef.current;
+    if (!el) return;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const value = el.value;
+    const selected = value.slice(start, end);
+    let newVal, newStart, newEnd;
+    switch (type) {
+      case 'bold': { const t = selected || 'テキスト'; newVal = value.slice(0, start) + `**${t}**` + value.slice(end); newStart = start + 2; newEnd = newStart + t.length; break; }
+      case 'italic': { const t = selected || 'テキスト'; newVal = value.slice(0, start) + `*${t}*` + value.slice(end); newStart = start + 1; newEnd = newStart + t.length; break; }
+      case 'strike': { const t = selected || 'テキスト'; newVal = value.slice(0, start) + `~~${t}~~` + value.slice(end); newStart = start + 2; newEnd = newStart + t.length; break; }
+      case 'h2': { const ls = value.lastIndexOf('\n', start - 1) + 1; newVal = value.slice(0, ls) + '## ' + value.slice(ls); newStart = start + 3; newEnd = end + 3; break; }
+      case 'ul': { const ls = value.lastIndexOf('\n', start - 1) + 1; newVal = value.slice(0, ls) + '- ' + value.slice(ls); newStart = start + 2; newEnd = end + 2; break; }
+      case 'ol': { const ls = value.lastIndexOf('\n', start - 1) + 1; newVal = value.slice(0, ls) + '1. ' + value.slice(ls); newStart = start + 3; newEnd = end + 3; break; }
+      case 'quote': { const ls = value.lastIndexOf('\n', start - 1) + 1; newVal = value.slice(0, ls) + '> ' + value.slice(ls); newStart = start + 2; newEnd = end + 2; break; }
+      case 'code': { const t = selected || 'コード'; newVal = value.slice(0, start) + '`' + t + '`' + value.slice(end); newStart = start + 1; newEnd = newStart + t.length; break; }
+      case 'codeblock': { const t = selected || 'コード'; newVal = value.slice(0, start) + '```\n' + t + '\n```' + value.slice(end); newStart = start + 4; newEnd = newStart + t.length; break; }
+      case 'link': { const t = selected || 'リンクテキスト'; newVal = value.slice(0, start) + `[${t}](url)` + value.slice(end); newStart = start + t.length + 3; newEnd = newStart + 3; break; }
+      case 'hr': { newVal = value.slice(0, start) + '\n---\n' + value.slice(end); newStart = start + 5; newEnd = newStart; break; }
+      default: return;
+    }
+    setEditableTask(prev => ({ ...prev, description: newVal }));
+    requestAnimationFrame(() => { el.focus(); el.setSelectionRange(newStart, newEnd); });
+  }, []);
+
+  // @メンション
+  const [allUsers, setAllUsers] = useState([]);
+  const [mentionAnchor, setMentionAnchor] = useState(null);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionStart, setMentionStart] = useState(-1);
+  const commentInputRef = useRef(null);
 
   // バイヤーリンクダイアログ
   const [buyerSearchOpen, setBuyerSearchOpen] = useState(false);
@@ -141,6 +189,52 @@ export function TaskDetailModal({
       .then((res) => setCustomers(Array.isArray(res.data) ? res.data : []))
       .catch(() => {});
   }, []);
+
+  // ユーザー一覧（@メンション用）
+  useEffect(() => {
+    axios.get(`${API_URL}/GetAllUsers`)
+      .then(r => setAllUsers(r.data || []))
+      .catch(() => {});
+  }, []);
+
+  const handleCommentChange = useCallback((e) => {
+    const val = e.target.value;
+    const cursor = e.target.selectionStart;
+    setNewComment(val);
+    const textBeforeCursor = val.slice(0, cursor);
+    const atIndex = textBeforeCursor.lastIndexOf('@');
+    if (atIndex !== -1) {
+      const query = textBeforeCursor.slice(atIndex + 1);
+      if (!query.includes(' ') && !query.includes('\n')) {
+        setMentionStart(atIndex);
+        setMentionQuery(query);
+        setMentionAnchor(e.target);
+        return;
+      }
+    }
+    setMentionAnchor(null);
+    setMentionStart(-1);
+    setMentionQuery('');
+  }, []);
+
+  const handleSelectMention = useCallback((user) => {
+    const displayName = user.displayName || user.userDetails || '';
+    const cursorPos = commentInputRef.current?.selectionStart ?? newComment.length;
+    const before = newComment.slice(0, mentionStart);
+    const after = newComment.slice(cursorPos);
+    const inserted = `@${displayName} `;
+    setNewComment(before + inserted + after);
+    setMentionAnchor(null);
+    requestAnimationFrame(() => {
+      commentInputRef.current?.focus();
+      const pos = before.length + inserted.length;
+      commentInputRef.current?.setSelectionRange(pos, pos);
+    });
+  }, [newComment, mentionStart]);
+
+  const filteredMentionUsers = allUsers
+    .filter(u => (u.displayName || u.userDetails || '').toLowerCase().includes(mentionQuery.toLowerCase()))
+    .slice(0, 6);
 
   // コメント
   const [comments, setComments] = useState(task?.comments || []);
@@ -471,6 +565,39 @@ export function TaskDetailModal({
                 </Button>
               </Box>
             </Box>
+            {!descPreview && (
+              <Box sx={{ display: 'flex', gap: 0.25, flexWrap: 'wrap', mb: 0.5, p: 0.5, bgcolor: 'action.hover', borderRadius: 1 }}>
+                {[
+                  { type: 'bold', icon: <FormatBoldIcon fontSize="small" />, title: '太字 (Ctrl+B)' },
+                  { type: 'italic', icon: <FormatItalicIcon fontSize="small" />, title: '斜体' },
+                  { type: 'strike', icon: <FormatStrikethroughIcon fontSize="small" />, title: '取り消し線' },
+                  { divider: true },
+                  { type: 'h2', icon: <TitleIcon fontSize="small" />, title: '見出し (## )' },
+                  { type: 'ul', icon: <FormatListBulletedIcon fontSize="small" />, title: '箇条書き (- )' },
+                  { type: 'ol', icon: <FormatListNumberedIcon fontSize="small" />, title: '番号付きリスト' },
+                  { type: 'quote', icon: <FormatQuoteIcon fontSize="small" />, title: '引用 (> )' },
+                  { divider: true },
+                  { type: 'code', icon: <CodeIcon fontSize="small" />, title: 'インラインコード' },
+                  { type: 'codeblock', icon: <Box sx={{ fontSize: '0.65rem', fontFamily: 'monospace', lineHeight: 1 }}>```</Box>, title: 'コードブロック' },
+                  { type: 'link', icon: <LinkIcon fontSize="small" />, title: 'リンク [text](url)' },
+                  { type: 'hr', icon: <HorizontalRuleIcon fontSize="small" />, title: '区切り線 ---' },
+                ].map((item, i) =>
+                  item.divider
+                    ? <Box key={i} sx={{ width: '1px', bgcolor: 'divider', mx: 0.25, alignSelf: 'stretch' }} />
+                    : (
+                      <Tooltip key={item.type} title={item.title} arrow>
+                        <IconButton
+                          size="small"
+                          sx={{ p: 0.4, borderRadius: 0.5 }}
+                          onMouseDown={e => { e.preventDefault(); applyMarkdown(item.type); }}
+                        >
+                          {item.icon}
+                        </IconButton>
+                      </Tooltip>
+                    )
+                )}
+              </Box>
+            )}
             {descPreview ? (
               <Box
                 sx={{
@@ -499,6 +626,7 @@ export function TaskDetailModal({
             ) : (
               <TextField
                 name="description"
+                inputRef={descInputRef}
                 value={editableTask.description || ''}
                 onChange={handleChange}
                 variant="outlined"
@@ -959,22 +1087,53 @@ export function TaskDetailModal({
                 ))}
               </Box>
             )}
-            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end', position: 'relative' }}>
               <TextField
                 fullWidth
                 size="small"
                 multiline
                 maxRows={4}
-                placeholder="コメントを追加..."
+                placeholder="コメントを追加... （@名前 でメンション）"
                 value={newComment}
-                onChange={e => setNewComment(e.target.value)}
+                inputRef={commentInputRef}
+                onChange={handleCommentChange}
                 onKeyDown={e => {
+                  if (mentionAnchor && filteredMentionUsers.length > 0 && e.key === 'Escape') {
+                    e.preventDefault();
+                    setMentionAnchor(null);
+                    return;
+                  }
                   if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
                     e.preventDefault();
                     handleAddComment();
                   }
                 }}
               />
+              <Popper
+                open={!!mentionAnchor && filteredMentionUsers.length > 0}
+                anchorEl={mentionAnchor}
+                placement="top-start"
+                style={{ zIndex: 1400 }}
+              >
+                <Paper elevation={4} sx={{ minWidth: 200, maxWidth: 280 }}>
+                  <List dense disablePadding>
+                    {filteredMentionUsers.map(user => (
+                      <ListItemButton
+                        key={user.userId || user.id}
+                        onMouseDown={e => { e.preventDefault(); handleSelectMention(user); }}
+                        sx={{ py: 0.75 }}
+                      >
+                        <ListItemText
+                          primary={user.displayName || user.userDetails}
+                          secondary={user.displayName ? user.userDetails : undefined}
+                          primaryTypographyProps={{ fontSize: '0.87rem', fontWeight: 500 }}
+                          secondaryTypographyProps={{ fontSize: '0.75rem' }}
+                        />
+                      </ListItemButton>
+                    ))}
+                  </List>
+                </Paper>
+              </Popper>
               <Button
                 variant="contained"
                 size="small"
