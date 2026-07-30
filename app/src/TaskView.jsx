@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, useDroppable, useDraggable } from '@dnd-kit/core';
 import axios from 'axios';
 import {
   Box,
@@ -563,6 +564,43 @@ function arePreferencesEqual(a, b) {
 }
 
 const getTaskCategoryKey = (task) => (task?.category?.trim() ? task.category.trim() : DEFAULT_CATEGORY_LABEL);
+
+function KanbanDropColumn({ columnId, children }) {
+  const { setNodeRef, isOver } = useDroppable({ id: columnId });
+  return (
+    <Box
+      ref={setNodeRef}
+      sx={{
+        p: 1.25,
+        overflowY: 'auto',
+        flexGrow: 1,
+        transition: 'background-color 0.15s',
+        bgcolor: isOver ? 'action.selected' : undefined,
+      }}
+    >
+      {children}
+    </Box>
+  );
+}
+
+function DraggableTaskCard({ taskId, children }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: taskId });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+        opacity: isDragging ? 0.3 : 1,
+        touchAction: 'none',
+      }}
+      {...attributes}
+      {...listeners}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   const { t } = useTranslation();
   const [tasks, setTasks] = useState([]);
@@ -589,6 +627,8 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   const [statusUpdatingIds, setStatusUpdatingIds] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedSubtaskIds, setExpandedSubtaskIds] = useState(new Set());
+  const [dndActiveTaskId, setDndActiveTaskId] = useState(null);
+  const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   const handleToggleSubtaskExpand = useCallback((taskId) => {
     if (!taskId) return;
@@ -1075,6 +1115,26 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
       setTasks((prev) => prev.filter((task) => task.id !== taskId));
     });
   };
+
+  const handleDragEnd = useCallback(({ active, over }) => {
+    setDndActiveTaskId(null);
+    if (!over) return;
+    const taskId = String(active.id);
+    const newStatus = String(over.id);
+    const task = tasks.find((t) => String(t.id) === taskId);
+    if (!task || task.status === newStatus) return;
+    const updatedTask = { ...task, status: newStatus };
+    setTasks((prev) => prev.map((t) => String(t.id) === taskId ? normalizeTask(updatedTask) : t));
+    axios
+      .put(`${API_URL}/UpdateTask/${taskId}`, updatedTask)
+      .then((res) => {
+        const saved = normalizeTask(res.data);
+        setTasks((prev) => prev.map((t) => String(t.id) === taskId ? saved : t));
+      })
+      .catch(() => {
+        setTasks((prev) => prev.map((t) => String(t.id) === taskId ? task : t));
+      });
+  }, [tasks]);
 
   const handleAdvanceTaskStatus = useCallback(
     (task) => {
@@ -2144,73 +2204,101 @@ const renderListLayout = () => {
       );
     }
 
+    const activeTask = dndActiveTaskId ? tasks.find((t) => String(t.id) === String(dndActiveTaskId)) : null;
+
     return (
-      <Box
-        sx={{
-          display: 'flex',
-          gap: 2,
-          overflowX: 'auto',
-          pb: 2,
-          alignItems: 'flex-start',
-        }}
+      <DndContext
+        sensors={dndSensors}
+        onDragStart={({ active }) => setDndActiveTaskId(active.id)}
+        onDragEnd={handleDragEnd}
+        onDragCancel={() => setDndActiveTaskId(null)}
       >
-        {statusSections.map((section) => (
-          <Paper
-            key={section.key}
-            variant="outlined"
-            sx={{
-              width: 260,
-              flexShrink: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              maxHeight: 'calc(100vh - 280px)',
-              minHeight: 120,
-            }}
-          >
-            {/* Column header */}
-            <Box
+        <Box
+          sx={{
+            display: 'flex',
+            gap: 2,
+            overflowX: 'auto',
+            pb: 2,
+            alignItems: 'flex-start',
+          }}
+        >
+          {statusSections.map((section) => (
+            <Paper
+              key={section.key}
+              variant="outlined"
               sx={{
-                px: 2,
-                py: 1.25,
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                borderBottom: '1px solid',
-                borderColor: 'divider',
+                width: 260,
                 flexShrink: 0,
-                bgcolor: 'action.hover',
+                display: 'flex',
+                flexDirection: 'column',
+                maxHeight: 'calc(100vh - 280px)',
+                minHeight: 120,
               }}
             >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <CircleIcon sx={{ color: getStatusColor(section.key), fontSize: '0.7rem' }} />
-                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{section.label}</Typography>
+              {/* Column header */}
+              <Box
+                sx={{
+                  px: 2,
+                  py: 1.25,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  borderBottom: '1px solid',
+                  borderColor: 'divider',
+                  flexShrink: 0,
+                  bgcolor: 'action.hover',
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <CircleIcon sx={{ color: getStatusColor(section.key), fontSize: '0.7rem' }} />
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{section.label}</Typography>
+                </Box>
+                <Chip label={section.tasks.length} size="small" sx={{ height: 20, fontSize: '0.7rem' }} />
               </Box>
-              <Chip label={section.tasks.length} size="small" sx={{ height: 20, fontSize: '0.7rem' }} />
+              {/* Droppable task list */}
+              <KanbanDropColumn columnId={section.key}>
+                {section.tasks.length === 0 ? (
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', py: 2 }}>
+                    タスクはありません
+                  </Typography>
+                ) : secondaryGroupBy ? (
+                  <Stack spacing={1.5}>
+                    {groupTasksSecondary(section.tasks, secondaryGroupBy).map((group) => (
+                      <Box key={group.key}>
+                        <Typography variant="caption" sx={{ display: 'block', px: 0.25, pb: 0.5, color: 'text.secondary', fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider', mb: 0.75 }}>
+                          {group.label}
+                        </Typography>
+                        <Stack spacing={1}>
+                          {group.tasks.map((task) => (
+                            <DraggableTaskCard key={task.id} taskId={task.id}>
+                              {renderKanbanCard(task)}
+                            </DraggableTaskCard>
+                          ))}
+                        </Stack>
+                      </Box>
+                    ))}
+                  </Stack>
+                ) : (
+                  <Stack spacing={1}>
+                    {section.tasks.map((task) => (
+                      <DraggableTaskCard key={task.id} taskId={task.id}>
+                        {renderKanbanCard(task)}
+                      </DraggableTaskCard>
+                    ))}
+                  </Stack>
+                )}
+              </KanbanDropColumn>
+            </Paper>
+          ))}
+        </Box>
+        <DragOverlay dropAnimation={null}>
+          {activeTask ? (
+            <Box sx={{ opacity: 0.9, transform: 'rotate(1.5deg)', boxShadow: 6, borderRadius: 1 }}>
+              {renderKanbanCard(activeTask)}
             </Box>
-            {/* Scrollable task list */}
-            <Box sx={{ p: 1.25, overflowY: 'auto', flexGrow: 1 }}>
-              {section.tasks.length === 0 ? (
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', py: 2 }}>
-                  タスクはありません
-                </Typography>
-              ) : secondaryGroupBy ? (
-                <Stack spacing={1.5}>
-                  {groupTasksSecondary(section.tasks, secondaryGroupBy).map((group) => (
-                    <Box key={group.key}>
-                      <Typography variant="caption" sx={{ display: 'block', px: 0.25, pb: 0.5, color: 'text.secondary', fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider', mb: 0.75 }}>
-                        {group.label}
-                      </Typography>
-                      <Stack spacing={1}>{group.tasks.map(renderKanbanCard)}</Stack>
-                    </Box>
-                  ))}
-                </Stack>
-              ) : (
-                <Stack spacing={1}>{section.tasks.map(renderKanbanCard)}</Stack>
-              )}
-            </Box>
-          </Paper>
-        ))}
-      </Box>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
     );
   };
 
