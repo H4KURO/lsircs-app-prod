@@ -47,8 +47,9 @@
 | バックエンド | Azure Functions (Node.js 20) |
 | データベース | Azure Cosmos DB (NoSQL) |
 | ファイルストレージ | Azure Blob Storage |
-| AI 解析 | n8n webhook 経由 Claude API（PDF抽出）|
-| 通知 | Slack Web API |
+| ワークフロー自動化 | n8n（webhook・AI連携・Slack通知・定期バッチ等）|
+| AI 解析 | n8n 経由 Claude API（メール・PDF解析、タスク自動生成）|
+| 通知 | Slack Web API（直接呼び出し）/ n8n 経由（複雑なフロー）|
 | Google 連携 | Google Sheets API (OAuth 2.0) |
 | デプロイ | Azure Static Web Apps + GitHub Actions |
 
