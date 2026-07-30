@@ -1760,6 +1760,94 @@ const renderListLayout = () => {
     );
   };
 
+    const renderKanbanCard = (task) => {
+    const subtaskSummary = calculateSubtaskSummary(task.subtasks);
+    const hasSubtasks = subtaskSummary.total > 0;
+    const normalizedTaskId = task?.id != null ? String(task.id) : null;
+    const nextStatus = getNextTaskStatus(task.status, task.category);
+    const isAdvancing = normalizedTaskId ? statusUpdatingIds.includes(normalizedTaskId) : false;
+    const currentStatusLabel = getStatusLabel(task.status);
+    const nextStatusLabel = nextStatus ? getStatusLabel(nextStatus) : null;
+    const advanceTooltip = nextStatus ? `${currentStatusLabel} → ${nextStatusLabel}` : t('taskView.actions.statusMax');
+
+    return (
+      <Paper
+        key={task.id}
+        variant="outlined"
+        sx={{
+          p: 1.25,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 0.75,
+          cursor: 'pointer',
+          '&:hover': { boxShadow: 2 },
+          transition: 'box-shadow 0.15s',
+        }}
+        onClick={() => handleEditTask(task)}
+      >
+        <Typography
+          variant="body2"
+          sx={{
+            fontWeight: 600,
+            lineHeight: 1.4,
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+          }}
+        >
+          {task.title || 'タイトル未設定'}
+        </Typography>
+
+        <Stack direction="row" spacing={0.5} flexWrap="wrap" sx={{ mt: 0.25 }}>
+          {task.deadline && (
+            <Chip label={getDeadlineLabel(task.deadline)} size="small" sx={{ height: 18, fontSize: '0.68rem' }} />
+          )}
+          {Array.isArray(task.assignees) && task.assignees.length > 0 && (
+            <Chip label={task.assignees[0]} size="small" sx={{ height: 18, fontSize: '0.68rem', maxWidth: 100 }} />
+          )}
+          {hasSubtasks && (
+            <Chip
+              label={`${subtaskSummary.completed}/${subtaskSummary.total}`}
+              size="small"
+              color={subtaskSummary.completed === subtaskSummary.total ? 'success' : 'default'}
+              sx={{ height: 18, fontSize: '0.68rem' }}
+            />
+          )}
+        </Stack>
+
+        {hasSubtasks && (
+          <LinearProgress
+            variant="determinate"
+            value={subtaskSummary.percent}
+            sx={{ height: 3, borderRadius: 2 }}
+          />
+        )}
+
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.25, mt: 0.25 }} onClick={(e) => e.stopPropagation()}>
+          <Tooltip title={advanceTooltip}>
+            <span>
+              <IconButton
+                size="small"
+                color="primary"
+                onClick={() => handleAdvanceTaskStatus(task)}
+                disabled={!nextStatus || isAdvancing}
+                sx={{ p: 0.4 }}
+              >
+                {isAdvancing ? <CircularProgress size={14} /> : <ArrowForwardIcon sx={{ fontSize: '0.9rem' }} />}
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Tooltip title="編集">
+            <IconButton size="small" onClick={() => handleEditTask(task)} sx={{ p: 0.4 }}>
+              <EditIcon sx={{ fontSize: '0.9rem' }} />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      </Paper>
+    );
+  };
+
   const renderStatusLayout = () => {
     if (statusSections.length === 0) {
       return (
@@ -1772,24 +1860,59 @@ const renderListLayout = () => {
     return (
       <Box
         sx={{
-          display: 'grid',
+          display: 'flex',
           gap: 2,
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          overflowX: 'auto',
+          pb: 2,
+          alignItems: 'flex-start',
         }}
       >
         {statusSections.map((section) => (
-          <Paper key={section.key} variant="outlined" sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="subtitle1">{section.label}</Typography>
-              <Chip label={`${section.tasks.length} 件`} size="small" />
+          <Paper
+            key={section.key}
+            variant="outlined"
+            sx={{
+              width: 260,
+              flexShrink: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              maxHeight: 'calc(100vh - 280px)',
+              minHeight: 120,
+            }}
+          >
+            {/* Column header */}
+            <Box
+              sx={{
+                px: 2,
+                py: 1.25,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                borderBottom: '1px solid',
+                borderColor: 'divider',
+                flexShrink: 0,
+                bgcolor: 'action.hover',
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <CircleIcon sx={{ color: getStatusColor(section.key), fontSize: '0.7rem' }} />
+                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{section.label}</Typography>
+              </Box>
+              <Chip label={section.tasks.length} size="small" sx={{ height: 20, fontSize: '0.7rem' }} />
             </Box>
-            <Stack spacing={1.5}>
-              {section.tasks.length > 0 ? section.tasks.map((task) => renderTaskCard(task)) : (
-                <Paper variant="outlined" sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
-                  タスクはありません。
-                </Paper>
-              )}
-            </Stack>
+            {/* Scrollable task list */}
+            <Box sx={{ p: 1.25, overflowY: 'auto', flexGrow: 1 }}>
+              <Stack spacing={1}>
+                {section.tasks.length > 0
+                  ? section.tasks.map((task) => renderKanbanCard(task))
+                  : (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', py: 2 }}>
+                      タスクはありません
+                    </Typography>
+                  )
+                }
+              </Stack>
+            </Box>
           </Paper>
         ))}
       </Box>
@@ -2065,7 +2188,7 @@ const renderListLayout = () => {
         {layout === 'status' && renderStatusLayout()}
         {layout === 'list' && renderListLayout()}
         {layout === 'calendar' && (
-          <Paper sx={{ p: 0, overflow: 'hidden' }}>
+          <Paper sx={{ p: 0, overflow: 'hidden', height: 680 }}>
             <TaskCalendar tasks={searchFilteredTasks} onTaskSelect={handleEditTask} />
           </Paper>
         )}
