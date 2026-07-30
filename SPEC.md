@@ -1,7 +1,7 @@
 # lsir-cs アプリケーション仕様書
 
 > **メンテナンス注意**: このファイルはアプリ変更のたびに更新すること（CLAUDE.md 参照）。  
-> 最終更新: 2026-07-04（CRM顧客管理機能を追加）
+> 最終更新: 2026-07-30（UIリデザイン：アイコンレール・4タブビュー・Trelloスタイルカンバン・カレンダービュー追加）
 
 ---
 
@@ -19,6 +19,7 @@
 10. [外部連携](#10-外部連携)
 11. [多言語対応](#11-多言語対応)
 12. [デプロイ](#12-デプロイ)
+13. [ロードマップ](#13-ロードマップ)
 
 ---
 
@@ -28,8 +29,10 @@
 **用途**: LIST Sotheby's International Realty 向け業務管理ツール  
 **主な機能**:
 - タスク管理（担当者・カテゴリ・サブタスク・添付ファイル）
-- バイヤーリスト管理（Google Sheets 連携）
+- バイヤーリスト管理（Google Sheets 連携・プロジェクト別複数スプレッドシート対応）
+- プロジェクト管理（Cosmos DB によるプロジェクト台帳）
 - スプレッドシート閲覧（Google Sheets / Box 埋め込み）
+- 顧客管理（CRM）
 - ホワイトリストによるアクセス制御
 - Slack 通知・Slack コマンドからのタスク作成
 - メール本文からのタスク自動生成（AI解析）
@@ -128,14 +131,31 @@ lsircs-app-prod/
 
 ## 5. 画面一覧
 
+### 5.0 グローバルレイアウト（`App.jsx`）
+
+**アイコンレール（左端 56px 固定）**:
+- 背景色: `#001731`（コーポレートカラー PANTONE 289 より暗い）
+- ロゴマーク → メインナビアイコン（ダッシュボード・タスク・プロジェクト・バイヤー・CRM・スプレッドシート）
+- 下部: 言語切替（JA / EN）・グローバル検索（⌘K）・ホワイトリスト管理（管理者のみ）・設定・プロフィール・ログアウト
+- アクティブ項目: 白半透明背景 + 左端3px白アクセントバー
+- Tooltip で各アイテムのラベルを表示
+
+**テーマ**:
+- プライマリカラー: `#002349`（PANTONE 289 / RGB 0,35,73）
+- コントラスト: `#ffffff`
+
+**メインコンテンツエリア**:
+- `maxWidth: 1600px`、中央寄せ、`px: { xs: 2, md: 4 }`, `pt: 3`, `pb: 6`
+
 有効なビュー（`ALLOWED_VIEWS`）:
 
 | ビュー | パス指定 | コンポーネント | 説明 |
 |---|---|---|---|
 | ダッシュボード | `dashboard` | `DashboardView` | 統計カード・カレンダー・タスクリスト |
 | タスク | `tasks` | `TaskView` | メインタスク管理 |
-| バイヤーリスト | `buyers` | `BuyersListView` | Google Sheets 連携バイヤー管理 |
+| バイヤーリスト | `buyers` | `BuyersListView` | Google Sheets 連携バイヤー管理（プロジェクト切替対応） |
 | 顧客管理 (CRM) | `crm` | `CRMView` | 顧客情報の一元管理 |
+| プロジェクト管理 | `projects` | `ProjectsView` | プロジェクト台帳の管理 |
 | スプレッドシート | `spreadsheet` | `SpreadsheetView` | Google Sheets / Box 埋め込み閲覧 |
 | 設定 | `settings` | `SettingsView` | カテゴリ・自動化ルール管理 |
 | プロフィール | `profile` | `ProfileView` | 表示名変更 |
@@ -173,13 +193,25 @@ lsircs-app-prod/
 
 ### 5.2 タスク画面 (`TaskView`)
 
-#### レイアウト
+#### ナビゲーション構成
 
-| レイアウト名 | 分類軸 | 説明 |
+画面上部にタブ切替バーを配置。右端のフィルターアイコン（≡）でフィルターパネルを展開・折りたたみ。
+
+#### プライマリビュー（タブで切替）
+
+| タブ名 | `layout` 値 | 説明 |
 |---|---|---|
-| カテゴリ × タグ | カテゴリ → タグ | タグでさらにグループ化、カテゴリ並び替え可 |
-| 進捗（ステータス） | ステータス | Started / Inprogress / Done の3列 |
-| 担当者 | 担当者名 | 担当者ごとの列、未担当列のON/OFF可 |
+| カンバン | `status` | Trello スタイル横並び列。ステータスごとに固定幅260px・独立スクロール。コンパクトカード表示（タイトル・期限・担当者チップ・サブタスク進捗バー） |
+| リスト | `list` | 左列: ステータスグループ化リスト、右パネル: 選択タスクの詳細（スティッキー）。クリックで詳細パネルに表示 |
+| カレンダー | `calendar` | React Big Calendar によるデッドライン表示（高さ 680px 固定）。クリックで編集モーダル |
+| タイムライン | `timeline` | ガントチャート形式（`TaskTimelineView`）。開始日～期限をバーで表示 |
+
+#### セカンダリビュー（フィルターパネルのビュー選択から）
+
+| レイアウト名 | `layout` 値 | 説明 |
+|---|---|---|
+| カテゴリ × タグ | `category` | タグでさらにグループ化、カテゴリ並び替え可 |
+| 担当者 | `assignee` | 担当者ごとの列、未担当列のON/OFF可 |
 
 #### ソート順
 
@@ -191,27 +223,42 @@ lsircs-app-prod/
 | `titleAsc` | タイトル昇順 |
 | `createdAtDesc` | 作成日降順 |
 
-#### フィルター
+#### フィルターパネル（折りたたみ式）
 
 - カテゴリフィルター（複数選択）
-- 担当者フィルター（複数選択）
+- 担当者フィルター（複数選択、担当者ビュー時）
+- 並び順選択
+- カテゴリ内並び順・タググループ化（カテゴリビュー時）
+- カテゴリの表示順変更（矢印ボタン）
+- 保存済みビューの適用・削除
+
+#### ビュー設定の永続化
+
+- 有効な `layout` 値（サーバー側 `ALLOWED_LAYOUTS`）: `category`, `status`, `list`, `calendar`, `assignee`, `timeline`
+- 600ms デバウンスで `UpdateTaskViewPreferences` API に自動保存（ユーザーごと）
 
 #### その他機能
 
 - **キーワード検索**: ヘッダーの検索ボックスに入力するとリアルタイムで絞り込み。対象フィールド: タイトル・説明・カテゴリ・タグ・担当者。全レイアウトに反映。
 - **メールインポート**: メール件名・本文からタスクを AI 生成（`EmailImportModal` → `ParseEmailToTask` API）
-- **ビュー設定の自動保存**: 600ms デバウンスで `UpdateTaskViewPreferences` API に保存
 - **URLディープリンク**: `?view=tasks&taskId={id}` でタスク直接アクセス
+- **カスタムビュー保存**: ブックマークアイコンで現在のフィルター設定を名前付き保存
 
 ---
 
 ### 5.3 バイヤーリスト (`BuyersListView`)
 
-Google Sheets データを3タブで表示・編集。
+Google Sheets データを3タブで表示・編集。プロジェクト台帳と連携し、プロジェクト別にバイヤーリストを切り替えられる。
+
+**プロジェクト選択**:
+- 画面上部にプロジェクトのドロップダウンセレクター表示
+- `GetProjects` API でアクティブプロジェクト一覧を取得、最初のプロジェクトをデフォルト選択
+- 「Buyers List」タブのみプロジェクト選択が有効（`GetBuyers?projectId=xxx`）
+- Xld / Commission タブはプロジェクト選択の影響を受けない（既存動作を維持）
 
 | タブ | API (fetch) | API (update) | 説明 |
 |---|---|---|---|
-| Buyers List（アクティブ） | `GetBuyers` | `UpdateBuyer` | アクティブなバイヤー |
+| Buyers List（アクティブ） | `GetBuyers?projectId=xxx` | `UpdateBuyer` | アクティブなバイヤー（プロジェクト別） |
 | Xld（解約・取消） | `GetXldBuyers` | `UpdateXldBuyer` | 解約・取消済みバイヤー |
 | Commission & Referral | `GetCommissions` | `UpdateCommission` | 手数料・紹介情報 |
 
@@ -252,13 +299,41 @@ ZOHO・Appfolio・WP等の分散した顧客情報を一元管理するCRM機能
 - 顧客一覧（テキスト検索・ステータスフィルター）
 - 顧客作成・編集・削除
 - タスクとの紐づけ（`TaskDetailModal` に顧客選択欄）
+- 顧客詳細モーダルの「タスクを開く」ボタンはSPA遷移（`onNavigateToTask` コールバック経由）でタスク詳細モーダルを直接開く
 - 顧客情報更新時にDXチームへSlack通知（`SLACK_DX_CHANNEL_ID`）
 
 **Slack DX通知**: 顧客情報変更時（変更がある場合のみ）に `SLACK_DX_CHANNEL_ID` チャンネルへ送信。ZOHOへの手動反映依頼として活用。
 
 ---
 
-### 5.5 スプレッドシート (`SpreadsheetView`)
+### 5.5 プロジェクト管理 (`ProjectsView`)
+
+バイヤーリスト管理に使う Google Sheets プロジェクトの台帳。チームメンバー全員が操作可能（管理者専用ではない）。
+
+**プロジェクトデータモデル**:
+
+| フィールド | 説明 |
+|---|---|
+| `id` | Cosmos DB ドキュメントID（自動生成UUID） |
+| `name` | プロジェクト名（必須） |
+| `developer` | 開発業者名（任意） |
+| `spreadsheetId` | Google スプレッドシートID（必須） |
+| `sheetName` | バイヤーリストのシート（タブ）名（必須） |
+| `headerRows` | ヘッダー行数（デフォルト: 3） |
+| `status` | `'active'` \| `'inactive'`（デフォルト: `'active'`） |
+| `createdAt` / `updatedAt` | ISO8601 |
+
+**UI構成**:
+- プロジェクト一覧テーブル（プロジェクト名・開発業者・スプレッドシートID・シート名・ヘッダー行数・ステータス）
+- ステータスチップ: active → 緑「有効」、inactive → グレー「無効」
+- 追加・編集・削除ダイアログ
+- スプレッドシートIDは一覧上で先頭20文字のみ表示（完全IDはダイアログで確認）
+
+**注意**: `BuyersListView` / `BuyerSearchDialog` はアクティブ（`status !== 'inactive'`）プロジェクトのみ表示する。
+
+---
+
+### 5.6 スプレッドシート (`SpreadsheetView`)
 
 Google Sheets / Box ドキュメントを iframe で埋め込み閲覧・編集。
 
@@ -280,7 +355,7 @@ Google Sheets / Box ドキュメントを iframe で埋め込み閲覧・編集�
 
 ---
 
-### 5.6 設定 (`SettingsView`)
+### 5.7 設定 (`SettingsView`)
 
 #### カテゴリ管理
 
@@ -306,7 +381,7 @@ Google Sheets / Box ドキュメントを iframe で埋め込み閲覧・編集�
 
 ---
 
-### 5.7 プロフィール (`ProfileView`)
+### 5.8 プロフィール (`ProfileView`)
 
 | 項目 | 操作 |
 |---|---|
@@ -315,7 +390,7 @@ Google Sheets / Box ドキュメントを iframe で埋め込み閲覧・編集�
 
 ---
 
-### 5.8 ホワイトリスト管理 (`WhitelistView`)（管理者のみ）
+### 5.9 ホワイトリスト管理 (`WhitelistView`)（管理者のみ）
 
 - ユーザー一覧表示
 - ユーザー追加（メールアドレス必須、名前任意）
@@ -332,7 +407,7 @@ Google Sheets / Box ドキュメントを iframe で埋め込み閲覧・編集�
 {
   id: string,              // Cosmos DB ドキュメントID
   title: string,
-  description: string,
+  description: string,     // Markdown テキスト
   status: 'Started' | 'Inprogress' | 'Done',
   priority: 'High' | 'Medium' | 'Low',
   importance: 0 | 1 | 2,  // 0=低, 1=中, 2=高
@@ -340,11 +415,30 @@ Google Sheets / Box ドキュメントを iframe で埋め込み閲覧・編集�
   assignees: string[],     // displayName の配列
   assignee: string | null, // assignees[0]（後方互換）
   tags: string[],
-  deadline: string | null, // ISO8601 日付文字列
+  startDate: string | null,  // 開始日 ISO8601（タイムライン表示で使用）
+  deadline: string | null,   // 期限 ISO8601 日付文字列
+  blockedBy: string[],       // 依存タスクIDの配列（このタスクをブロックするタスク群）
   subtasks: Subtask[],
   attachments: Attachment[],
+  comments: Comment[],       // タスクコメント配列
+  recurringConfig: {         // 繰り返しタスク設定（任意）
+    enabled: boolean,
+    frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly',
+  } | null,
   createdAt: string,
   updatedAt: string,
+}
+```
+
+#### Comment データモデル
+
+```javascript
+{
+  id: string,          // UUID
+  authorName: string,  // displayName
+  authorEmail: string,
+  body: string,        // コメント本文（@mention 含む）
+  createdAt: string,   // ISO8601
 }
 ```
 
@@ -377,6 +471,8 @@ tags: string[],      // サブタスク固有のタグ
   completed: boolean,
   order: number,
   buyerLink: {         // バイヤーリストへのリンク（任意）
+    projectId: string | null,   // プロジェクトID（Cosmos DB）
+    projectName: string | null, // プロジェクト名
     sheetName: string,
     rowIndex: number,
     displayName: string,
@@ -391,7 +487,7 @@ tags: string[],      // サブタスク固有のタグ
 | フィールド | 入力形式 |
 |---|---|
 | タイトル | テキスト（必須） |
-| 説明 | 複数行テキスト |
+| 説明 | Markdown エディタ（プレビュー/編集 トグル・ツールバー付き） |
 | ステータス | セレクト（3択） |
 | 優先度 | セレクト（High/Medium/Low） |
 | 重要度 | セレクト（高/中/低） |
@@ -399,8 +495,44 @@ tags: string[],      // サブタスク固有のタグ
 | 担当者 | 複数選択オートコンプリート |
 | タグ | 複数選択（自由入力可） |
 | 期限 | 日付ピッカー |
+| 繰り返し設定 | ON/OFF トグル＋頻度セレクト（daily/weekly/biweekly/monthly） |
 | サブタスク | テーブル形式（追加・削除・並替）。各サブタスクにメモ・タグ編集あり |
 | 添付ファイル | `AttachmentManager` コンポーネント |
+| コメント | コメント一覧＋入力欄（@mention補完付き）＋削除 |
+
+---
+
+## 6.5 Phase 1 完了機能
+
+### 6.5.1 Markdown 説明欄
+
+- `description` フィールドを Markdown テキストとして保存・表示
+- タスク詳細モーダル内でプレビュー/編集をトグルで切り替え
+- ツールバー: FormatBold・FormatItalic・FormatListBulleted 等のアイコンボタン
+
+### 6.5.2 グローバル検索（`GlobalSearch.jsx`）
+
+- ショートカット: `⌘K`（Mac）/ `Ctrl+K`（Windows）でオープン
+- タスクと顧客（Customers）をクライアントサイドで横断検索
+- 検索対象: タスクのタイトル・説明・カテゴリ・タグ / 顧客の氏名・メール・会社名
+
+### 6.5.3 タスクコメント
+
+- タスクドキュメントの `comments` 配列に追記・削除
+- API: `POST /api/AddTaskComment`、`DELETE /api/DeleteTaskComment`
+- コメント欄は `TaskDetailModal` 内に表示
+
+### 6.5.4 繰り返しタスク
+
+- タスクに `recurringConfig: { enabled, frequency }` フィールドを付与
+- ステータスが `Done` に変わった際に次の繰り返しタスクを自動生成
+  - `frequency` に応じて `deadline` を算出（daily: +1日 / weekly: +7日 / biweekly: +14日 / monthly: +1ヶ月）
+  - 新タスクのステータスは `Started` にリセット
+
+### 6.5.5 @mention 補完（コメント入力欄）
+
+- コメント入力中に `@` を入力すると AllowedUsers からのユーザー候補を表示
+- `GetAllUsers` API が `AllowedUsers` コレクションとの照合結果のみ返すよう変更（`isAllowed !== false` のユーザーのみ）
 
 ---
 
@@ -414,6 +546,8 @@ tags: string[],      // サブタスク固有のタグ
 | POST | `/api/CreateTask` | タスク作成 |
 | PUT | `/api/UpdateTask/{id}` | タスク更新 |
 | DELETE | `/api/DeleteTask/{id}` | タスク削除 |
+| POST | `/api/AddTaskComment` | タスクにコメント追加 |
+| DELETE | `/api/DeleteTaskComment` | タスクのコメント削除 |
 
 ### ユーザー・プロファイル
 
@@ -448,11 +582,28 @@ tags: string[],      // サブタスク固有のタグ
 | GET | `/api/GetTaskViewPreferences` | ビュー設定取得 |
 | PUT | `/api/UpdateTaskViewPreferences` | ビュー設定保存 |
 
+### カスタムビュー保存
+
+| メソッド | エンドポイント | 説明 |
+|---|---|---|
+| GET | `/api/GetSavedViews` | 保存済みビュー一覧取得 |
+| POST | `/api/SaveView` | ビュー保存（名前付き） |
+| DELETE | `/api/DeleteSavedView/{id}` | 保存済みビュー削除 |
+
+### タスクテンプレート
+
+| メソッド | エンドポイント | 説明 |
+|---|---|---|
+| GET | `/api/GetTaskTemplates` | テンプレート一覧取得 |
+| POST | `/api/CreateTaskTemplate` | テンプレート作成 |
+| PUT | `/api/UpdateTaskTemplate/{id}` | テンプレート更新 |
+| DELETE | `/api/DeleteTaskTemplate/{id}` | テンプレート削除 |
+
 ### バイヤーリスト
 
 | メソッド | エンドポイント | 説明 |
 |---|---|---|
-| GET | `/api/GetBuyers` | アクティブバイヤー取得 |
+| GET | `/api/GetBuyers` | アクティブバイヤー取得（`?projectId=xxx` でプロジェクト別スプレッドシートから取得） |
 | POST | `/api/UpdateBuyer` | バイヤー更新 |
 | POST | `/api/UpdateBuyerCell` | セル単体更新（`column` または `columnName` を受け付ける） |
 | POST | `/api/CreateBuyer` | バイヤー追加 |
@@ -472,6 +623,15 @@ tags: string[],      // サブタスク固有のタグ
 | POST | `/api/CreateCustomer` | 顧客作成 |
 | POST | `/api/UpdateCustomer` | 顧客更新（DX Slack通知付き） |
 | POST | `/api/DeleteCustomer` | 顧客削除 |
+
+### プロジェクト管理
+
+| メソッド | エンドポイント | 説明 |
+|---|---|---|
+| GET | `/api/GetProjects` | プロジェクト一覧取得（name昇順） |
+| POST | `/api/CreateProject` | プロジェクト作成（name・spreadsheetId・sheetName 必須） |
+| POST | `/api/UpdateProject` | プロジェクト更新（id必須。更新可能フィールド: name・developer・spreadsheetId・sheetName・headerRows・status） |
+| POST | `/api/DeleteProject` | プロジェクト削除 |
 
 ### ホワイトリスト（管理者のみ）
 
@@ -496,7 +656,7 @@ tags: string[],      // サブタスク固有のタグ
 
 ```javascript
 {
-  layout: 'category' | 'status' | 'assignee',
+  layout: 'category' | 'status' | 'assignee' | 'timeline',
   sortMode: 'statusDeadline' | 'deadlineAsc' | 'deadlineDesc' | 'titleAsc' | 'createdAtDesc',
   selectedCategories: string[],
   selectedAssignees: string[],
@@ -551,13 +711,15 @@ tags: string[],      // サブタスク固有のタグ
 
 | コレクション名 | パーティションキー | 用途 |
 |---|---|---|
-| Tasks | `/id` | タスクデータ |
+| Tasks | `/id` | タスクデータ（comments・recurringConfig フィールド含む） |
 | Categories | `/id` | カテゴリ定義 |
 | AutomationRules | `/id` | 自動化ルール |
-| Users（UserProfiles） | `/id` | ユーザープロファイル |
+| Users（UserProfiles） | `/id` | ユーザープロファイル（savedViews フィールド含む） |
 | AllowedUsers | `/id` | アクセスホワイトリスト |
 | TaskViewPreferences | `/userId` | ユーザー別ビュー設定 |
 | Customers | `/id` | CRM顧客データ（env: `COSMOS_CUSTOMERS_CONTAINER`） |
+| Projects | `/id` | プロジェクト台帳（env: `COSMOS_PROJECTS_CONTAINER`） |
+| TaskTemplates | `/id` | タスクテンプレート（Phase 2） |
 
 ---
 
@@ -583,11 +745,19 @@ tags: string[],      // サブタスク固有のタグ
 ### 10.3 Google Sheets 連携
 
 - バイヤーリスト / Xld / Commission データを Google Sheets で管理
-- `googleSheetsClient.js` が OAuth 2.0 で認証
+- `sheetsClient.js` がサービスアカウント JSON で認証
 - `GetSheetData` / `AppendSheetRow` / `UpdateSheetRow` / `DeleteSheetRow` で操作
 
+**マルチスプレッドシート対応**:
+- `sheetsClient.js` の `getSheetValuesById(spreadsheetId, range)` 関数により任意のスプレッドシートIDを指定可能
+- `GetBuyers?projectId=xxx` 時は Projects コンテナの `spreadsheetId` を使用してプロジェクト専用スプレッドシートへアクセス
+- projectId 未指定時はデフォルトスプレッドシート（環境変数 `GOOGLE_SHEETS_SPREADSHEET_ID`）を使用（後方互換）
+- 各プロジェクトのスプレッドシートにはサービスアカウント `naluhana-sheets@lsircs-app.iam.gserviceaccount.com` の閲覧権限が必要
+
 **必要な環境変数**:
-- `GOOGLE_SA_JSON_B64`（サービスアカウント JSON の Base64）
+- `GOOGLE_SHEETS_CREDENTIALS`（サービスアカウント JSON — `client_email` と `private_key` を含む）
+- `GOOGLE_SHEETS_SPREADSHEET_ID`（デフォルトスプレッドシートID）
+- `GOOGLE_SA_CLIENT_EMAIL`（参考用のみ — 実際の認証は `GOOGLE_SHEETS_CREDENTIALS` の `client_email` を使用）
 
 ---
 
@@ -629,9 +799,28 @@ git push origin main
 | `CosmosDbConnectionString` | Cosmos DB 接続文字列 |
 | `COSMOS_TASKS_CONTAINER` | タスクコレクション名 |
 | `COSMOS_USERS_CONTAINER` | ユーザーコレクション名 |
+| `COSMOS_CUSTOMERS_CONTAINER` | 顧客（CRM）コレクション名 |
+| `COSMOS_PROJECTS_CONTAINER` | プロジェクト台帳コレクション名（Azure Portal の Advanced Edit JSON で設定） |
 | `SLACK_BOT_TOKEN` | Slack Bot トークン |
 | `SLACK_SIGNING_SECRET` | Slack 署名検証 |
 | `SLACK_CHANNEL_ID` | 通知先チャンネル ID |
-| `GOOGLE_SA_JSON_B64` | Google サービスアカウント（Base64） |
+| `SLACK_DX_CHANNEL_ID` | CRM顧客更新通知先チャンネル ID |
+| `GOOGLE_SHEETS_CREDENTIALS` | Google サービスアカウント JSON（`client_email` と `private_key` を含む） |
+| `GOOGLE_SHEETS_SPREADSHEET_ID` | デフォルトスプレッドシートID（`1-gTbb5a1oA9ecY159KQMWA5gGr0gDvoa_UO8tlv4whs`） |
+| `GOOGLE_SA_CLIENT_EMAIL` | サービスアカウントのメール（参考用 — 認証には未使用） |
 | `N8N_WEBHOOK_URL` | n8n 経由 Claude API URL |
 | `BOX_IMPORT_STORAGE_CONNECTION` | Box ストレージ接続 |
+
+---
+
+## 13. ロードマップ
+
+### PHASE 2 - ビュー & ワークフロー強化
+
+| 機能 | ステータス | 概要 |
+|---|---|---|
+| カスタムビュー保存 | 実装中 | フィルター状態（layout/sortMode/selectedCategories/selectedAssignees）を名前付きで保存し、ワンクリックで切り替え。savedViews はユーザープロファイル（Users コレクション）に保存。API: GetSavedViews / SaveView / DeleteSavedView/{id} |
+| タスクテンプレート | 実装中 | よく使うタスク構成（サブタスク・カテゴリ・タグ）をテンプレートとして保存し、新規タスク作成時に適用。新規 Cosmos コレクション `TaskTemplates`。API: GetTaskTemplates / CreateTaskTemplate / UpdateTaskTemplate/{id} / DeleteTaskTemplate/{id} |
+| タイムライン表示 | 完了 | ガントチャート形式でタスクをカテゴリ別に表示。期限・開始日に基づくバー表示。今日ライン・期限超過ハイライト・クリックで編集。ビュー選択から「タイムライン（ガント）」を選択。`TaskTimelineView.jsx` |
+| タスク依存関係 | 完了 | タスク詳細モーダルで「依存関係」セクションを追加。`blockedBy: string[]` フィールドでブロッカータスクを指定。タスクカードに「ブロック中 (N)」バッジを表示。 |
+| ダッシュボード拡張 | 完了 | 期限超過タスク数ウィジェット・チーム完了率プログレスバー・担当者別タスク分布ウィジェット。`DashboardView.jsx` + `StatCard.jsx` |

@@ -1,4 +1,5 @@
 const { app } = require('@azure/functions');
+const { v4: uuidv4 } = require('uuid');
 const { getNamedContainer } = require('./cosmosClient');
 const { normalizeSubtasksInput } = require('./subtaskUtils');
 const { notifyTaskStatusChanged } = require('./slackClient');
@@ -9,6 +10,18 @@ const {
   deleteAttachments,
   attachAttachmentUrls,
 } = require('./propertyPhotoStorage');
+
+function calcNextDue(currentDeadline, frequency) {
+  const base = currentDeadline ? new Date(currentDeadline) : new Date();
+  switch (frequency) {
+    case 'daily':     base.setDate(base.getDate() + 1); break;
+    case 'weekly':    base.setDate(base.getDate() + 7); break;
+    case 'biweekly':  base.setDate(base.getDate() + 14); break;
+    case 'monthly':   base.setMonth(base.getMonth() + 1); break;
+    default:          base.setDate(base.getDate() + 7);
+  }
+  return base.toISOString().slice(0, 10);
+}
 
 const tasksContainer = () =>
   getNamedContainer('Tasks', ['COSMOS_TASKS_CONTAINER', 'CosmosTasksContainer']);
@@ -135,6 +148,43 @@ app.http('UpdateTask', {
         await notifyTaskStatusChanged(savedTask, previousStatus, context, {
           actorName: clientPrincipal.userDetails,
         });
+      }
+
+      // 繰り返しタスク: Done になったとき次のタスクを自動生成
+      if (
+        statusChanged &&
+        savedTask.status === 'Done' &&
+        savedTask.recurringConfig?.enabled
+      ) {
+        try {
+          const { frequency } = savedTask.recurringConfig;
+          const nextDeadline = calcNextDue(savedTask.deadline, frequency);
+          const now = new Date().toISOString();
+          const nextTask = {
+            id: uuidv4(),
+            title: savedTask.title,
+            description: savedTask.description || '',
+            status: 'Started',
+            priority: savedTask.priority || 'Medium',
+            importance: savedTask.importance ?? 1,
+            category: savedTask.category || null,
+            assignees: savedTask.assignees || [],
+            assignee: savedTask.assignee || null,
+            tags: savedTask.tags || [],
+            deadline: nextDeadline,
+            subtasks: (savedTask.subtasks || []).map(s => ({ ...s, completed: false })),
+            attachments: [],
+            recurringConfig: savedTask.recurringConfig,
+            createdAt: now,
+            createdById: clientPrincipal.userId,
+            createdByName: clientPrincipal.userDetails,
+            emailNotes: [],
+          };
+          await container.items.create(nextTask);
+          context.log(`Recurring task created: ${nextTask.id} for "${nextTask.title}" due ${nextDeadline}`);
+        } catch (recurringErr) {
+          context.log('Failed to create recurring task', recurringErr);
+        }
       }
 
       return { status: 200, jsonBody: savedTask };

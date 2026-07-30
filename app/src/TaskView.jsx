@@ -23,6 +23,12 @@ import {
   Switch,
   CircularProgress,
   InputAdornment,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
@@ -36,7 +42,12 @@ import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import EmailIcon from '@mui/icons-material/Email';
 import LinkIcon from '@mui/icons-material/Link';
+import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
+import BookmarkIcon from '@mui/icons-material/Bookmark';
+import FilterListIcon from '@mui/icons-material/FilterList';
 import { TaskDetailModal } from './TaskDetailModal';
+import { TaskTimelineView } from './TaskTimelineView';
+import { TaskCalendar } from './TaskCalendar';
 import { EmailImportModal } from './EmailImportModal';
 import {
   normalizeTask,
@@ -57,6 +68,7 @@ const statusColorMap = {
   Inprogress: 'warning.main',
   WaitingOwnerApproval: 'warning.main',
   WaitingCompletionReport: 'warning.main',
+  DoneWithoutReport: 'success.main',
   Done: 'success.main',
 };
 
@@ -66,6 +78,7 @@ const STATUS_LABEL_JA = {
   Inprogress: '進行中',
   WaitingOwnerApproval: 'オーナー承諾待ち',
   WaitingCompletionReport: '完了報告待ち',
+  DoneWithoutReport: '完了（報告なし）',
   Done: '完了',
 };
 
@@ -113,10 +126,21 @@ const CATEGORY_TASK_ORDER_LABEL_MAP = CATEGORY_TASK_ORDER_OPTIONS.reduce((acc, o
 const LAYOUT_OPTIONS = [
   { value: 'category', label: 'カテゴリ × タグ' },
   { value: 'status', label: '進捗（ステータス）' },
+  { value: 'list', label: 'リスト' },
+  { value: 'calendar', label: 'カレンダー' },
   { value: 'assignee', label: '担当者' },
+  { value: 'timeline', label: 'タイムライン（ガント）' },
+];
+
+const PRIMARY_VIEW_TABS = [
+  { value: 'status', label: 'カンバン' },
+  { value: 'list', label: 'リスト' },
+  { value: 'calendar', label: 'カレンダー' },
+  { value: 'timeline', label: 'タイムライン' },
 ];
 
 const ALLOWED_LAYOUTS = new Set(LAYOUT_OPTIONS.map((option) => option.value));
+
 const ALLOWED_SORT_MODES = new Set(TASK_SORT_OPTIONS.map((option) => option.value));
 const ALLOWED_CATEGORY_TASK_ORDERS = new Set(
   CATEGORY_TASK_ORDER_OPTIONS.map((option) => option.value),
@@ -461,6 +485,13 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [isSavingPreferences, setIsSavingPreferences] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
+  const [listPanelTask, setListPanelTask] = useState(null);
+  const [filterOpen, setFilterOpen] = useState(false);
+
+  // カスタムビュー保存
+  const [savedViews, setSavedViews] = useState([]);
+  const [saveViewDialogOpen, setSaveViewDialogOpen] = useState(false);
+  const [saveViewName, setSaveViewName] = useState('');
   const [emailImportOpen, setEmailImportOpen] = useState(false);
   const [statusUpdatingIds, setStatusUpdatingIds] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -517,7 +548,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        const [tasksRes, usersRes, rulesRes, preferencesRes, categoriesRes] = await Promise.all([
+        const [tasksRes, usersRes, rulesRes, preferencesRes, categoriesRes, savedViewsRes] = await Promise.all([
           axios.get(`${API_URL}/GetTasks`),
           axios.get(`${API_URL}/GetAllUsers`),
           axios.get(`${API_URL}/GetAutomationRules`).catch((error) => {
@@ -532,6 +563,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
             console.error('Failed to load categories', error);
             return { data: [] };
           }),
+          axios.get(`${API_URL}/GetSavedViews`).catch(() => ({ data: [] })),
         ]);
 
         const normalizedTasks = normalizeTasks(tasksRes.data);
@@ -553,6 +585,10 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
         setServerPreferences(normalizedPreferences);
         latestPreferencesRef.current = normalizedPreferences;
         setPreferencesLoaded(true);
+
+        if (Array.isArray(savedViewsRes?.data)) {
+          setSavedViews(savedViewsRes.data);
+        }
       } catch (error) {
         console.error('Failed to load task data', error);
         setPreferencesLoaded(true);
@@ -797,7 +833,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   }, [searchFilteredTasks]);
 
   const statusSections = useMemo(() => {
-    if (layout !== 'status') {
+    if (layout !== 'status' && layout !== 'list') {
       return [];
     }
     const effectiveSortMode = sortMode === 'statusDeadline' ? 'deadlineAsc' : sortMode;
@@ -1005,6 +1041,55 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
     updatePreferences((prev) => ({ ...prev, selectedCategories: derivedCategories }));
   };
 
+  const handleOpenSaveViewDialog = () => {
+    setSaveViewName('');
+    setSaveViewDialogOpen(true);
+  };
+
+  const handleSaveView = async () => {
+    const name = saveViewName.trim();
+    if (!name) return;
+    const viewToSave = {
+      name,
+      layout: preferences.layout,
+      sortMode: preferences.sortMode,
+      selectedCategories: preferences.selectedCategories,
+      selectedAssignees: preferences.selectedAssignees,
+      includeUnassignedColumn: preferences.includeUnassignedColumn,
+      categoryGroupByTag: preferences.categoryGroupByTag,
+      categoryTaskOrder: preferences.categoryTaskOrder,
+    };
+    try {
+      const { data } = await axios.post(`${API_URL}/SaveView`, viewToSave);
+      setSavedViews(data);
+      setSaveViewDialogOpen(false);
+    } catch (err) {
+      console.error('SaveView failed', err);
+    }
+  };
+
+  const handleDeleteSavedView = async (viewId) => {
+    try {
+      const { data } = await axios.delete(`${API_URL}/DeleteSavedView/${viewId}`);
+      setSavedViews(data);
+    } catch (err) {
+      console.error('DeleteSavedView failed', err);
+    }
+  };
+
+  const handleApplySavedView = (view) => {
+    updatePreferences((prev) => ({
+      ...prev,
+      layout: view.layout || prev.layout,
+      sortMode: view.sortMode || prev.sortMode,
+      selectedCategories: Array.isArray(view.selectedCategories) ? view.selectedCategories : prev.selectedCategories,
+      selectedAssignees: Array.isArray(view.selectedAssignees) ? view.selectedAssignees : prev.selectedAssignees,
+      includeUnassignedColumn: typeof view.includeUnassignedColumn === 'boolean' ? view.includeUnassignedColumn : prev.includeUnassignedColumn,
+      categoryGroupByTag: typeof view.categoryGroupByTag === 'boolean' ? view.categoryGroupByTag : prev.categoryGroupByTag,
+      categoryTaskOrder: view.categoryTaskOrder || prev.categoryTaskOrder,
+    }));
+  };
+
   const handleSortModeChange = (event) => {
     const value = event.target.value;
     updatePreferences((prev) => ({
@@ -1090,6 +1175,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   const renderTaskCard = (task) => {
     const subtaskSummary = calculateSubtaskSummary(task.subtasks);
     const hasSubtasks = subtaskSummary.total > 0;
+    const isBlocked = Array.isArray(task.blockedBy) && task.blockedBy.length > 0;
     const normalizedTaskId =
       task?.id != null ? String(task.id) : task?.taskId != null ? String(task.taskId) : null;
     const nextStatus = getNextTaskStatus(task.status, task.category);
@@ -1119,6 +1205,9 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
               </Typography>
             )}
             <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
+              {isBlocked && (
+                <Chip label={`ブロック中 (${task.blockedBy.length})`} size="small" color="warning" variant="outlined" />
+              )}
               {Array.isArray(task.assignees) && task.assignees.length > 0 && (
                 <Chip label={`担当: ${task.assignees.join(', ')}`} size="small" />
               )}
@@ -1516,7 +1605,252 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
       </Box>
     );
   };
-const renderStatusLayout = () => {
+const renderListLayout = () => {
+    const allTasks = searchFilteredTasks;
+    if (allTasks.length === 0) {
+      return (
+        <Paper sx={{ p: { xs: 3, md: 4 } }}>
+          <Typography color="text.secondary">表示できるタスクがありません。</Typography>
+        </Paper>
+      );
+    }
+
+    return (
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 380px' }, gap: 2, alignItems: 'start' }}>
+        {/* Left: status-grouped list */}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {statusSections.map((section) => (
+            <Paper key={section.key} variant="outlined" sx={{ overflow: 'hidden' }}>
+              <Box sx={{ px: 2, py: 1.25, bgcolor: 'action.hover', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Typography variant="subtitle2">{section.label}</Typography>
+                <Chip label={`${section.tasks.length} 件`} size="small" />
+              </Box>
+              <Stack divider={<Divider />}>
+                {section.tasks.map((task) => {
+                  const isSelected = listPanelTask?.id === task.id;
+                  return (
+                    <Box
+                      key={task.id}
+                      onClick={() => setListPanelTask(isSelected ? null : task)}
+                      sx={{
+                        px: 2, py: 1.25,
+                        cursor: 'pointer',
+                        bgcolor: isSelected ? 'primary.main' : 'transparent',
+                        color: isSelected ? 'primary.contrastText' : 'inherit',
+                        display: 'flex', alignItems: 'center', gap: 1.5,
+                        '&:hover': { bgcolor: isSelected ? 'primary.dark' : 'action.hover' },
+                        transition: 'background 0.12s',
+                      }}
+                    >
+                      <CircleIcon sx={{ color: isSelected ? 'rgba(255,255,255,0.6)' : getStatusColor(task.status), fontSize: '0.75rem', flexShrink: 0 }} />
+                      <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+                        <Typography variant="body2" noWrap sx={{ fontWeight: 500 }}>
+                          {task.title || 'タイトル未設定'}
+                        </Typography>
+                        {task.deadline && (
+                          <Typography variant="caption" sx={{ opacity: isSelected ? 0.8 : 0.6 }}>
+                            期限: {getDeadlineLabel(task.deadline)}
+                          </Typography>
+                        )}
+                      </Box>
+                      {Array.isArray(task.assignees) && task.assignees.length > 0 && (
+                        <Typography variant="caption" noWrap sx={{ flexShrink: 0, opacity: isSelected ? 0.8 : 0.6, maxWidth: 100 }}>
+                          {task.assignees[0]}
+                        </Typography>
+                      )}
+                    </Box>
+                  );
+                })}
+              </Stack>
+            </Paper>
+          ))}
+        </Box>
+
+        {/* Right: detail panel */}
+        <Paper
+          sx={{
+            p: 2.5,
+            position: { md: 'sticky' },
+            top: { md: 24 },
+            alignSelf: 'start',
+            minHeight: 200,
+          }}
+        >
+          {listPanelTask ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
+                <Typography variant="h6" sx={{ fontWeight: 600, lineHeight: 1.3 }}>
+                  {listPanelTask.title || 'タイトル未設定'}
+                </Typography>
+                <Tooltip title="編集">
+                  <IconButton size="small" onClick={() => handleEditTask(listPanelTask)}>
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+
+              <Stack direction="row" spacing={1} flexWrap="wrap">
+                <Chip label={getStatusLabel(listPanelTask.status)} size="small" sx={{ color: getStatusColor(listPanelTask.status), borderColor: getStatusColor(listPanelTask.status) }} variant="outlined" />
+                {listPanelTask.deadline && <Chip label={`期限: ${getDeadlineLabel(listPanelTask.deadline)}`} size="small" />}
+                {Array.isArray(listPanelTask.assignees) && listPanelTask.assignees.length > 0 && (
+                  <Chip label={`担当: ${listPanelTask.assignees.join(', ')}`} size="small" />
+                )}
+              </Stack>
+
+              {listPanelTask.category && (
+                <Typography variant="caption" color="text.secondary">
+                  カテゴリ: {getCategoryLabel(listPanelTask.category)}
+                </Typography>
+              )}
+
+              {listPanelTask.description && (
+                <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
+                  {listPanelTask.description}
+                </Typography>
+              )}
+
+              {Array.isArray(listPanelTask.tags) && listPanelTask.tags.length > 0 && (
+                <Stack direction="row" spacing={0.5} flexWrap="wrap">
+                  {listPanelTask.tags.map((tag) => (
+                    <Chip key={tag} label={tag} size="small" variant="outlined" />
+                  ))}
+                </Stack>
+              )}
+
+              {Array.isArray(listPanelTask.subtasks) && listPanelTask.subtasks.length > 0 && (
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>
+                    サブタスク ({listPanelTask.subtasks.filter((s) => s.completed).length}/{listPanelTask.subtasks.length})
+                  </Typography>
+                  <Stack spacing={0.5}>
+                    {listPanelTask.subtasks.map((subtask) => (
+                      <Box key={subtask.id} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        {subtask.completed
+                          ? <CheckCircleIcon sx={{ fontSize: '0.9rem', color: 'success.main' }} />
+                          : <RadioButtonUncheckedIcon sx={{ fontSize: '0.9rem', color: 'action.disabled' }} />}
+                        <Typography
+                          variant="body2"
+                          sx={{ textDecoration: subtask.completed ? 'line-through' : 'none', color: subtask.completed ? 'text.disabled' : 'text.primary' }}
+                        >
+                          {subtask.title}
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Stack>
+                </Box>
+              )}
+
+              <Divider />
+              <Stack direction="row" spacing={1} justifyContent="flex-end">
+                <Button size="small" variant="outlined" onClick={() => handleEditTask(listPanelTask)} startIcon={<EditIcon />}>
+                  編集
+                </Button>
+                <Button size="small" color="error" onClick={() => { handleDeleteTask(listPanelTask.id); setListPanelTask(null); }} startIcon={<DeleteIcon />}>
+                  削除
+                </Button>
+              </Stack>
+            </Box>
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 160, gap: 1 }}>
+              <Typography variant="body2" color="text.secondary">
+                左のリストからタスクを選択してください
+              </Typography>
+            </Box>
+          )}
+        </Paper>
+      </Box>
+    );
+  };
+
+    const renderKanbanCard = (task) => {
+    const subtaskSummary = calculateSubtaskSummary(task.subtasks);
+    const hasSubtasks = subtaskSummary.total > 0;
+    const normalizedTaskId = task?.id != null ? String(task.id) : null;
+    const nextStatus = getNextTaskStatus(task.status, task.category);
+    const isAdvancing = normalizedTaskId ? statusUpdatingIds.includes(normalizedTaskId) : false;
+    const currentStatusLabel = getStatusLabel(task.status);
+    const nextStatusLabel = nextStatus ? getStatusLabel(nextStatus) : null;
+    const advanceTooltip = nextStatus ? `${currentStatusLabel} → ${nextStatusLabel}` : t('taskView.actions.statusMax');
+
+    return (
+      <Paper
+        key={task.id}
+        variant="outlined"
+        sx={{
+          p: 1.25,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 0.75,
+          cursor: 'pointer',
+          '&:hover': { boxShadow: 2 },
+          transition: 'box-shadow 0.15s',
+        }}
+        onClick={() => handleEditTask(task)}
+      >
+        <Typography
+          variant="body2"
+          sx={{
+            fontWeight: 600,
+            lineHeight: 1.4,
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+          }}
+        >
+          {task.title || 'タイトル未設定'}
+        </Typography>
+
+        <Stack direction="row" spacing={0.5} flexWrap="wrap" sx={{ mt: 0.25 }}>
+          {task.deadline && (
+            <Chip label={getDeadlineLabel(task.deadline)} size="small" sx={{ height: 18, fontSize: '0.68rem' }} />
+          )}
+          {Array.isArray(task.assignees) && task.assignees.length > 0 && (
+            <Chip label={task.assignees[0]} size="small" sx={{ height: 18, fontSize: '0.68rem', maxWidth: 100 }} />
+          )}
+          {hasSubtasks && (
+            <Chip
+              label={`${subtaskSummary.completed}/${subtaskSummary.total}`}
+              size="small"
+              color={subtaskSummary.completed === subtaskSummary.total ? 'success' : 'default'}
+              sx={{ height: 18, fontSize: '0.68rem' }}
+            />
+          )}
+        </Stack>
+
+        {hasSubtasks && (
+          <LinearProgress
+            variant="determinate"
+            value={subtaskSummary.percent}
+            sx={{ height: 3, borderRadius: 2 }}
+          />
+        )}
+
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.25, mt: 0.25 }} onClick={(e) => e.stopPropagation()}>
+          <Tooltip title={advanceTooltip}>
+            <span>
+              <IconButton
+                size="small"
+                color="primary"
+                onClick={() => handleAdvanceTaskStatus(task)}
+                disabled={!nextStatus || isAdvancing}
+                sx={{ p: 0.4 }}
+              >
+                {isAdvancing ? <CircularProgress size={14} /> : <ArrowForwardIcon sx={{ fontSize: '0.9rem' }} />}
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Tooltip title="編集">
+            <IconButton size="small" onClick={() => handleEditTask(task)} sx={{ p: 0.4 }}>
+              <EditIcon sx={{ fontSize: '0.9rem' }} />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      </Paper>
+    );
+  };
+
+  const renderStatusLayout = () => {
     if (statusSections.length === 0) {
       return (
         <Paper sx={{ p: { xs: 3, md: 4 } }}>
@@ -1528,24 +1862,59 @@ const renderStatusLayout = () => {
     return (
       <Box
         sx={{
-          display: 'grid',
+          display: 'flex',
           gap: 2,
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          overflowX: 'auto',
+          pb: 2,
+          alignItems: 'flex-start',
         }}
       >
         {statusSections.map((section) => (
-          <Paper key={section.key} variant="outlined" sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="subtitle1">{section.label}</Typography>
-              <Chip label={`${section.tasks.length} 件`} size="small" />
+          <Paper
+            key={section.key}
+            variant="outlined"
+            sx={{
+              width: 260,
+              flexShrink: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              maxHeight: 'calc(100vh - 280px)',
+              minHeight: 120,
+            }}
+          >
+            {/* Column header */}
+            <Box
+              sx={{
+                px: 2,
+                py: 1.25,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                borderBottom: '1px solid',
+                borderColor: 'divider',
+                flexShrink: 0,
+                bgcolor: 'action.hover',
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <CircleIcon sx={{ color: getStatusColor(section.key), fontSize: '0.7rem' }} />
+                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{section.label}</Typography>
+              </Box>
+              <Chip label={section.tasks.length} size="small" sx={{ height: 20, fontSize: '0.7rem' }} />
             </Box>
-            <Stack spacing={1.5}>
-              {section.tasks.length > 0 ? section.tasks.map((task) => renderTaskCard(task)) : (
-                <Paper variant="outlined" sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
-                  タスクはありません。
-                </Paper>
-              )}
-            </Stack>
+            {/* Scrollable task list */}
+            <Box sx={{ p: 1.25, overflowY: 'auto', flexGrow: 1 }}>
+              <Stack spacing={1}>
+                {section.tasks.length > 0
+                  ? section.tasks.map((task) => renderKanbanCard(task))
+                  : (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', py: 2 }}>
+                      タスクはありません
+                    </Typography>
+                  )
+                }
+              </Stack>
+            </Box>
           </Paper>
         ))}
       </Box>
@@ -1588,14 +1957,9 @@ const renderStatusLayout = () => {
     );
   };
   return (
-    <Box
-      sx={{
-        display: 'grid',
-        gridTemplateRows: 'auto 1fr auto',
-        gap: { xs: 2, md: 3 },
-        minHeight: '100%',
-      }}
-    >
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 2, md: 3 }, minHeight: '100%' }}>
+
+      {/* ── HEADER ── */}
       <Paper
         component="header"
         sx={{
@@ -1608,27 +1972,16 @@ const renderStatusLayout = () => {
         }}
       >
         <Box sx={{ flex: '1 1 260px' }}>
-          <Typography variant="h4" component="h1">
-            タスク管理
-          </Typography>
+          <Typography variant="h4" component="h1">タスク管理</Typography>
           <Typography variant="body2" color="text.secondary">
             カテゴリやタグごとにチームの状況を把握できます。表示ビューはユーザーごとに自動保存されます。
           </Typography>
         </Box>
-        <Stack
-          direction="row"
-          spacing={1}
-          sx={{
-            flex: { xs: '1 1 100%', md: '1 1 240px' },
-            flexWrap: 'wrap',
-          }}
-        >
+        <Stack direction="row" spacing={1} sx={{ flex: { xs: '1 1 100%', md: '1 1 240px' }, flexWrap: 'wrap' }}>
           <Chip label={`総数 ${searchFilteredTasks.length} 件`} color="primary" size="small" />
           {STATUS_DEFINITIONS.map((definition) => {
             const count = statusSummary[definition.value] || 0;
-            if (count === 0) {
-              return null;
-            }
+            if (count === 0) return null;
             return (
               <Chip
                 key={definition.value}
@@ -1636,10 +1989,7 @@ const renderStatusLayout = () => {
                 size="small"
                 icon={<CircleIcon sx={{ color: getStatusColor(definition.value), fontSize: '0.875rem !important' }} />}
                 variant="outlined"
-                sx={{
-                  color: getStatusColor(definition.value),
-                  borderColor: getStatusColor(definition.value),
-                }}
+                sx={{ color: getStatusColor(definition.value), borderColor: getStatusColor(definition.value) }}
               />
             );
           })}
@@ -1663,362 +2013,195 @@ const renderStatusLayout = () => {
           placeholder="キーワードで検索…"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          slotProps={{
-            input: {
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" />
-                </InputAdornment>
-              ),
-            },
-          }}
+          slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> } }}
           sx={{ flex: { xs: '1 1 100%', md: '0 0 220px' }, alignSelf: 'center' }}
         />
-        <Button
-          startIcon={<EmailIcon />}
-          variant="outlined"
-          onClick={() => setEmailImportOpen(true)}
-          sx={{
-            alignSelf: { xs: 'stretch', md: 'center' },
-            flex: { xs: '1 1 100%', md: '0 0 auto' },
-          }}
-        >
+        <Button startIcon={<EmailIcon />} variant="outlined" onClick={() => setEmailImportOpen(true)}
+          sx={{ alignSelf: { xs: 'stretch', md: 'center' }, flex: { xs: '1 1 100%', md: '0 0 auto' } }}>
           メールから作成
         </Button>
-        <Button
-          startIcon={<AddIcon />}
-          variant="contained"
-          onClick={handleOpenCreateModal}
-          sx={{
-            alignSelf: { xs: 'stretch', md: 'center' },
-            flex: { xs: '1 1 100%', md: '0 0 auto' },
-          }}
-        >
+        <Button startIcon={<AddIcon />} variant="contained" onClick={handleOpenCreateModal}
+          sx={{ alignSelf: { xs: 'stretch', md: 'center' }, flex: { xs: '1 1 100%', md: '0 0 auto' } }}>
           タスクを追加
         </Button>
       </Paper>
 
-      <Box
-        component="section"
-        sx={{
-          display: 'grid',
-          gap: { xs: 2, md: 3 },
-          gridTemplateColumns: {
-            xs: '1fr',
-            md: '260px 1fr',
-            lg: '260px 1fr 320px',
-          },
-          gridTemplateAreas: {
-            xs: '"nav" "main" "aside"',
-            md: '"nav main" "aside aside"',
-            lg: '"nav main aside"',
-          },
-          alignItems: 'start',
-        }}
-      >
-        <Paper
-          sx={{
-            gridArea: 'nav',
-            p: { xs: 2, md: 3 },
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 2,
-            position: { lg: 'sticky' },
-            top: { lg: 24 },
-            alignSelf: 'start',
-          }}
+      {/* ── TAB BAR ── */}
+      <Paper sx={{ px: { xs: 2, md: 2.5 }, py: 1.25, display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+        <ToggleButtonGroup
+          value={PRIMARY_VIEW_TABS.some((t) => t.value === layout) ? layout : null}
+          exclusive
+          onChange={(_, val) => { if (val) updatePreferences((prev) => ({ ...prev, layout: val })); }}
+          size="small"
         >
-          <Typography variant="h6">表示設定</Typography>
-          <Typography variant="body2" color="text.secondary">
-            表示するカテゴリや並び順、レイアウトを指定できます。設定はユーザーごとに自動保存されます。
-          </Typography>
-
-          <FormControl size="small">
-            <InputLabel id="task-view-layout-label">ビュー</InputLabel>
-            <Select
-              labelId="task-view-layout-label"
-              value={layout}
-              label="ビュー"
-              onChange={handleLayoutChange}
+          {PRIMARY_VIEW_TABS.map((tab) => (
+            <ToggleButton
+              key={tab.value}
+              value={tab.value}
+              sx={{
+                px: 2.5,
+                fontWeight: 600,
+                fontSize: '0.8rem',
+                letterSpacing: '0.02em',
+                '&.Mui-selected': {
+                  bgcolor: 'primary.main',
+                  color: '#fff',
+                  '&:hover': { bgcolor: 'primary.dark' },
+                },
+              }}
             >
-              {LAYOUT_OPTIONS.map((option) => (
-                <MenuItem key={option.value} value={option.value}>
-                  {option.label}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+              {tab.label}
+            </ToggleButton>
+          ))}
+        </ToggleButtonGroup>
 
-          <Autocomplete
-            multiple
-            size="small"
-            options={categoryOptions}
-            value={selectedCategories}
-            onChange={handleCategorySelectionChange}
-            renderInput={(params) => (
-              <TextField {...params} label="カテゴリ選択" placeholder="カテゴリ名" />
+        <Box sx={{ flex: 1 }} />
+
+        <Tooltip title="現在のフィルター設定を保存">
+          <IconButton size="small" onClick={handleOpenSaveViewDialog}>
+            <BookmarkAddIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="フィルター・表示設定">
+          <IconButton size="small" onClick={() => setFilterOpen((prev) => !prev)} color={filterOpen ? 'primary' : 'default'}>
+            <FilterListIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      </Paper>
+
+      {/* ── FILTER PANEL (collapsible) ── */}
+      {filterOpen && (
+        <Paper sx={{ p: { xs: 2, md: 2.5 }, display: 'flex', flexWrap: 'wrap', gap: 2.5, alignItems: 'flex-start' }}>
+          {savedViews.length > 0 && (
+            <Box sx={{ flex: '1 1 100%' }}>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>保存済みビュー</Typography>
+              <Stack direction="row" flexWrap="wrap" gap={0.75}>
+                {savedViews.map((view) => (
+                  <Chip
+                    key={view.id}
+                    label={view.name}
+                    icon={<BookmarkIcon sx={{ fontSize: '0.9rem !important' }} />}
+                    size="small"
+                    onClick={() => handleApplySavedView(view)}
+                    onDelete={() => handleDeleteSavedView(view.id)}
+                    variant="outlined"
+                    color="primary"
+                    sx={{ cursor: 'pointer' }}
+                  />
+                ))}
+              </Stack>
+            </Box>
+          )}
+
+          {/* Category filter */}
+          <Box sx={{ flex: '1 1 240px', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <Autocomplete
+              multiple
+              size="small"
+              options={categoryOptions}
+              value={selectedCategories}
+              onChange={handleCategorySelectionChange}
+              renderInput={(params) => <TextField {...params} label="カテゴリ選択" placeholder="カテゴリ名" />}
+            />
+            <Button variant="outlined" size="small" onClick={handleResetSelection}>すべて表示</Button>
+          </Box>
+
+          {/* Sort + layout-specific options */}
+          <Box sx={{ flex: '1 1 200px', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <FormControl size="small" fullWidth>
+              <InputLabel id="task-sort-mode-label">並び順</InputLabel>
+              <Select labelId="task-sort-mode-label" value={sortMode} label="並び順" onChange={handleSortModeChange}>
+                {TASK_SORT_OPTIONS.map((option) => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>)}
+              </Select>
+            </FormControl>
+            {layout === 'category' && (
+              <>
+                <FormControlLabel
+                  control={<Switch size="small" checked={categoryGroupByTag} onChange={handleToggleCategoryGroupByTag} />}
+                  label="タグでグループ化"
+                />
+                <FormControl size="small" fullWidth>
+                  <InputLabel id="category-task-order-label">カテゴリ内の並び順</InputLabel>
+                  <Select labelId="category-task-order-label" value={categoryTaskOrder} label="カテゴリ内の並び順" onChange={handleCategoryTaskOrderChange}>
+                    {CATEGORY_TASK_ORDER_OPTIONS.map((option) => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              </>
             )}
-          />
-          <Button variant="outlined" size="small" onClick={handleResetSelection}>
-            すべて表示
-          </Button>
+            {layout === 'assignee' && (
+              <>
+                <Autocomplete
+                  multiple
+                  size="small"
+                  options={derivedAssignees}
+                  value={selectedAssignees}
+                  onChange={handleAssigneeSelectionChange}
+                  renderInput={(params) => <TextField {...params} label="担当者選択" placeholder="担当者名" />}
+                />
+                <FormControlLabel
+                  control={<Switch checked={includeUnassignedColumn} onChange={handleToggleIncludeUnassigned} size="small" />}
+                  label="未担当の列を表示"
+                />
+              </>
+            )}
+          </Box>
 
-          <FormControl size="small">
-            <InputLabel id="task-sort-mode-label">並び順</InputLabel>
-            <Select
-              labelId="task-sort-mode-label"
-              value={sortMode}
-              label="並び順"
-              onChange={handleSortModeChange}
-            >
-              {TASK_SORT_OPTIONS.map((option) => (
-                <MenuItem key={option.value} value={option.value}>
-                  {option.label}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-          {layout === 'category' && (
-            <>
-              <FormControlLabel
-                control={(
-                  <Switch
-                    size="small"
-                    checked={categoryGroupByTag}
-                    onChange={handleToggleCategoryGroupByTag}
-                  />
-                )}
-                label="タグでグループ化"
-              />
-              <FormControl size="small">
-                <InputLabel id="category-task-order-label">カテゴリ内の並び順</InputLabel>
-                <Select
-                  labelId="category-task-order-label"
-                  value={categoryTaskOrder}
-                  label="カテゴリ内の並び順"
-                  onChange={handleCategoryTaskOrderChange}
-                >
-                  {CATEGORY_TASK_ORDER_OPTIONS.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </>
-          )}
-
-          {layout === 'assignee' && (
-            <>
-              <Autocomplete
-                multiple
-                size="small"
-                options={derivedAssignees}
-                value={selectedAssignees}
-                onChange={handleAssigneeSelectionChange}
-                renderInput={(params) => (
-                  <TextField {...params} label="担当者選択" placeholder="担当者名" />
-                )}
-              />
-              <FormControlLabel
-                control={(
-                  <Switch
-                    checked={includeUnassignedColumn}
-                    onChange={handleToggleIncludeUnassigned}
-                    size="small"
-                  />
-                )}
-                label="未担当の列を表示"
-              />
-            </>
-          )}
-
-          <Divider />
-          <Box>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>
-              カテゴリ一覧
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              矢印ボタンで表示順を変更できます。
-            </Typography>
-            <Stack spacing={1.5}>
-              {navCategories.length > 0 ? (
-                navCategories.map((category, index) => {
-                  const displayLabel = getCategoryLabel(category);
-                  const taskCount = categoryToTagsMap[category]
-                    ? Object.values(categoryToTagsMap[category]).reduce(
-                        (count, items) => count + items.length,
-                        0,
-                      )
-                    : 0;
-
-                  return (
-                    <Box
-                      key={`nav-${category}`}
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: 1,
-                      }}
-                    >
-                      <Stack direction="row" alignItems="center" spacing={1}>
-                        <Chip label={displayLabel} size="small" />
-                        <Typography variant="caption" color="text.secondary">
-                          {taskCount} 件
-                        </Typography>
-                      </Stack>
-                      <Stack direction="row" spacing={0.5}>
-                        <Tooltip title="カテゴリを上に移動">
-                          <span>
-                            <IconButton
-                              size="small"
-                              onClick={() => handleMoveCategory(category, -1)}
-                              disabled={index === 0}
-                              aria-label="カテゴリを上に移動"
-                            >
-                              <KeyboardArrowUpIcon fontSize="inherit" />
-                            </IconButton>
-                          </span>
-                        </Tooltip>
-                        <Tooltip title="カテゴリを下に移動">
-                          <span>
-                            <IconButton
-                              size="small"
-                              onClick={() => handleMoveCategory(category, 1)}
-                              disabled={index === navCategories.length - 1}
-                              aria-label="カテゴリを下に移動"
-                            >
-                              <KeyboardArrowDownIcon fontSize="inherit" />
-                            </IconButton>
-                          </span>
-                        </Tooltip>
-                      </Stack>
-                    </Box>
-                  );
-                })
-              ) : (
-                <Typography variant="body2" color="text.secondary">
-                  データを読み込むとカテゴリ一覧を表示します。
-                </Typography>
+          {/* Category order */}
+          <Box sx={{ flex: '1 1 200px', display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <Typography variant="subtitle2">カテゴリ一覧</Typography>
+            <Typography variant="caption" color="text.secondary">矢印ボタンで表示順を変更できます。</Typography>
+            <Stack spacing={1}>
+              {navCategories.length > 0 ? navCategories.map((category, index) => {
+                const displayLabel = getCategoryLabel(category);
+                const taskCount = categoryToTagsMap[category]
+                  ? Object.values(categoryToTagsMap[category]).reduce((count, items) => count + items.length, 0)
+                  : 0;
+                return (
+                  <Box key={`nav-${category}`} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                      <Chip label={displayLabel} size="small" />
+                      <Typography variant="caption" color="text.secondary">{taskCount} 件</Typography>
+                    </Stack>
+                    <Stack direction="row" spacing={0.5}>
+                      <Tooltip title="カテゴリを上に移動"><span>
+                        <IconButton size="small" onClick={() => handleMoveCategory(category, -1)} disabled={index === 0} aria-label="カテゴリを上に移動">
+                          <KeyboardArrowUpIcon fontSize="inherit" />
+                        </IconButton>
+                      </span></Tooltip>
+                      <Tooltip title="カテゴリを下に移動"><span>
+                        <IconButton size="small" onClick={() => handleMoveCategory(category, 1)} disabled={index === navCategories.length - 1} aria-label="カテゴリを下に移動">
+                          <KeyboardArrowDownIcon fontSize="inherit" />
+                        </IconButton>
+                      </span></Tooltip>
+                    </Stack>
+                  </Box>
+                );
+              }) : (
+                <Typography variant="body2" color="text.secondary">データを読み込むとカテゴリ一覧を表示します。</Typography>
               )}
             </Stack>
           </Box>
         </Paper>
+      )}
 
-        <Box
-          sx={{
-            gridArea: 'main',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: { xs: 2, md: 3 },
-          }}
-        >
-          <Paper sx={{ p: { xs: 2, md: 3 } }}>
-            <Typography variant="h6">タスク一覧</Typography>
-            <Typography variant="body2" color="text.secondary">
-              選択したビューに応じてタスクを表示します。並び替えは右のメニューから変更できます。
-            </Typography>
+      {/* ── MAIN CONTENT ── */}
+      <Box sx={{ flexGrow: 1 }}>
+        {layout === 'category' && renderCategoryLayout()}
+        {layout === 'status' && renderStatusLayout()}
+        {layout === 'list' && renderListLayout()}
+        {layout === 'calendar' && (
+          <Paper sx={{ p: 0, overflow: 'hidden', height: 680 }}>
+            <TaskCalendar tasks={searchFilteredTasks} onTaskSelect={handleEditTask} />
           </Paper>
-
-          {layout === 'category' && renderCategoryLayout()}
-          {layout === 'status' && renderStatusLayout()}
-          {layout === 'assignee' && renderAssigneeLayout()}
-        </Box>
-
-        <Paper
-          sx={{
-            gridArea: 'aside',
-            p: { xs: 2, md: 3 },
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 2,
-            position: { lg: 'sticky' },
-            top: { lg: 24 },
-            alignSelf: 'start',
-          }}
-        >
-          <Typography variant="h6">進捗サマリー</Typography>
-          <Stack spacing={1}>
-            {STATUS_DEFINITIONS.map((definition) => {
-              const count = statusSummary[definition.value] || 0;
-              if (count === 0) {
-                return null;
-              }
-              return (
-                <Stack key={`aside-${definition.value}`} direction="row" spacing={1} alignItems="center">
-                  <CircleIcon sx={{ color: getStatusColor(definition.value), fontSize: '0.875rem' }} />
-                  <Typography variant="body2">
-                    {definition.label}: {count} 件
-                  </Typography>
-                </Stack>
-              );
-            })}
-            {statusSummary[UNKNOWN_STATUS_KEY] ? (
-              <Stack direction="row" spacing={1} alignItems="center">
-                <CircleIcon sx={{ color: getStatusColor('unknown'), fontSize: '0.875rem' }} />
-                <Typography variant="body2">
-                  {getStatusLabel(UNKNOWN_STATUS_KEY)}: {statusSummary[UNKNOWN_STATUS_KEY]} 件
-                </Typography>
-              </Stack>
-            ) : null}
-            {Object.keys(statusSummary).length === 0 && (
-              <Typography variant="body2" color="text.secondary">
-                タスクを登録するとステータスの件数を表示します。
-              </Typography>
-            )}
-          </Stack>
-          <Divider />
-          <Typography variant="subtitle1">直近の期限</Typography>
-          <Stack spacing={1.5}>
-            {upcomingDeadlines.length > 0 ? (
-              upcomingDeadlines.map((task) => (
-                <Box
-                  key={`deadline-${task.id}`}
-                  sx={{
-                    p: 1.5,
-                    borderRadius: 1,
-                    backgroundColor: 'action.hover',
-                  }}
-                >
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {task.title || 'タイトル未設定'}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    期限: {getDeadlineLabel(task.deadline)}
-                  </Typography>
-                </Box>
-              ))
-            ) : (
-              <Typography variant="body2" color="text.secondary">
-                近日中に期限を迎えるタスクはありません。
-              </Typography>
-            )}
-          </Stack>
-        </Paper>
+        )}
+        {layout === 'assignee' && renderAssigneeLayout()}
+        {layout === 'timeline' && (
+          <TaskTimelineView tasks={searchFilteredTasks} onEditTask={handleEditTask} />
+        )}
       </Box>
 
-      <Paper
-        component="footer"
-        sx={{
-          p: { xs: 2, md: 3 },
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          color: 'text.secondary',
-        }}
-      >
-        <Typography variant="caption">
-          表示内容は自動保存されます。ビューを切り替えてチームの状況を確認しましょう。
-        </Typography>
-      </Paper>
-
-      <EmailImportModal
-        open={emailImportOpen}
-        onClose={() => setEmailImportOpen(false)}
-        onParsed={handleEmailParsed}
-      />
+      {/* ── MODALS ── */}
+      <EmailImportModal open={emailImportOpen} onClose={() => setEmailImportOpen(false)} onParsed={handleEmailParsed} />
 
       {selectedTask && (
         <TaskDetailModal
@@ -2026,13 +2209,32 @@ const renderStatusLayout = () => {
           onSave={handleSaveTask}
           onClose={() => setSelectedTask(null)}
           assigneeOptions={assigneeOptions}
-          categoryOptions={categoryOptions.map((category) =>
-            category === DEFAULT_CATEGORY_LABEL ? '' : category,
-          )}
+          categoryOptions={categoryOptions.map((category) => category === DEFAULT_CATEGORY_LABEL ? '' : category)}
           automationRules={automationRules}
           tagOptions={tagOptions}
+          allTasks={tasks}
         />
       )}
+
+      <Dialog open={saveViewDialogOpen} onClose={() => setSaveViewDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>ビューを保存</DialogTitle>
+        <DialogContent sx={{ pt: '12px !important' }}>
+          <TextField
+            autoFocus
+            fullWidth
+            label="ビュー名"
+            placeholder="例: 自分の進行中タスク"
+            value={saveViewName}
+            onChange={e => setSaveViewName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleSaveView(); }}
+            helperText="現在のレイアウト・カテゴリ・担当者フィルターを名前付きで保存します"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSaveViewDialogOpen(false)}>キャンセル</Button>
+          <Button variant="contained" onClick={handleSaveView} disabled={!saveViewName.trim()}>保存</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

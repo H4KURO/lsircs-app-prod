@@ -30,6 +30,14 @@ export function DashboardSettingsModal({ open, onClose, settings, onSave }) {
             control={<Checkbox checked={localSettings.showUpcoming} onChange={handleChange} name="showUpcoming" />}
             label="期日の近いタスク"
           />
+          <FormControlLabel
+            control={<Checkbox checked={localSettings.showOverdueTasks ?? true} onChange={handleChange} name="showOverdueTasks" />}
+            label="期限超過タスク"
+          />
+          <FormControlLabel
+            control={<Checkbox checked={localSettings.showTeamStats ?? true} onChange={handleChange} name="showTeamStats" />}
+            label="担当者別タスク分布"
+          />
         </FormGroup>
       </DialogContent>
       <DialogActions>

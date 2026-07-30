@@ -85,6 +85,7 @@
       "waitingEstimate": "Waiting for Estimate",
       "waitingOwnerApproval": "Waiting for Owner Approval",
       "waitingCompletionReport": "Waiting for Completion Report",
+      "doneWithoutReport": "Done (No Report)",
       "done": "Completed",
       "unknown": "Status not set"
     },

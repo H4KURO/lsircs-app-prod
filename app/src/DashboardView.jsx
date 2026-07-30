@@ -1,11 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { Box, Grid, Paper, Typography, Fab, IconButton, FormControl, Select, MenuItem, Checkbox, ListItemText, OutlinedInput } from '@mui/material';
+import { Box, Grid, Paper, Typography, Fab, IconButton, FormControl, Select, MenuItem, Checkbox, ListItemText, OutlinedInput, LinearProgress, Chip } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import SettingsIcon from '@mui/icons-material/Settings';
 import TaskIcon from '@mui/icons-material/Task';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import DonutLargeIcon from '@mui/icons-material/DonutLarge';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import PeopleIcon from '@mui/icons-material/People';
 import { useTranslation } from 'react-i18next';
 import { TaskCalendar } from './TaskCalendar';
 import { DashboardTaskList } from './DashboardTaskList';
@@ -21,6 +24,8 @@ const defaultSettings = {
   showHighPriority: true,
   showMyTasks: true,
   showUpcoming: true,
+  showTeamStats: true,
+  showOverdueTasks: true,
   calendarSelectedCategories: [],
 };
 
@@ -143,7 +148,39 @@ export function DashboardView({ user }) {
     const total = allTasks.length;
     const done = allTasks.filter((t) => t.status === 'Done').length;
     const inProgress = allTasks.filter((t) => t.status === 'Inprogress').length;
-    return { total, done, inProgress };
+    const today = startOfToday();
+    const overdue = allTasks.filter((t) => {
+      if (t.status === 'Done' || !t.deadline) return false;
+      return new Date(t.deadline) < today;
+    }).length;
+    const completionRate = total > 0 ? Math.round((done / total) * 100) : 0;
+    return { total, done, inProgress, overdue, completionRate };
+  }, [allTasks]);
+
+  const overdueTasks = useMemo(() => {
+    const today = startOfToday();
+    return allTasks
+      .filter((t) => t.status !== 'Done' && t.deadline && new Date(t.deadline) < today)
+      .sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
+  }, [allTasks]);
+
+  const assigneeStats = useMemo(() => {
+    const map = new Map();
+    allTasks.forEach((task) => {
+      const assignees = Array.isArray(task.assignees) ? task.assignees : (task.assignee ? [task.assignee] : ['未担当']);
+      const effectiveAssignees = assignees.length > 0 ? assignees : ['未担当'];
+      effectiveAssignees.forEach((name) => {
+        if (!map.has(name)) map.set(name, { total: 0, done: 0 });
+        const s = map.get(name);
+        s.total += 1;
+        if (task.status === 'Done') s.done += 1;
+      });
+    });
+    return Array.from(map.entries())
+      .map(([name, s]) => ({ name, ...s, rate: s.total > 0 ? Math.round((s.done / s.total) * 100) : 0 }))
+      .filter((s) => s.name !== '未担当')
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 8);
   }, [allTasks]);
   const markStatusUpdating = (taskId, updating) => {
     if (taskId == null) {
@@ -323,21 +360,48 @@ export function DashboardView({ user }) {
         </IconButton>
       </Box>
 
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={4}>
-          <StatCard title={t('dashboard.total')} value={taskStats.total} icon={<TaskIcon sx={{ fontSize: 40 }} />} />
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid item xs={6} sm={3}>
+          <StatCard title={t('dashboard.total')} value={taskStats.total} icon={<TaskIcon sx={{ fontSize: 36 }} />} />
         </Grid>
-        <Grid item xs={12} sm={4}>
-          <StatCard title={t('dashboard.completed')} value={taskStats.done} icon={<TaskAltIcon sx={{ fontSize: 40 }} />} />
+        <Grid item xs={6} sm={3}>
+          <StatCard title={t('dashboard.completed')} value={taskStats.done} icon={<TaskAltIcon sx={{ fontSize: 36 }} />} />
         </Grid>
-        <Grid item xs={12} sm={4}>
+        <Grid item xs={6} sm={3}>
           <StatCard
             title={t('dashboard.inProgress')}
             value={taskStats.inProgress}
-            icon={<DonutLargeIcon sx={{ fontSize: 40 }} />}
+            icon={<DonutLargeIcon sx={{ fontSize: 36 }} />}
+          />
+        </Grid>
+        <Grid item xs={6} sm={3}>
+          <StatCard
+            title="期限超過"
+            value={taskStats.overdue}
+            icon={<WarningAmberIcon sx={{ fontSize: 36 }} />}
+            color={taskStats.overdue > 0 ? 'error' : undefined}
           />
         </Grid>
       </Grid>
+
+      {/* チーム全体進捗バー */}
+      <Paper sx={{ p: 2, mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
+        <TrendingUpIcon color="primary" />
+        <Box sx={{ flex: 1 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>チーム全体の達成率</Typography>
+            <Typography variant="body2" color="text.secondary">
+              {taskStats.done}/{taskStats.total} 完了 ({taskStats.completionRate}%)
+            </Typography>
+          </Box>
+          <LinearProgress
+            variant="determinate"
+            value={taskStats.completionRate}
+            sx={{ height: 8, borderRadius: 4 }}
+            color={taskStats.completionRate >= 80 ? 'success' : taskStats.completionRate >= 50 ? 'warning' : 'primary'}
+          />
+        </Box>
+      </Paper>
 
       <Grid container spacing={3}>
         <Grid item xs={12} md={8}>
@@ -425,6 +489,53 @@ export function DashboardView({ user }) {
                 onAdvanceStatus={handleAdvanceTaskStatus}
                 advancingTaskIds={statusUpdatingIds}
               />
+            </Paper>
+          </Grid>
+        )}
+
+        {dashboardSettings.showOverdueTasks && overdueTasks.length > 0 && (
+          <Grid item xs={12} md={6}>
+            <Paper sx={{ p: 2, height: 'auto', border: '1px solid', borderColor: 'error.light' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <WarningAmberIcon color="error" fontSize="small" />
+                <Typography variant="h6" color="error.main">期限超過タスク</Typography>
+                <Chip label={overdueTasks.length} size="small" color="error" />
+              </Box>
+              <DashboardTaskList
+                tasks={overdueTasks}
+                onTaskClick={(task) => setSelectedTask(normalizeTask(task))}
+                onAdvanceStatus={handleAdvanceTaskStatus}
+                advancingTaskIds={statusUpdatingIds}
+              />
+            </Paper>
+          </Grid>
+        )}
+
+        {dashboardSettings.showTeamStats && assigneeStats.length > 0 && (
+          <Grid item xs={12} md={6}>
+            <Paper sx={{ p: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <PeopleIcon color="action" fontSize="small" />
+                <Typography variant="h6">担当者別タスク</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+                {assigneeStats.map((s) => (
+                  <Box key={s.name}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.4 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>{s.name}</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {s.done}/{s.total} ({s.rate}%)
+                      </Typography>
+                    </Box>
+                    <LinearProgress
+                      variant="determinate"
+                      value={s.rate}
+                      sx={{ height: 6, borderRadius: 3 }}
+                      color={s.rate >= 80 ? 'success' : 'primary'}
+                    />
+                  </Box>
+                ))}
+              </Box>
             </Paper>
           </Grid>
         )}
