@@ -43,9 +43,11 @@ jobs:
         working-directory: ./api
         run: npm install
 
-  # main へのプッシュ時のみ本番デプロイ
+  # main へのプッシュで本番デプロイ。
+  # TEMP: このPR(#11)の動作確認のため、一時的にPRでもプレビュー環境へのデプロイを復活させている。
+  # 確認完了後は `github.event_name == 'push' && github.ref == 'refs/heads/main'` に戻すこと。
   build_and_deploy_job:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     runs-on: ubuntu-latest
     name: Build and Deploy Job
     steps:
