@@ -148,6 +148,11 @@ export function TaskDetailModal({
   const [templates, setTemplates] = useState([]);
   const [templateMenuAnchor, setTemplateMenuAnchor] = useState(null);
 
+  // Additional Info 展開状態
+  const [additionalInfoOpen, setAdditionalInfoOpen] = useState(
+    () => Boolean(task?.url || task?.phoneNumber || task?.numericValue != null)
+  );
+
   // バイヤーリンクダイアログ
   const [buyerSearchOpen, setBuyerSearchOpen] = useState(false);
 
@@ -903,6 +908,93 @@ export function TaskDetailModal({
             autoHighlight
             clearOnEscape
           />
+
+          {/* ── Additional Info（折りたたみ） ── */}
+          <Box>
+            <Box
+              onClick={() => setAdditionalInfoOpen((prev) => !prev)}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+                cursor: 'pointer',
+                py: 0.5,
+                userSelect: 'none',
+                color: 'text.secondary',
+                '&:hover': { color: 'text.primary' },
+              }}
+            >
+              {additionalInfoOpen
+                ? <ExpandLessIcon fontSize="small" />
+                : <ExpandMoreIcon fontSize="small" />}
+              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                Additional Info
+              </Typography>
+              {(editableTask.url || editableTask.phoneNumber || editableTask.numericValue != null) && !additionalInfoOpen && (
+                <Chip label="入力あり" size="small" sx={{ height: 18, fontSize: '0.68rem' }} />
+              )}
+            </Box>
+            <Collapse in={additionalInfoOpen}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1.5 }}>
+                <TextField
+                  label="関連URL"
+                  placeholder="https://..."
+                  size="small"
+                  value={editableTask.url || ''}
+                  onChange={(e) => setEditableTask((prev) => ({ ...prev, url: e.target.value }))}
+                  slotProps={{
+                    input: {
+                      endAdornment: editableTask.url ? (
+                        <InputAdornment position="end">
+                          <Tooltip title="URLを開く">
+                            <IconButton size="small" component="a" href={editableTask.url} target="_blank" rel="noopener noreferrer">
+                              <LinkIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </InputAdornment>
+                      ) : null,
+                    },
+                  }}
+                />
+                <TextField
+                  label="電話番号"
+                  placeholder="090-0000-0000"
+                  size="small"
+                  value={editableTask.phoneNumber || ''}
+                  onChange={(e) => setEditableTask((prev) => ({ ...prev, phoneNumber: e.target.value }))}
+                />
+                <TextField
+                  label="数値（金額・面積等）"
+                  placeholder="0"
+                  size="small"
+                  type="number"
+                  value={editableTask.numericValue ?? ''}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    setEditableTask((prev) => ({
+                      ...prev,
+                      numericValue: raw === '' ? null : Number(raw),
+                    }));
+                  }}
+                />
+                {editableTask.id && (
+                  <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                    {editableTask.createdAt && (
+                      <Typography variant="caption" color="text.secondary">
+                        作成: {new Date(editableTask.createdAt).toLocaleString('ja-JP')}
+                      </Typography>
+                    )}
+                    {editableTask.lastUpdatedAt && (
+                      <Typography variant="caption" color="text.secondary">
+                        最終更新: {new Date(editableTask.lastUpdatedAt).toLocaleString('ja-JP')}
+                        {editableTask.lastUpdatedByName ? ` (${editableTask.lastUpdatedByName})` : ''}
+                      </Typography>
+                    )}
+                  </Box>
+                )}
+              </Box>
+            </Collapse>
+          </Box>
 
           <Divider />
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
