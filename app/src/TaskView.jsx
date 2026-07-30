@@ -575,6 +575,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   const [listPanelTask, setListPanelTask] = useState(null);
   const [filterOpen, setFilterOpen] = useState(false);
   const [filterConditions, setFilterConditions] = useState([]);
+  const [secondaryGroupBy, setSecondaryGroupBy] = useState('');
 
   // カスタムビュー保存
   const [savedViews, setSavedViews] = useState([]);
@@ -1753,8 +1754,8 @@ const renderListLayout = () => {
                 <Typography variant="subtitle2">{section.label}</Typography>
                 <Chip label={`${section.tasks.length} 件`} size="small" />
               </Box>
-              <Stack divider={<Divider />}>
-                {section.tasks.map((task) => {
+              {(() => {
+                const renderListRow = (task) => {
                   const isSelected = listPanelTask?.id === task.id;
                   return (
                     <Box
@@ -1788,8 +1789,26 @@ const renderListLayout = () => {
                       )}
                     </Box>
                   );
-                })}
-              </Stack>
+                };
+                if (secondaryGroupBy) {
+                  const subGroups = groupTasksSecondary(section.tasks, secondaryGroupBy) || [];
+                  return subGroups.map((group) => (
+                    <Box key={group.key}>
+                      <Box sx={{ px: 2, py: 0.5, bgcolor: 'action.selected' }}>
+                        <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>{group.label}</Typography>
+                      </Box>
+                      <Stack divider={<Divider />}>
+                        {group.tasks.map(renderListRow)}
+                      </Stack>
+                    </Box>
+                  ));
+                }
+                return (
+                  <Stack divider={<Divider />}>
+                    {section.tasks.map(renderListRow)}
+                  </Stack>
+                );
+              })()}
             </Paper>
           ))}
         </Box>
@@ -1978,6 +1997,26 @@ const renderListLayout = () => {
     );
   };
 
+  const groupTasksSecondary = (tasks, groupBy) => {
+    if (!groupBy) return null;
+    const groups = new Map();
+    tasks.forEach((task) => {
+      let key;
+      let label;
+      if (groupBy === 'category') {
+        key = (task.category || DEFAULT_CATEGORY_LABEL).trim();
+        label = key;
+      } else if (groupBy === 'importance') {
+        const imp = task.importance ?? 1;
+        key = String(imp);
+        label = imp === 2 ? '重要度: 高' : imp === 1 ? '重要度: 中' : '重要度: 低';
+      }
+      if (!groups.has(key)) groups.set(key, { key, label, tasks: [] });
+      groups.get(key).tasks.push(task);
+    });
+    return Array.from(groups.values());
+  };
+
   const renderStatusLayout = () => {
     if (statusSections.length === 0) {
       return (
@@ -2032,16 +2071,24 @@ const renderListLayout = () => {
             </Box>
             {/* Scrollable task list */}
             <Box sx={{ p: 1.25, overflowY: 'auto', flexGrow: 1 }}>
-              <Stack spacing={1}>
-                {section.tasks.length > 0
-                  ? section.tasks.map((task) => renderKanbanCard(task))
-                  : (
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', py: 2 }}>
-                      タスクはありません
-                    </Typography>
-                  )
-                }
-              </Stack>
+              {section.tasks.length === 0 ? (
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', py: 2 }}>
+                  タスクはありません
+                </Typography>
+              ) : secondaryGroupBy ? (
+                <Stack spacing={1.5}>
+                  {groupTasksSecondary(section.tasks, secondaryGroupBy).map((group) => (
+                    <Box key={group.key}>
+                      <Typography variant="caption" sx={{ display: 'block', px: 0.25, pb: 0.5, color: 'text.secondary', fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider', mb: 0.75 }}>
+                        {group.label}
+                      </Typography>
+                      <Stack spacing={1}>{group.tasks.map(renderKanbanCard)}</Stack>
+                    </Box>
+                  ))}
+                </Stack>
+              ) : (
+                <Stack spacing={1}>{section.tasks.map(renderKanbanCard)}</Stack>
+              )}
             </Box>
           </Paper>
         ))}
@@ -2360,6 +2407,21 @@ const renderListLayout = () => {
                 {TASK_SORT_OPTIONS.map((option) => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>)}
               </Select>
             </FormControl>
+            {(layout === 'status' || layout === 'list') && (
+              <FormControl size="small" fullWidth>
+                <InputLabel id="secondary-group-label">グループ化</InputLabel>
+                <Select
+                  labelId="secondary-group-label"
+                  value={secondaryGroupBy}
+                  label="グループ化"
+                  onChange={(e) => setSecondaryGroupBy(e.target.value)}
+                >
+                  <MenuItem value="">なし</MenuItem>
+                  <MenuItem value="category">カテゴリ</MenuItem>
+                  <MenuItem value="importance">重要度</MenuItem>
+                </Select>
+              </FormControl>
+            )}
             {layout === 'category' && (
               <>
                 <FormControlLabel
