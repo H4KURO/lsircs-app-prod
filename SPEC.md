@@ -1,7 +1,7 @@
 # lsir-cs アプリケーション仕様書
 
 > **メンテナンス注意**: このファイルはアプリ変更のたびに更新すること（CLAUDE.md 参照）。  
-> 最終更新: 2026-07-30（UIリデザイン：アイコンレール・4タブビュー・Trelloスタイルカンバン・カレンダービュー追加）
+> 最終更新: 2026-07-30（Phase 3: Additional Info追加フィールド・AND/ORフィルター・グループ化・コメント@mention Slack通知）
 
 ---
 
@@ -226,9 +226,14 @@ lsircs-app-prod/
 
 #### フィルターパネル（折りたたみ式）
 
+- **AND/ORフィルター条件**: 複数条件をAND/ORで組み合わせるフィルター行（フィールド・演算子・値を行単位で追加/削除）
+  - フィールド: ステータス・重要度・期限・担当者・タグ・カテゴリ
+  - 演算子: フィールドに応じて切り替え（は/でない、含む/含まない、前/後、未設定/設定済み）
+  - 条件は左から右にチェーンして適用
 - カテゴリフィルター（複数選択）
 - 担当者フィルター（複数選択、担当者ビュー時）
 - 並び順選択
+- **グループ化**: カンバン・リストビュー時に列/セクション内をカテゴリまたは重要度でサブグループ化
 - カテゴリ内並び順・タググループ化（カテゴリビュー時）
 - カテゴリの表示順変更（矢印ボタン）
 - 保存済みビューの適用・削除
@@ -426,8 +431,13 @@ Google Sheets / Box ドキュメントを iframe で埋め込み閲覧・編集�
     enabled: boolean,
     frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly',
   } | null,
+  url: string | null,          // 関連URL（Additional Info）
+  phoneNumber: string | null,  // 電話番号（Additional Info）
+  numericValue: number | null, // 数値・金額・面積等（Additional Info）
   createdAt: string,
-  updatedAt: string,
+  lastUpdatedAt: string,
+  lastUpdatedById: string,
+  lastUpdatedByName: string,
 }
 ```
 
@@ -435,13 +445,15 @@ Google Sheets / Box ドキュメントを iframe で埋め込み閲覧・編集�
 
 ```javascript
 {
-  id: string,          // UUID
-  authorName: string,  // displayName
-  authorEmail: string,
-  body: string,        // コメント本文（@mention 含む）
-  createdAt: string,   // ISO8601
+  id: string,               // UUID
+  authorDisplayName: string, // displayName
+  authorUserId: string,
+  text: string,             // コメント本文（@mention 含む）
+  createdAt: string,        // ISO8601
 }
 ```
+
+コメント投稿時に `@DisplayName` 形式のメンションが含まれている場合、Slack チャンネルへ通知を送信（`SLACK_BOT_TOKEN`・`SLACK_CHANNEL_ID` 設定時のみ）。
 
 ### 6.2 ステータスフロー
 
@@ -454,7 +466,7 @@ Started（着手前）→ Inprogress（進行中）→ Done（完了）
 
 **カテゴリ「PM」の場合**:
 ```
-WaitingEstimate（見積もり待ち）→ WaitingOwnerApproval（オーナー承諾待ち）→ WaitingCompletionReport（完了報告待ち）→ Done（完了）
+WaitingEstimate（見積もり待ち）→ WaitingOwnerApproval（オーナー承諾待ち）→ WaitingCompletionReport（完了報告待ち）→ DoneWithoutReport（完了・報告なし）→ Done（完了）
 ```
 
 - 一方向のみ（`getNextTaskStatus(status, category)` で次のステータスを取得）

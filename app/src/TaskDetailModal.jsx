@@ -283,9 +283,15 @@ export function TaskDetailModal({
     if (!newComment.trim()) return;
     setCommentSubmitting(true);
     try {
+      const trimmed = newComment.trim();
+      const mentionedUsers = allUsers.filter((u) => {
+        const name = u.displayName || '';
+        return name && trimmed.includes(`@${name}`);
+      });
       const { data } = await axios.post(`${API_URL}/AddTaskComment`, {
         taskId: editableTask.id,
-        text: newComment.trim(),
+        text: trimmed,
+        mentionedDisplayNames: mentionedUsers.map((u) => u.displayName),
       });
       setComments(prev => [...prev, data]);
       setNewComment('');
@@ -294,7 +300,7 @@ export function TaskDetailModal({
     } finally {
       setCommentSubmitting(false);
     }
-  }, [newComment, editableTask.id]);
+  }, [newComment, editableTask.id, allUsers]);
 
   const handleDeleteComment = useCallback(async (commentId) => {
     try {
