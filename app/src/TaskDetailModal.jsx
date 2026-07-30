@@ -137,6 +137,11 @@ export function TaskDetailModal({
   const [mentionStart, setMentionStart] = useState(-1);
   const commentInputRef = useRef(null);
 
+  // コメント（handleCommentChangeより前に宣言しないとTDZエラーになる）
+  const [comments, setComments] = useState(task?.comments || []);
+  const [newComment, setNewComment] = useState('');
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
+
   // バイヤーリンクダイアログ
   const [buyerSearchOpen, setBuyerSearchOpen] = useState(false);
 
@@ -237,10 +242,6 @@ export function TaskDetailModal({
     .slice(0, 6);
 
   // コメント
-  const [comments, setComments] = useState(task?.comments || []);
-  const [newComment, setNewComment] = useState('');
-  const [commentSubmitting, setCommentSubmitting] = useState(false);
-
   useEffect(() => {
     setComments(task?.comments || []);
   }, [task]);
