@@ -10,19 +10,18 @@ on:
       - main
 
 jobs:
-  build_and_deploy_job:
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
+  # PRのときはビルド検証のみ（Azure にステージング環境を作らない）
+  validate_pr:
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
     runs-on: ubuntu-latest
-    name: Build and Deploy Job
+    name: Validate PR Build
     steps:
-      # ステップ1: ソースコードをチェックアウトする
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
           submodules: true
           lfs: true
 
-      # ステップ2: ビルド環境全体のNode.jsバージョンを20に強制する
       - name: Set up Node.js version
         uses: actions/setup-node@v4
         with:
@@ -32,23 +31,51 @@ jobs:
             app/package-lock.json
             api/package-lock.json
 
-      # ステップ3: フロントエンド(app)を手動でビルドする
       - name: Build Frontend
         working-directory: ./app
         env:
-          # Optional: set this in GitHub repository variables to route Gemini analysis to a dedicated Function App.
-          # Example value: https://lsirai-fzhqgec3h7fsfncg.westus2-01.azurewebsites.net/api
           VITE_AI_API_URL: ${{ vars.VITE_AI_API_URL }}
         run: |
           npm install
           npm run build
 
-      # ステップ4: API(api)の依存関係を手動でインストールする
       - name: Install API dependencies
         working-directory: ./api
         run: npm install
 
-      # ステップ5: 完成品をAzureにアップロードする
+  # main へのプッシュ時のみ本番デプロイ
+  build_and_deploy_job:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    name: Build and Deploy Job
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+          lfs: true
+
+      - name: Set up Node.js version
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+          cache-dependency-path: |
+            app/package-lock.json
+            api/package-lock.json
+
+      - name: Build Frontend
+        working-directory: ./app
+        env:
+          VITE_AI_API_URL: ${{ vars.VITE_AI_API_URL }}
+        run: |
+          npm install
+          npm run build
+
+      - name: Install API dependencies
+        working-directory: ./api
+        run: npm install
+
       - name: Deploy to Azure Static Web Apps
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
@@ -56,14 +83,10 @@ jobs:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_SALMON_MOSS_07CDC8100 }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
-          
-          ###### Repository/Build Configurations ######
-          app_location: "app/dist"  # ★ビルド済みの完成品フォルダを直接指定
-          api_location: "api"       # ★準備済みのAPIソースコードの場所を指定
-          skip_app_build: true      # ★Azure側でのアプリビルドを完全にスキップ
-          skip_api_build: false      # ★Azure側でのAPIビルドも完全にスキップ
-          config_file_location: "."     # staticwebapp.config.json の配置先
-          ###### End of Repository/Build Configurations ######
+          app_location: "app/dist"
+          api_location: "api"
+          skip_app_build: true
+          output_location: ""
 
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
