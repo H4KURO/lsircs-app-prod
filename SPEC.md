@@ -1,7 +1,7 @@
 # lsir-cs アプリケーション仕様書
 
 > **メンテナンス注意**: このファイルはアプリ変更のたびに更新すること（CLAUDE.md 参照）。  
-> 最終更新: 2026-07-30（UIリデザイン：アイコンレール・4タブビュー・Trelloスタイルカンバン・カレンダービュー追加）
+> 最終更新: 2026-07-30（資産管理CRM フェーズ1（テスト環境・管理者限定）を `claude/crm-asset-management-system-0bs8i0` ブランチに追加。main 未マージ）
 
 ---
 
@@ -156,6 +156,7 @@ lsircs-app-prod/
 | バイヤーリスト | `buyers` | `BuyersListView` | Google Sheets 連携バイヤー管理（プロジェクト切替対応） |
 | 顧客管理 (CRM) | `crm` | `CRMView` | 顧客情報の一元管理 |
 | プロジェクト管理 | `projects` | `ProjectsView` | プロジェクト台帳の管理 |
+| 資産管理（テスト・管理者限定） | `assets` | `AssetManagementView` | Wealth Park / GMO賃貸DX を参考にした独自の資産管理CRM。フェーズ1テスト環境 |
 | スプレッドシート | `spreadsheet` | `SpreadsheetView` | Google Sheets / Box 埋め込み閲覧 |
 | 設定 | `settings` | `SettingsView` | カテゴリ・自動化ルール管理 |
 | プロフィール | `profile` | `ProfileView` | 表示名変更 |
@@ -399,6 +400,27 @@ Google Sheets / Box ドキュメントを iframe で埋め込み閲覧・編集�
 
 ---
 
+### 5.10 資産管理 (`AssetManagementView`)（管理者のみ・フェーズ1テスト環境）
+
+**位置づけ**: Wealth Park や GMO の賃貸DXのような「オーナーポータル・資産管理」の機能コンセプトを参考にした独自実装。既存のタスク管理システム（`TaskView`）と並行してアップデートが進んでいるため、使い勝手への影響を避ける目的で以下のように隔離している。
+
+- ブランチ `claude/crm-asset-management-system-0bs8i0` 上でのみ開発し、実用段階になるまで `main` にはマージしない
+- ナビゲーションのアイコンレールには管理者（`accessStatus.isAdmin`）のみに表示（`App.jsx` の `navItems` で条件分岐）
+- 実際の送金・決済は一切行わない。賃料の入出金・オーナーへの送金予定額はあくまで**記録・集計のみ**を扱う
+
+**画面構成**: 4タブ構成（`AssetManagementView.jsx` がタブ切替を管理し、参照データ（オーナー・物件・契約）はマウント時に先読みして各タブ間で共有）
+
+| タブ | コンポーネント | 説明 |
+|---|---|---|
+| 物件 | `AssetPropertiesTab` | 物件台帳（種別・住所・オーナー・戸数） |
+| オーナー | `AssetOwnersTab` | オーナー台帳（連絡先・振込先銀行情報） |
+| 契約 | `AssetContractsTab` | 賃貸契約（物件・入居者・賃料・契約期間） |
+| 賃料入出金 | `AssetRentTransactionsTab` | 月次の入金予定・入金実績・オーナー送金予定額の記録 |
+
+**データの関連**: オーナー 1—N 物件、物件 1—N 契約、契約 1—N 賃料入出金（月次）。各テーブルはドロップダウンで親エンティティを選択する形でリレーションを表現（Cosmos DB はNoSQLのため外部キー制約はアプリ側でバリデーション）。
+
+---
+
 ## 6. タスク管理システム
 
 ### 6.1 タスクデータモデル
@@ -633,6 +655,27 @@ tags: string[],      // サブタスク固有のタグ
 | POST | `/api/UpdateProject` | プロジェクト更新（id必須。更新可能フィールド: name・developer・spreadsheetId・sheetName・headerRows・status） |
 | POST | `/api/DeleteProject` | プロジェクト削除 |
 
+### 資産管理（管理者のみ・フェーズ1テスト環境）
+
+| メソッド | エンドポイント | 説明 |
+|---|---|---|
+| GET | `/api/GetAssetOwners` | オーナー一覧取得（name昇順） |
+| POST | `/api/CreateAssetOwner` | オーナー作成（name必須） |
+| POST | `/api/UpdateAssetOwner` | オーナー更新（id必須） |
+| POST | `/api/DeleteAssetOwner` | オーナー削除 |
+| GET | `/api/GetAssetProperties` | 物件一覧取得（name昇順） |
+| POST | `/api/CreateAssetProperty` | 物件作成（name必須） |
+| POST | `/api/UpdateAssetProperty` | 物件更新（id必須） |
+| POST | `/api/DeleteAssetProperty` | 物件削除 |
+| GET | `/api/GetAssetContracts` | 契約一覧取得（開始日降順） |
+| POST | `/api/CreateAssetContract` | 契約作成（propertyId・tenantName必須） |
+| POST | `/api/UpdateAssetContract` | 契約更新（id必須） |
+| POST | `/api/DeleteAssetContract` | 契約削除 |
+| GET | `/api/GetAssetRentTransactions` | 賃料入出金一覧取得（対象年月降順） |
+| POST | `/api/CreateAssetRentTransaction` | 入出金記録作成（contractId・yearMonth必須） |
+| POST | `/api/UpdateAssetRentTransaction` | 入出金記録更新（id必須） |
+| POST | `/api/DeleteAssetRentTransaction` | 入出金記録削除 |
+
 ### ホワイトリスト（管理者のみ）
 
 | メソッド | エンドポイント | 説明 |
@@ -705,6 +748,94 @@ tags: string[],      // サブタスク固有のタグ
 }
 ```
 
+### 8.5 資産管理: オーナー（`AssetOwners`）
+
+```javascript
+{
+  id: string,
+  name: string,               // オーナー名（必須）
+  kana: string,
+  contactEmail: string,
+  contactPhone: string,
+  address: string,
+  bankName: string,           // 振込先銀行名
+  bankBranch: string,
+  bankAccountType: string,    // 普通 / 当座
+  bankAccountNumber: string,
+  bankAccountHolder: string,
+  notes: string,
+  createdAt: string,
+  updatedAt: string,
+  createdBy: string,
+  updatedBy: string | null,
+}
+```
+
+### 8.6 資産管理: 物件（`AssetProperties`）
+
+```javascript
+{
+  id: string,
+  name: string,                // 物件名（必須）
+  address: string,
+  propertyType: 'apartment' | 'house' | 'building' | 'land' | 'other',
+  ownerId: string | null,      // AssetOwners への参照
+  unitCount: number | null,
+  builtYear: number | null,
+  status: 'active' | 'inactive',
+  notes: string,
+  createdAt: string,
+  updatedAt: string,
+  createdBy: string,
+  updatedBy: string | null,
+}
+```
+
+### 8.7 資産管理: 賃貸契約（`AssetContracts`）
+
+```javascript
+{
+  id: string,
+  propertyId: string,           // AssetProperties への参照（必須）
+  unitNumber: string,
+  tenantName: string,           // 入居者名（必須）
+  tenantContact: string,
+  rentAmount: number,
+  managementFeeAmount: number,
+  depositAmount: number,
+  startDate: string,             // YYYY-MM-DD
+  endDate: string,                // YYYY-MM-DD
+  status: 'active' | 'pending' | 'terminated',
+  notes: string,
+  createdAt: string,
+  updatedAt: string,
+  createdBy: string,
+  updatedBy: string | null,
+}
+```
+
+### 8.8 資産管理: 賃料入出金（`AssetRentTransactions`）
+
+```javascript
+{
+  id: string,
+  contractId: string,           // AssetContracts への参照（必須）
+  propertyId: string | null,    // 作成時に契約から自動セット
+  yearMonth: string,            // YYYY-MM（必須）
+  expectedAmount: number,       // 入金予定額
+  receivedAmount: number,       // 入金実績額
+  receivedDate: string,
+  ownerPayoutAmount: number,    // オーナー送金予定額（記録のみ、実送金は行わない）
+  ownerPayoutDate: string,
+  status: 'unpaid' | 'partial' | 'paid',
+  notes: string,
+  createdAt: string,
+  updatedAt: string,
+  createdBy: string,
+  updatedBy: string | null,
+}
+```
+
 ---
 
 ## 9. Cosmos DB コレクション
@@ -720,6 +851,10 @@ tags: string[],      // サブタスク固有のタグ
 | Customers | `/id` | CRM顧客データ（env: `COSMOS_CUSTOMERS_CONTAINER`） |
 | Projects | `/id` | プロジェクト台帳（env: `COSMOS_PROJECTS_CONTAINER`） |
 | TaskTemplates | `/id` | タスクテンプレート（Phase 2） |
+| AssetOwners | `/id` | 資産管理: オーナー台帳（env: `COSMOS_ASSET_OWNERS_CONTAINER`、フェーズ1テスト環境） |
+| AssetProperties | `/id` | 資産管理: 物件台帳（env: `COSMOS_ASSET_PROPERTIES_CONTAINER`、フェーズ1テスト環境） |
+| AssetContracts | `/id` | 資産管理: 賃貸契約（env: `COSMOS_ASSET_CONTRACTS_CONTAINER`、フェーズ1テスト環境） |
+| AssetRentTransactions | `/id` | 資産管理: 賃料入出金記録（env: `COSMOS_ASSET_RENT_TRANSACTIONS_CONTAINER`、フェーズ1テスト環境） |
 
 ---
 
@@ -824,3 +959,10 @@ git push origin main
 | タイムライン表示 | 完了 | ガントチャート形式でタスクをカテゴリ別に表示。期限・開始日に基づくバー表示。今日ライン・期限超過ハイライト・クリックで編集。ビュー選択から「タイムライン（ガント）」を選択。`TaskTimelineView.jsx` |
 | タスク依存関係 | 完了 | タスク詳細モーダルで「依存関係」セクションを追加。`blockedBy: string[]` フィールドでブロッカータスクを指定。タスクカードに「ブロック中 (N)」バッジを表示。 |
 | ダッシュボード拡張 | 完了 | 期限超過タスク数ウィジェット・チーム完了率プログレスバー・担当者別タスク分布ウィジェット。`DashboardView.jsx` + `StatCard.jsx` |
+
+### PHASE 3 - 資産管理CRM（テスト環境・別ブランチ）
+
+| 機能 | ステータス | 概要 |
+|---|---|---|
+| 資産管理 フェーズ1（物件・オーナー・契約・賃料入出金） | 実装中（テスト環境） | Wealth Park / GMO賃貸DXを参考にした独自CRM。既存タスク管理システムのアップデートと並行作業のため `claude/crm-asset-management-system-0bs8i0` ブランチで開発し、管理者限定ナビ配下でテスト。実用段階でmainへ反映予定 |
+| 実際の送金・決済連携 | 未着手・スコープ外 | フェーズ1では入出金の記録・集計のみ。実際の送金実行は行わない方針 |

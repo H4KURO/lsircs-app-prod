@@ -24,6 +24,7 @@ import { SpreadsheetView } from "./SpreadsheetView";
 import { BuyersListView } from "./BuyersListView";
 import { CRMView } from "./CRMView";
 import { ProjectsView } from "./ProjectsView";
+import { AssetManagementView } from "./AssetManagementView";
 import { GlobalSearch } from "./GlobalSearch";
 
 // MUI icons
@@ -33,6 +34,7 @@ import FolderSpecialIcon from "@mui/icons-material/FolderSpecial";
 import PeopleIcon from "@mui/icons-material/People";
 import ContactsIcon from "@mui/icons-material/Contacts";
 import TableViewIcon from "@mui/icons-material/TableView";
+import ApartmentIcon from "@mui/icons-material/Apartment";
 import SecurityIcon from "@mui/icons-material/Security";
 import SettingsIcon from "@mui/icons-material/Settings";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
@@ -54,6 +56,7 @@ const ALLOWED_VIEWS = new Set([
   "buyers",
   "crm",
   "projects",
+  "assets",
 ]);
 
 const parseInitialLocation = () => {
@@ -218,14 +221,21 @@ function App() {
   };
 
   // Main nav items
-  const navItems = useMemo(() => [
-    { view: "dashboard", label: t("nav.dashboard"), icon: <DashboardIcon sx={{ fontSize: 20 }} /> },
-    { view: "tasks",     label: t("nav.tasks"),      icon: <AssignmentIcon sx={{ fontSize: 20 }} /> },
-    { view: "projects",  label: "プロジェクト管理",  icon: <FolderSpecialIcon sx={{ fontSize: 20 }} /> },
-    { view: "buyers",    label: "バイヤーリスト",     icon: <PeopleIcon sx={{ fontSize: 20 }} /> },
-    { view: "crm",       label: "顧客管理 (CRM)",    icon: <ContactsIcon sx={{ fontSize: 20 }} /> },
-    { view: "spreadsheet", label: "スプレッドシート", icon: <TableViewIcon sx={{ fontSize: 20 }} /> },
-  ], [t]);
+  const navItems = useMemo(() => {
+    const items = [
+      { view: "dashboard", label: t("nav.dashboard"), icon: <DashboardIcon sx={{ fontSize: 20 }} /> },
+      { view: "tasks",     label: t("nav.tasks"),      icon: <AssignmentIcon sx={{ fontSize: 20 }} /> },
+      { view: "projects",  label: "プロジェクト管理",  icon: <FolderSpecialIcon sx={{ fontSize: 20 }} /> },
+      { view: "buyers",    label: "バイヤーリスト",     icon: <PeopleIcon sx={{ fontSize: 20 }} /> },
+      { view: "crm",       label: "顧客管理 (CRM)",    icon: <ContactsIcon sx={{ fontSize: 20 }} /> },
+      { view: "spreadsheet", label: "スプレッドシート", icon: <TableViewIcon sx={{ fontSize: 20 }} /> },
+    ];
+    // 資産管理はテスト環境のため管理者にのみ表示（フェーズ1）
+    if (accessStatus?.isAdmin) {
+      items.push({ view: "assets", label: "資産管理（テスト）", icon: <ApartmentIcon sx={{ fontSize: 20 }} /> });
+    }
+    return items;
+  }, [t, accessStatus?.isAdmin]);
 
   const renderView = () => {
     if (!user) {
@@ -270,6 +280,7 @@ function App() {
       case "buyers":     return <BuyersListView />;
       case "crm":        return <CRMView onNavigateToTask={handleTaskSelectionChange} />;
       case "projects":   return <ProjectsView />;
+      case "assets":     return accessStatus.isAdmin ? <AssetManagementView /> : <AccessDeniedView userEmail={user.userDetails} />;
       case "spreadsheet": return <SpreadsheetView />;
       case "whitelist":  return accessStatus.isAdmin ? <WhitelistView currentUser={user} /> : <AccessDeniedView userEmail={user.userDetails} />;
       default:           return <DashboardView user={user} />;
