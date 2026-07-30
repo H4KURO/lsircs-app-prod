@@ -1,9 +1,9 @@
 const { app } = require('@azure/functions');
 const { v4: uuidv4 } = require('uuid');
-const { getNamedContainer } = require('./cosmosClient');
+const { ensureNamedContainer } = require('./cosmosClient');
 
 const propertiesContainer = () =>
-  getNamedContainer('AssetProperties', ['COSMOS_ASSET_PROPERTIES_CONTAINER']);
+  ensureNamedContainer('AssetProperties', { overrideKeys: ['COSMOS_ASSET_PROPERTIES_CONTAINER'] });
 
 function parseClientPrincipal(request) {
   const header = request.headers.get('x-ms-client-principal');
@@ -32,7 +32,7 @@ app.http('CreateAssetProperty', {
         return { status: 400, body: 'Property name is required.' };
       }
 
-      const container = propertiesContainer();
+      const container = await propertiesContainer();
       const now = new Date().toISOString();
 
       const property = {

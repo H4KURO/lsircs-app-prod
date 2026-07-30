@@ -1,9 +1,9 @@
 const { app } = require('@azure/functions');
 const { v4: uuidv4 } = require('uuid');
-const { getNamedContainer } = require('./cosmosClient');
+const { ensureNamedContainer } = require('./cosmosClient');
 
 const ownersContainer = () =>
-  getNamedContainer('AssetOwners', ['COSMOS_ASSET_OWNERS_CONTAINER']);
+  ensureNamedContainer('AssetOwners', { overrideKeys: ['COSMOS_ASSET_OWNERS_CONTAINER'] });
 
 function parseClientPrincipal(request) {
   const header = request.headers.get('x-ms-client-principal');
@@ -32,7 +32,7 @@ app.http('CreateAssetOwner', {
         return { status: 400, body: 'Owner name is required.' };
       }
 
-      const container = ownersContainer();
+      const container = await ownersContainer();
       const now = new Date().toISOString();
 
       const owner = {

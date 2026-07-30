@@ -1,9 +1,9 @@
 const { app } = require('@azure/functions');
 const { v4: uuidv4 } = require('uuid');
-const { getNamedContainer } = require('./cosmosClient');
+const { ensureNamedContainer } = require('./cosmosClient');
 
 const contractsContainer = () =>
-  getNamedContainer('AssetContracts', ['COSMOS_ASSET_CONTRACTS_CONTAINER']);
+  ensureNamedContainer('AssetContracts', { overrideKeys: ['COSMOS_ASSET_CONTRACTS_CONTAINER'] });
 
 function parseClientPrincipal(request) {
   const header = request.headers.get('x-ms-client-principal');
@@ -37,7 +37,7 @@ app.http('CreateAssetContract', {
         return { status: 400, body: 'Tenant name is required.' };
       }
 
-      const container = contractsContainer();
+      const container = await contractsContainer();
       const now = new Date().toISOString();
 
       const contract = {
