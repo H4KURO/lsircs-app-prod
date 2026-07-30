@@ -6,6 +6,9 @@ import {
   Paper,
   List,
   ListItem,
+  ListItemButton,
+  ListItemText,
+  ListItemIcon,
   Button,
   Stack,
   TextField,
@@ -13,10 +16,16 @@ import {
   Checkbox,
   Switch,
   Divider,
+  Chip,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import CategoryIcon from '@mui/icons-material/Category';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { MuiColorInput } from 'mui-color-input';
 import { generateSubtaskId } from './taskUtils';
 import { TaskTemplateManager } from './TaskTemplateManager';
@@ -71,6 +80,8 @@ function createEmptyAutomationRule() {
 }
 
 export function SettingsView() {
+  const [currentSection, setCurrentSection] = useState(null); // null = index
+
   const [categories, setCategories] = useState([]);
   const [newCategory, setNewCategory] = useState({ name: '', color: DEFAULT_CATEGORY_COLOR });
   const [savingCategoryId, setSavingCategoryId] = useState(null);
@@ -377,23 +388,41 @@ export function SettingsView() {
     }
   };
 
-  return (
-    <Box>
-      <Typography variant="h4" component="h1" gutterBottom>
-        設定
-      </Typography>
+  // ── サブページ共通ヘッダー ──────────────────────────────────
+  const SectionHeader = ({ title, description }) => (
+    <Box sx={{ mb: 3 }}>
+      <Button
+        startIcon={<ArrowBackIcon />}
+        onClick={() => setCurrentSection(null)}
+        sx={{ mb: 1.5, color: 'text.secondary' }}
+        size="small"
+      >
+        設定に戻る
+      </Button>
+      <Typography variant="h5" component="h2" sx={{ fontWeight: 600 }}>{title}</Typography>
+      {description && (
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{description}</Typography>
+      )}
+    </Box>
+  );
 
+  // ── カテゴリ管理ページ ───────────────────────────────────────
+  const CategorySection = () => (
+    <Box>
+      <SectionHeader
+        title="カテゴリ管理"
+        description="タスクのカテゴリとカラーを設定します。"
+      />
       <Stack spacing={3}>
-        <Paper sx={{ p: 2 }}>
-          <Typography variant="h6" gutterBottom>
-            新規カテゴリを追加
-          </Typography>
+        <Paper sx={{ p: 2.5 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>新規カテゴリを追加</Typography>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'center' }}>
             <TextField
               label="カテゴリ名"
               value={newCategory.name}
               onChange={(event) => handleNewCategoryChange('name', event.target.value)}
               fullWidth
+              size="small"
             />
             <MuiColorInput
               value={newCategory.color}
@@ -405,74 +434,87 @@ export function SettingsView() {
           </Stack>
         </Paper>
 
-        <Paper sx={{ p: 2 }}>
-          <Typography variant="h6" gutterBottom>
-            カテゴリの編集
-          </Typography>
-          <List>
-            {categories.map((category) => (
-              <ListItem
-                key={category.id}
-                divider
-                secondaryAction={
-                  <Button
-                    variant="contained"
-                    onClick={() => handleSaveCategory(category)}
-                    disabled={savingCategoryId === category.id}
-                  >
-                    保存
-                  </Button>
-                }
-              >
-                <Stack
-                  direction={{ xs: 'column', sm: 'row' }}
-                  spacing={2}
-                  alignItems={{ sm: 'center' }}
-                  sx={{ flexGrow: 1 }}
+        <Paper sx={{ p: 2.5 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>カテゴリの編集</Typography>
+          {categories.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">カテゴリがありません。</Typography>
+          ) : (
+            <List disablePadding>
+              {categories.map((category) => (
+                <ListItem
+                  key={category.id}
+                  divider
+                  secondaryAction={
+                    <Button
+                      size="small"
+                      variant="contained"
+                      onClick={() => handleSaveCategory(category)}
+                      disabled={savingCategoryId === category.id}
+                    >
+                      保存
+                    </Button>
+                  }
                 >
-                  <TextField
-                    label="カテゴリ名"
-                    value={category.name || ''}
-                    onChange={(event) => handleNameChange(category.id, event.target.value)}
-                    fullWidth
-                  />
-                  <MuiColorInput
-                    value={category.color || '#ffffff'}
-                    onChange={(color) => handleColorChange(category.id, color)}
-                  />
-                </Stack>
-              </ListItem>
-            ))}
-          </List>
+                  <Stack
+                    direction={{ xs: 'column', sm: 'row' }}
+                    spacing={2}
+                    alignItems={{ sm: 'center' }}
+                    sx={{ flexGrow: 1, pr: 8 }}
+                  >
+                    <TextField
+                      label="カテゴリ名"
+                      value={category.name || ''}
+                      onChange={(event) => handleNameChange(category.id, event.target.value)}
+                      fullWidth
+                      size="small"
+                    />
+                    <MuiColorInput
+                      value={category.color || '#ffffff'}
+                      onChange={(color) => handleColorChange(category.id, color)}
+                    />
+                  </Stack>
+                </ListItem>
+              ))}
+            </List>
+          )}
         </Paper>
+      </Stack>
+    </Box>
+  );
 
-        <Paper sx={{ p: 2 }}>
-          <Typography variant="h6" gutterBottom>
-            オートメーションルール
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            タグを選択したときに自動的に追加するサブタスクを設定できます。
-          </Typography>
-
-          <Button
-            variant="outlined"
-            startIcon={<AutoFixHighIcon />}
-            onClick={handleApplyPmTemplate}
-            sx={{ mb: 2, alignSelf: 'flex-start' }}
-          >
-            PMフローテンプレートを使用
-          </Button>
-
-          <Stack spacing={2} sx={{ mb: 3 }}>
+  // ── オートメーションルールページ ────────────────────────────
+  const AutomationSection = () => (
+    <Box>
+      <SectionHeader
+        title="オートメーションルール"
+        description="タグを選択したときに自動的に追加するサブタスクを設定できます。"
+      />
+      <Stack spacing={3}>
+        {/* 新規ルール追加フォーム */}
+        <Paper sx={{ p: 2.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>新規ルールを追加</Typography>
+            <Button
+              variant="outlined"
+              startIcon={<AutoFixHighIcon />}
+              onClick={handleApplyPmTemplate}
+              size="small"
+            >
+              PMフローテンプレートを使用
+            </Button>
+          </Box>
+          <Stack spacing={2}>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ md: 'center' }}>
               <TextField
                 label="対象タグ"
                 value={newRule.tag}
                 onChange={(event) => handleNewRuleFieldChange('tag', event.target.value)}
                 fullWidth
+                size="small"
               />
-              <Stack direction="row" spacing={1} alignItems="center">
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ flexShrink: 0 }}>
                 <Switch
+                  size="small"
                   checked={newRule.enabled}
                   onChange={(event) => handleNewRuleFieldChange('enabled', event.target.checked)}
                 />
@@ -483,40 +525,42 @@ export function SettingsView() {
                 startIcon={<AddIcon />}
                 onClick={handleAddAutomationRule}
                 disabled={isAddingRule}
+                sx={{ flexShrink: 0 }}
               >
                 ルールを追加
               </Button>
             </Stack>
 
+            <Typography variant="caption" color="text.secondary" sx={{ mt: -1 }}>サブタスク</Typography>
             <Stack spacing={1.5}>
               {newRule.subtasks.map((subtask) => (
                 <Stack key={subtask.id} spacing={1}>
-                  <Stack
-                    direction={{ xs: 'column', md: 'row' }}
-                    spacing={1.5}
-                    alignItems={{ md: 'center' }}
-                  >
+                  <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems={{ md: 'center' }}>
                     <Checkbox
+                      size="small"
                       checked={Boolean(subtask.completed)}
                       onChange={(event) => handleNewRuleSubtaskCompletedChange(subtask.id, event.target.checked)}
                     />
                     <TextField
                       label="サブタスク名"
                       value={subtask.title}
+                      size="small"
                       onChange={(event) => handleNewRuleSubtaskTitleChange(subtask.id, event.target.value)}
                       fullWidth
                     />
                     <IconButton
+                      size="small"
                       edge="end"
                       onClick={() => handleRemoveSubtaskFromNewRule(subtask.id)}
                       disabled={newRule.subtasks.length === 1}
                     >
-                      <DeleteIcon />
+                      <DeleteIcon fontSize="small" />
                     </IconButton>
                   </Stack>
                   <TextField
                     label="メモ"
                     value={subtask.memo || ''}
+                    size="small"
                     onChange={(event) => handleNewRuleSubtaskMemoChange(subtask.id, event.target.value)}
                     fullWidth
                     multiline
@@ -524,39 +568,46 @@ export function SettingsView() {
                   />
                 </Stack>
               ))}
-              <Button startIcon={<AddIcon />} onClick={handleAddSubtaskToNewRule} sx={{ alignSelf: 'flex-start' }}>
+              <Button size="small" startIcon={<AddIcon />} onClick={handleAddSubtaskToNewRule} sx={{ alignSelf: 'flex-start' }}>
                 サブタスクを追加
               </Button>
             </Stack>
           </Stack>
+        </Paper>
 
-          <Divider sx={{ my: 3 }} />
-
-          <Stack spacing={2}>
-            {automationRules.length === 0 ? (
-              <Typography variant="body2" color="text.secondary">
-                登録済みのオートメーションルールはありません。
-              </Typography>
-            ) : (
-              automationRules.map((rule) => (
+        {/* 登録済みルール一覧 */}
+        <Box>
+          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+            登録済みルール（{automationRules.length}件）
+          </Typography>
+          {automationRules.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">
+              登録済みのオートメーションルールはありません。
+            </Typography>
+          ) : (
+            <Stack spacing={2}>
+              {automationRules.map((rule) => (
                 <Paper key={rule.id} variant="outlined" sx={{ p: 2 }}>
                   <Stack spacing={2}>
                     <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ md: 'center' }}>
                       <TextField
                         label="対象タグ"
                         value={rule.tag}
+                        size="small"
                         onChange={(event) => handleRuleFieldChange(rule.id, 'tag', event.target.value)}
                         fullWidth
                       />
-                      <Stack direction="row" spacing={1} alignItems="center">
+                      <Stack direction="row" spacing={1} alignItems="center" sx={{ flexShrink: 0 }}>
                         <Switch
+                          size="small"
                           checked={rule.enabled}
                           onChange={(event) => handleRuleEnabledChange(rule.id, event.target.checked)}
                         />
                         <Typography variant="body2">有効</Typography>
                       </Stack>
-                      <Stack direction="row" spacing={1} alignItems="center">
+                      <Stack direction="row" spacing={1} alignItems="center" sx={{ flexShrink: 0 }}>
                         <Button
+                          size="small"
                           variant="contained"
                           onClick={() => handleSaveAutomationRule(rule)}
                           disabled={savingRuleId === rule.id}
@@ -564,11 +615,12 @@ export function SettingsView() {
                           保存
                         </Button>
                         <IconButton
+                          size="small"
                           color="error"
                           onClick={() => handleDeleteAutomationRule(rule.id)}
                           disabled={deletingRuleId === rule.id}
                         >
-                          <DeleteIcon />
+                          <DeleteIcon fontSize="small" />
                         </IconButton>
                       </Stack>
                     </Stack>
@@ -578,32 +630,32 @@ export function SettingsView() {
                     <Stack spacing={1.5}>
                       {rule.subtasks.map((subtask) => (
                         <Stack key={subtask.id} spacing={1}>
-                          <Stack
-                            direction={{ xs: 'column', md: 'row' }}
-                            spacing={1.5}
-                            alignItems={{ md: 'center' }}
-                          >
+                          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems={{ md: 'center' }}>
                             <Checkbox
+                              size="small"
                               checked={Boolean(subtask.completed)}
                               onChange={(event) => handleRuleSubtaskCompletedChange(rule.id, subtask.id, event.target.checked)}
                             />
                             <TextField
                               label="サブタスク名"
                               value={subtask.title}
+                              size="small"
                               onChange={(event) => handleRuleSubtaskTitleChange(rule.id, subtask.id, event.target.value)}
                               fullWidth
                             />
                             <IconButton
+                              size="small"
                               edge="end"
                               onClick={() => handleRemoveSubtaskFromRule(rule.id, subtask.id)}
                               disabled={rule.subtasks.length === 1}
                             >
-                              <DeleteIcon />
+                              <DeleteIcon fontSize="small" />
                             </IconButton>
                           </Stack>
                           <TextField
                             label="メモ"
                             value={subtask.memo || ''}
+                            size="small"
                             onChange={(event) => handleRuleSubtaskMemoChange(rule.id, subtask.id, event.target.value)}
                             fullWidth
                             multiline
@@ -612,6 +664,7 @@ export function SettingsView() {
                         </Stack>
                       ))}
                       <Button
+                        size="small"
                         startIcon={<AddIcon />}
                         onClick={() => handleAddSubtaskToRule(rule.id)}
                         sx={{ alignSelf: 'flex-start' }}
@@ -621,22 +674,93 @@ export function SettingsView() {
                     </Stack>
                   </Stack>
                 </Paper>
-              ))
-            )}
-          </Stack>
-        </Paper>
-
-        {/* タスクテンプレート */}
-        <Paper sx={{ p: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-            <Typography variant="h6">タスクテンプレート</Typography>
-          </Box>
-          <TaskTemplateManager
-            categoryOptions={categoryOptions}
-            tagOptions={tagOptions}
-          />
-        </Paper>
+              ))}
+            </Stack>
+          )}
+        </Box>
       </Stack>
+    </Box>
+  );
+
+  // ── テンプレートページ ───────────────────────────────────────
+  const TemplateSection = () => (
+    <Box>
+      <SectionHeader
+        title="タスクテンプレート"
+        description="よく使うタスク構成（サブタスク・カテゴリ・タグ）をテンプレートとして保存します。新規タスク作成時に適用できます。"
+      />
+      <TaskTemplateManager categoryOptions={categoryOptions} tagOptions={tagOptions} />
+    </Box>
+  );
+
+  // ── インデックスページ ───────────────────────────────────────
+  const SECTIONS = [
+    {
+      id: 'categories',
+      title: 'カテゴリ管理',
+      description: 'タスクカテゴリの追加・編集・カラー設定',
+      icon: <CategoryIcon color="primary" />,
+      badge: categories.length > 0 ? `${categories.length}件` : null,
+    },
+    {
+      id: 'automation',
+      title: 'オートメーションルール',
+      description: 'タグ選択時にサブタスクを自動追加するルールを管理',
+      icon: <AutoAwesomeIcon color="warning" />,
+      badge: automationRules.length > 0 ? `${automationRules.length}件` : null,
+    },
+    {
+      id: 'templates',
+      title: 'タスクテンプレート',
+      description: 'よく使うタスク構成をテンプレートとして保存・再利用',
+      icon: <ContentCopyIcon color="success" />,
+      badge: null,
+    },
+  ];
+
+  // ── レンダー ─────────────────────────────────────────────────
+  if (currentSection === 'categories') return <CategorySection />;
+  if (currentSection === 'automation') return <AutomationSection />;
+  if (currentSection === 'templates') return <TemplateSection />;
+
+  return (
+    <Box>
+      <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 700 }}>
+        設定
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+        設定する項目を選択してください。
+      </Typography>
+
+      <Paper variant="outlined" sx={{ overflow: 'hidden' }}>
+        <List disablePadding>
+          {SECTIONS.map((section, idx) => (
+            <Box key={section.id}>
+              <ListItemButton
+                onClick={() => setCurrentSection(section.id)}
+                sx={{ py: 2, px: 2.5 }}
+              >
+                <ListItemIcon sx={{ minWidth: 44 }}>
+                  {section.icon}
+                </ListItemIcon>
+                <ListItemText
+                  primary={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body1" sx={{ fontWeight: 600 }}>{section.title}</Typography>
+                      {section.badge && (
+                        <Chip label={section.badge} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
+                      )}
+                    </Box>
+                  }
+                  secondary={section.description}
+                />
+                <ChevronRightIcon color="action" />
+              </ListItemButton>
+              {idx < SECTIONS.length - 1 && <Divider />}
+            </Box>
+          ))}
+        </List>
+      </Paper>
     </Box>
   );
 }
