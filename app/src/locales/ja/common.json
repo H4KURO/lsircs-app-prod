@@ -85,6 +85,7 @@
       "waitingEstimate": "見積もり待ち",
       "waitingOwnerApproval": "オーナー承諾待ち",
       "waitingCompletionReport": "完了報告待ち",
+      "doneWithoutReport": "完了（報告なし）",
       "done": "完了",
       "unknown": "ステータス未設定"
     },

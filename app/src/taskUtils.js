@@ -13,6 +13,7 @@ export const PM_TASK_STATUS_DEFINITIONS = Object.freeze([
   { value: 'WaitingEstimate', translationKey: 'taskView.statuses.waitingEstimate' },
   { value: 'WaitingOwnerApproval', translationKey: 'taskView.statuses.waitingOwnerApproval' },
   { value: 'WaitingCompletionReport', translationKey: 'taskView.statuses.waitingCompletionReport' },
+  { value: 'DoneWithoutReport', translationKey: 'taskView.statuses.doneWithoutReport' },
   { value: 'Done', translationKey: 'taskView.statuses.done' },
 ]);
 
@@ -22,6 +23,7 @@ export const ALL_TASK_STATUS_DEFINITIONS = Object.freeze([
   { value: 'Inprogress', translationKey: 'taskView.statuses.inProgress' },
   { value: 'WaitingOwnerApproval', translationKey: 'taskView.statuses.waitingOwnerApproval' },
   { value: 'WaitingCompletionReport', translationKey: 'taskView.statuses.waitingCompletionReport' },
+  { value: 'DoneWithoutReport', translationKey: 'taskView.statuses.doneWithoutReport' },
   { value: 'Done', translationKey: 'taskView.statuses.done' },
 ]);
 

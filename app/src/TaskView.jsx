@@ -68,6 +68,7 @@ const statusColorMap = {
   Inprogress: 'warning.main',
   WaitingOwnerApproval: 'warning.main',
   WaitingCompletionReport: 'warning.main',
+  DoneWithoutReport: 'success.main',
   Done: 'success.main',
 };
 
@@ -77,6 +78,7 @@ const STATUS_LABEL_JA = {
   Inprogress: '進行中',
   WaitingOwnerApproval: 'オーナー承諾待ち',
   WaitingCompletionReport: '完了報告待ち',
+  DoneWithoutReport: '完了（報告なし）',
   Done: '完了',
 };
 
