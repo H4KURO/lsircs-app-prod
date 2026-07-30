@@ -43,6 +43,7 @@ import LinkIcon from '@mui/icons-material/Link';
 import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import { TaskDetailModal } from './TaskDetailModal';
+import { TaskTimelineView } from './TaskTimelineView';
 import { EmailImportModal } from './EmailImportModal';
 import {
   normalizeTask,
@@ -120,9 +121,11 @@ const LAYOUT_OPTIONS = [
   { value: 'category', label: 'カテゴリ × タグ' },
   { value: 'status', label: '進捗（ステータス）' },
   { value: 'assignee', label: '担当者' },
+  { value: 'timeline', label: 'タイムライン（ガント）' },
 ];
 
 const ALLOWED_LAYOUTS = new Set(LAYOUT_OPTIONS.map((option) => option.value));
+
 const ALLOWED_SORT_MODES = new Set(TASK_SORT_OPTIONS.map((option) => option.value));
 const ALLOWED_CATEGORY_TASK_ORDERS = new Set(
   CATEGORY_TASK_ORDER_OPTIONS.map((option) => option.value),
@@ -1155,6 +1158,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   const renderTaskCard = (task) => {
     const subtaskSummary = calculateSubtaskSummary(task.subtasks);
     const hasSubtasks = subtaskSummary.total > 0;
+    const isBlocked = Array.isArray(task.blockedBy) && task.blockedBy.length > 0;
     const normalizedTaskId =
       task?.id != null ? String(task.id) : task?.taskId != null ? String(task.taskId) : null;
     const nextStatus = getNextTaskStatus(task.status, task.category);
@@ -1184,6 +1188,9 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
               </Typography>
             )}
             <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
+              {isBlocked && (
+                <Chip label={`ブロック中 (${task.blockedBy.length})`} size="small" color="warning" variant="outlined" />
+              )}
               {Array.isArray(task.assignees) && task.assignees.length > 0 && (
                 <Chip label={`担当: ${task.assignees.join(', ')}`} size="small" />
               )}
@@ -2020,6 +2027,12 @@ const renderStatusLayout = () => {
           {layout === 'category' && renderCategoryLayout()}
           {layout === 'status' && renderStatusLayout()}
           {layout === 'assignee' && renderAssigneeLayout()}
+          {layout === 'timeline' && (
+            <TaskTimelineView
+              tasks={searchFilteredTasks}
+              onEditTask={handleEditTask}
+            />
+          )}
         </Box>
 
         <Paper
@@ -2126,6 +2139,7 @@ const renderStatusLayout = () => {
           )}
           automationRules={automationRules}
           tagOptions={tagOptions}
+          allTasks={tasks}
         />
       )}
 

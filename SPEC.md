@@ -1,7 +1,7 @@
 # lsir-cs アプリケーション仕様書
 
 > **メンテナンス注意**: このファイルはアプリ変更のたびに更新すること（CLAUDE.md 参照）。  
-> 最終更新: 2026-07-30（Phase 1 完了機能追加・Phase 2 計画追加・recurringConfig/comments フィールド追加・TaskTemplates コレクション追加）
+> 最終更新: 2026-07-30（Phase 2 全機能完了：タイムライン表示・タスク依存関係・ダッシュボード拡張・設定ナビゲーション型リファクタ・カスタムビュー保存・タスクテンプレート）
 
 ---
 
@@ -378,11 +378,13 @@ Google Sheets / Box ドキュメントを iframe で埋め込み閲覧・編集�
   assignees: string[],     // displayName の配列
   assignee: string | null, // assignees[0]（後方互換）
   tags: string[],
-  deadline: string | null, // ISO8601 日付文字列
+  startDate: string | null,  // 開始日 ISO8601（タイムライン表示で使用）
+  deadline: string | null,   // 期限 ISO8601 日付文字列
+  blockedBy: string[],       // 依存タスクIDの配列（このタスクをブロックするタスク群）
   subtasks: Subtask[],
   attachments: Attachment[],
-  comments: Comment[],     // タスクコメント配列
-  recurringConfig: {       // 繰り返しタスク設定（任意）
+  comments: Comment[],       // タスクコメント配列
+  recurringConfig: {         // 繰り返しタスク設定（任意）
     enabled: boolean,
     frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly',
   } | null,
@@ -617,7 +619,7 @@ tags: string[],      // サブタスク固有のタグ
 
 ```javascript
 {
-  layout: 'category' | 'status' | 'assignee',
+  layout: 'category' | 'status' | 'assignee' | 'timeline',
   sortMode: 'statusDeadline' | 'deadlineAsc' | 'deadlineDesc' | 'titleAsc' | 'createdAtDesc',
   selectedCategories: string[],
   selectedAssignees: string[],
@@ -782,6 +784,6 @@ git push origin main
 |---|---|---|
 | カスタムビュー保存 | 実装中 | フィルター状態（layout/sortMode/selectedCategories/selectedAssignees）を名前付きで保存し、ワンクリックで切り替え。savedViews はユーザープロファイル（Users コレクション）に保存。API: GetSavedViews / SaveView / DeleteSavedView/{id} |
 | タスクテンプレート | 実装中 | よく使うタスク構成（サブタスク・カテゴリ・タグ）をテンプレートとして保存し、新規タスク作成時に適用。新規 Cosmos コレクション `TaskTemplates`。API: GetTaskTemplates / CreateTaskTemplate / UpdateTaskTemplate/{id} / DeleteTaskTemplate/{id} |
-| タイムライン表示 | 計画中 | ガントチャート形式でタスクをプロジェクト/担当者別に表示 |
-| タスク依存関係 | 計画中 | タスク間の前後関係（ブロッカー）設定 |
-| ダッシュボード拡張 | 計画中 | チーム進捗ウィジェット・担当者別タスク数・期限超過数などのウィジェット追加 |
+| タイムライン表示 | 完了 | ガントチャート形式でタスクをカテゴリ別に表示。期限・開始日に基づくバー表示。今日ライン・期限超過ハイライト・クリックで編集。ビュー選択から「タイムライン（ガント）」を選択。`TaskTimelineView.jsx` |
+| タスク依存関係 | 完了 | タスク詳細モーダルで「依存関係」セクションを追加。`blockedBy: string[]` フィールドでブロッカータスクを指定。タスクカードに「ブロック中 (N)」バッジを表示。 |
+| ダッシュボード拡張 | 完了 | 期限超過タスク数ウィジェット・チーム完了率プログレスバー・担当者別タスク分布ウィジェット。`DashboardView.jsx` + `StatCard.jsx` |

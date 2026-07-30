@@ -81,6 +81,7 @@ export function TaskDetailModal({
   categoryOptions,
   tagOptions,
   automationRules = [],
+  allTasks = [],
 }) {
   const { t } = useTranslation();
   const importanceOptions = useMemo(
@@ -795,15 +796,89 @@ export function TaskDetailModal({
             )}
           />
 
-          <TextField
-            label={t('taskDetail.deadline')}
-            name="deadline"
-            type="date"
-            value={editableTask.deadline ? editableTask.deadline.split('T')[0] : ''}
-            onChange={handleChange}
-            InputLabelProps={{ shrink: true }}
-            fullWidth
-          />
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <TextField
+              label="開始日"
+              name="startDate"
+              type="date"
+              value={editableTask.startDate ? editableTask.startDate.split('T')[0] : ''}
+              onChange={handleChange}
+              InputLabelProps={{ shrink: true }}
+              fullWidth
+              helperText="タイムライン表示で使用"
+            />
+            <TextField
+              label={t('taskDetail.deadline')}
+              name="deadline"
+              type="date"
+              value={editableTask.deadline ? editableTask.deadline.split('T')[0] : ''}
+              onChange={handleChange}
+              InputLabelProps={{ shrink: true }}
+              fullWidth
+            />
+          </Box>
+
+          {/* ── 依存関係（ブロッカー） ── */}
+          {allTasks.length > 0 && (
+            <Box>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                依存関係（このタスクがブロックされているタスク）
+              </Typography>
+              <Autocomplete
+                multiple
+                options={allTasks.filter(t => t.id && t.id !== editableTask.id)}
+                getOptionLabel={t => t.title || t.id}
+                value={allTasks.filter(t => (editableTask.blockedBy || []).includes(t.id))}
+                onChange={(_e, newVal) =>
+                  setEditableTask(prev => ({ ...prev, blockedBy: newVal.map(t => t.id) }))
+                }
+                isOptionEqualToValue={(opt, val) => opt.id === val.id}
+                filterOptions={(options, { inputValue }) => {
+                  const q = inputValue.toLowerCase();
+                  if (!q) return options.slice(0, 20);
+                  return options.filter(o => o.title?.toLowerCase().includes(q) || o.category?.toLowerCase().includes(q)).slice(0, 20);
+                }}
+                renderTags={(value, getTagProps) =>
+                  value.map((option, index) => {
+                    const { key, ...tagProps } = getTagProps({ index });
+                    return (
+                      <Chip
+                        key={key}
+                        label={option.title || option.id}
+                        size="small"
+                        color="warning"
+                        variant="outlined"
+                        {...tagProps}
+                      />
+                    );
+                  })
+                }
+                renderOption={(props, option) => (
+                  <Box component="li" {...props}>
+                    <Box>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>{option.title}</Typography>
+                      {option.category && (
+                        <Typography variant="caption" color="text.secondary">{option.category}</Typography>
+                      )}
+                    </Box>
+                  </Box>
+                )}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    size="small"
+                    placeholder="ブロッカータスクを検索して追加"
+                    helperText="完了前に終わらせるべきタスクを指定します"
+                  />
+                )}
+              />
+              {(editableTask.blockedBy || []).length > 0 && (
+                <Typography variant="caption" color="warning.main" sx={{ mt: 0.5, display: 'block' }}>
+                  このタスクは {(editableTask.blockedBy || []).length} 件のタスクに依存しています
+                </Typography>
+              )}
+            </Box>
+          )}
 
           <Autocomplete
             options={customers}
