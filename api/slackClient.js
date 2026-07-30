@@ -241,9 +241,43 @@ async function notifyDxTeamCustomerUpdated(customer, changedFields, context, met
   return postToSlack({ text, blocks }, context, { channel: dxChannel });
 }
 
+async function notifyCommentMention({ task, commentText, authorName, mentionedNames }, context, metadata = {}) {
+  if (!SLACK_ENABLED) return false;
+
+  const names = (mentionedNames || []).join(', ');
+  const text = `:speech_balloon: ${authorName} さんがコメントで ${names} をメンションしました — "${task.title || 'タスク'}"`;
+
+  const taskLink = buildTaskLink(task.id);
+  const blocks = [
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*${authorName}* が <${taskLink || '#'}|${task.title || 'タスク'}> のコメントで *${names}* をメンションしました`,
+      },
+    },
+    {
+      type: 'section',
+      text: { type: 'mrkdwn', text: `> ${commentText.replace(/\n/g, '\n> ')}` },
+    },
+  ];
+
+  if (taskLink) {
+    blocks.push({
+      type: 'actions',
+      elements: [
+        { type: 'button', text: { type: 'plain_text', text: 'タスクを開く' }, url: taskLink, style: 'primary' },
+      ],
+    });
+  }
+
+  return postToSlack({ text, blocks }, context, metadata);
+}
+
 module.exports = {
   notifyTaskCreated,
   notifyTaskStatusChanged,
+  notifyCommentMention,
   buildTaskLink,
   SLACK_ENABLED,
   notifyDxTeamCustomerUpdated,
