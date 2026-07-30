@@ -1,6 +1,7 @@
 const { app } = require('@azure/functions');
 const { getNamedContainer } = require('./cosmosClient');
 const { v4: uuidv4 } = require('uuid');
+const { notifyCommentMention } = require('./slackClient');
 
 const tasksContainer = () =>
   getNamedContainer('Tasks', ['COSMOS_TASKS_CONTAINER', 'CosmosTasksContainer']);
@@ -26,7 +27,7 @@ app.http('AddTaskComment', {
     if (!principal) return { status: 401, body: 'Unauthorized.' };
 
     try {
-      const { taskId, text } = await request.json();
+      const { taskId, text, replyTo, mentionedDisplayNames } = await request.json();
       if (!taskId || !text?.trim()) {
         return { status: 400, body: 'taskId and text are required.' };
       }
@@ -41,6 +42,7 @@ app.http('AddTaskComment', {
         authorDisplayName: principal.userDetails || principal.userId,
         authorUserId: principal.userId,
         createdAt: new Date().toISOString(),
+        ...(replyTo ? { replyTo } : {}),
       };
 
       const comments = [...(task.comments || []), comment];
@@ -48,6 +50,14 @@ app.http('AddTaskComment', {
         { op: 'set', path: '/comments', value: comments },
         { op: 'set', path: '/updatedAt', value: new Date().toISOString() },
       ]);
+
+      if (Array.isArray(mentionedDisplayNames) && mentionedDisplayNames.length > 0) {
+        const authorName = principal.userDetails || principal.userId;
+        notifyCommentMention(
+          { task, commentText: text.trim(), authorName, mentionedNames: mentionedDisplayNames },
+          context,
+        ).catch(() => {});
+      }
 
       return { status: 201, jsonBody: comment };
     } catch (error) {

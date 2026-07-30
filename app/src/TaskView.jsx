@@ -45,6 +45,8 @@ import LinkIcon from '@mui/icons-material/Link';
 import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import FilterListIcon from '@mui/icons-material/FilterList';
+import GridViewIcon from '@mui/icons-material/GridView';
+import AttachFileIcon from '@mui/icons-material/AttachFile';
 import { TaskDetailModal } from './TaskDetailModal';
 import { TaskTimelineView } from './TaskTimelineView';
 import { TaskCalendar } from './TaskCalendar';
@@ -113,6 +115,93 @@ const CATEGORY_TASK_ORDER_OPTIONS = [
   { value: 'deadlineAsc', label: '期日が近い順' },
 ];
 
+const FILTER_FIELDS = [
+  { value: 'status', label: 'ステータス' },
+  { value: 'importance', label: '重要度' },
+  { value: 'deadline', label: '期限' },
+  { value: 'assignee', label: '担当者' },
+  { value: 'tag', label: 'タグ' },
+  { value: 'category', label: 'カテゴリ' },
+];
+
+const FILTER_OPERATORS = {
+  status: [
+    { value: 'is', label: 'が次と等しい' },
+    { value: 'isNot', label: 'が次と等しくない' },
+  ],
+  importance: [
+    { value: 'is', label: 'が次と等しい' },
+    { value: 'isNot', label: 'が次と等しくない' },
+  ],
+  deadline: [
+    { value: 'before', label: 'が次より前' },
+    { value: 'after', label: 'が次より後' },
+    { value: 'isEmpty', label: 'が未設定' },
+    { value: 'isNotEmpty', label: 'が設定済み' },
+  ],
+  assignee: [
+    { value: 'contains', label: 'を含む' },
+    { value: 'notContains', label: 'を含まない' },
+  ],
+  tag: [
+    { value: 'contains', label: 'を含む' },
+    { value: 'notContains', label: 'を含まない' },
+  ],
+  category: [
+    { value: 'is', label: 'が次と等しい' },
+    { value: 'isNot', label: 'が次と等しくない' },
+  ],
+};
+
+const IMPORTANCE_FILTER_OPTIONS = [
+  { value: 2, label: '高' },
+  { value: 1, label: '中' },
+  { value: 0, label: '低' },
+];
+
+const applyFilterCondition = (task, condition, derivedCategories, DEFAULT_CATEGORY_LABEL) => {
+  const { field, operator, value } = condition;
+  switch (field) {
+    case 'status': {
+      const s = task.status || '';
+      const match = s === value;
+      return operator === 'is' ? match : !match;
+    }
+    case 'importance': {
+      const match = task.importance === value;
+      return operator === 'is' ? match : !match;
+    }
+    case 'deadline': {
+      if (operator === 'isEmpty') return !task.deadline;
+      if (operator === 'isNotEmpty') return Boolean(task.deadline);
+      if (!task.deadline || !value) return false;
+      const ts = Date.parse(task.deadline);
+      const vts = Date.parse(value);
+      if (Number.isNaN(ts) || Number.isNaN(vts)) return false;
+      return operator === 'before' ? ts < vts : ts > vts;
+    }
+    case 'assignee': {
+      const assignees = Array.isArray(task.assignees)
+        ? task.assignees.map((a) => (typeof a === 'string' ? a : a?.name ?? '').toLowerCase())
+        : [];
+      const match = assignees.some((a) => a.includes((value || '').toLowerCase()));
+      return operator === 'contains' ? match : !match;
+    }
+    case 'tag': {
+      const tags = Array.isArray(task.tags) ? task.tags.map((t) => t.toLowerCase()) : [];
+      const match = tags.some((t) => t.includes((value || '').toLowerCase()));
+      return operator === 'contains' ? match : !match;
+    }
+    case 'category': {
+      const cat = (task.category || DEFAULT_CATEGORY_LABEL).trim();
+      const match = cat === value;
+      return operator === 'is' ? match : !match;
+    }
+    default:
+      return true;
+  }
+};
+
 const sortLabelMap = [...TASK_SORT_OPTIONS, ...CATEGORY_TASK_ORDER_OPTIONS].reduce((acc, option) => {
   acc[option.value] = option.label;
   return acc;
@@ -129,12 +218,14 @@ const LAYOUT_OPTIONS = [
   { value: 'list', label: 'リスト' },
   { value: 'calendar', label: 'カレンダー' },
   { value: 'assignee', label: '担当者' },
+  { value: 'gallery', label: 'ギャラリー' },
   { value: 'timeline', label: 'タイムライン（ガント）' },
 ];
 
 const PRIMARY_VIEW_TABS = [
   { value: 'status', label: 'カンバン' },
   { value: 'list', label: 'リスト' },
+  { value: 'gallery', label: 'ギャラリー' },
   { value: 'calendar', label: 'カレンダー' },
   { value: 'timeline', label: 'タイムライン' },
 ];
@@ -487,6 +578,8 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   const [selectedTask, setSelectedTask] = useState(null);
   const [listPanelTask, setListPanelTask] = useState(null);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [filterConditions, setFilterConditions] = useState([]);
+  const [secondaryGroupBy, setSecondaryGroupBy] = useState('');
 
   // カスタムビュー保存
   const [savedViews, setSavedViews] = useState([]);
@@ -795,29 +888,69 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
     });
   }, [filteredTasks, searchQuery]);
 
+  const conditionFilteredTasks = useMemo(() => {
+    const active = filterConditions.filter(
+      (c) => c.field && c.operator && (c.operator === 'isEmpty' || c.operator === 'isNotEmpty' || c.value !== '' && c.value != null),
+    );
+    if (active.length === 0) return searchFilteredTasks;
+    return searchFilteredTasks.filter((task) => {
+      let result = applyFilterCondition(task, active[0], derivedCategories, DEFAULT_CATEGORY_LABEL);
+      for (let i = 1; i < active.length; i++) {
+        const match = applyFilterCondition(task, active[i], derivedCategories, DEFAULT_CATEGORY_LABEL);
+        result = active[i].logic === 'OR' ? result || match : result && match;
+      }
+      return result;
+    });
+  }, [searchFilteredTasks, filterConditions, derivedCategories]);
+
+  const addFilterCondition = useCallback(() => {
+    setFilterConditions((prev) => [
+      ...prev,
+      { id: Date.now(), logic: 'AND', field: 'status', operator: 'is', value: '' },
+    ]);
+  }, []);
+
+  const removeFilterCondition = useCallback((id) => {
+    setFilterConditions((prev) => prev.filter((c) => c.id !== id));
+  }, []);
+
+  const updateFilterCondition = useCallback((id, patch) => {
+    setFilterConditions((prev) =>
+      prev.map((c) => {
+        if (c.id !== id) return c;
+        const next = { ...c, ...patch };
+        if (patch.field && patch.field !== c.field) {
+          next.operator = FILTER_OPERATORS[patch.field]?.[0]?.value ?? 'is';
+          next.value = '';
+        }
+        return next;
+      }),
+    );
+  }, []);
+
   const categoryToTagsMap = useMemo(() => {
     const activeCategories = selectedCategories.length > 0 ? selectedCategories : derivedCategories;
     if (activeCategories.length === 0) {
       return {};
     }
-    const grouped = groupTasksByCategoryAndTag(searchFilteredTasks);
+    const grouped = groupTasksByCategoryAndTag(conditionFilteredTasks);
     const result = {};
     activeCategories.forEach((category) => {
       result[category] = grouped[category] || { [DEFAULT_TAG_LABEL]: [] };
     });
     return result;
-  }, [searchFilteredTasks, selectedCategories, derivedCategories]);
+  }, [conditionFilteredTasks, selectedCategories, derivedCategories]);
 
   const statusSummary = useMemo(() => {
-    return searchFilteredTasks.reduce((acc, task) => {
+    return conditionFilteredTasks.reduce((acc, task) => {
       const key = normalizeStatusKey(task.status);
       acc[key] = (acc[key] || 0) + 1;
       return acc;
     }, {});
-  }, [searchFilteredTasks]);
+  }, [conditionFilteredTasks]);
 
   const upcomingDeadlines = useMemo(() => {
-    return searchFilteredTasks
+    return conditionFilteredTasks
       .filter((task) => task.deadline)
       .map((task) => {
         const timestamp = Date.parse(task.deadline);
@@ -830,25 +963,25 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
       .sort((a, b) => a.timestamp - b.timestamp)
       .slice(0, 3)
       .map(({ task }) => task);
-  }, [searchFilteredTasks]);
+  }, [conditionFilteredTasks]);
 
   const statusSections = useMemo(() => {
     if (layout !== 'status' && layout !== 'list') {
       return [];
     }
     const effectiveSortMode = sortMode === 'statusDeadline' ? 'deadlineAsc' : sortMode;
-    return groupTasksByStatus(searchFilteredTasks).map((section) => ({
+    return groupTasksByStatus(conditionFilteredTasks).map((section) => ({
       ...section,
       tasks: sortTasksByMode(section.tasks, effectiveSortMode),
     }));
-  }, [layout, searchFilteredTasks, sortMode]);
+  }, [layout, conditionFilteredTasks, sortMode]);
 
   const assigneeColumns = useMemo(() => {
     if (layout !== 'assignee') {
       return [];
     }
     const effectiveSortMode = sortMode === 'statusDeadline' ? 'deadlineAsc' : sortMode;
-    const grouped = groupTasksByAssignee(searchFilteredTasks);
+    const grouped = groupTasksByAssignee(conditionFilteredTasks);
     const columns = [];
     const activeAssignees = selectedAssignees.length > 0 ? selectedAssignees : derivedAssignees;
 
@@ -871,7 +1004,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
     }
 
     return columns;
-  }, [layout, searchFilteredTasks, selectedAssignees, derivedAssignees, includeUnassignedColumn, sortMode]);
+  }, [layout, conditionFilteredTasks, selectedAssignees, derivedAssignees, includeUnassignedColumn, sortMode]);
 
   const navCategories = selectedCategories.length > 0 ? selectedCategories : derivedCategories;
   const handleOpenCreateModal = () => {
@@ -1470,7 +1603,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
         {selectedCategories.map((category) => {
           const tagsInCategory = categoryToTagsMap[category] || {};
           const sortedTags = Object.keys(tagsInCategory).sort(sortByName);
-          const tasksInCategory = searchFilteredTasks.filter(
+          const tasksInCategory = conditionFilteredTasks.filter(
             (task) => getTaskCategoryKey(task) === category,
           );
           const totalCount = categoryGroupByTag
@@ -1606,7 +1739,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
     );
   };
 const renderListLayout = () => {
-    const allTasks = searchFilteredTasks;
+    const allTasks = conditionFilteredTasks;
     if (allTasks.length === 0) {
       return (
         <Paper sx={{ p: { xs: 3, md: 4 } }}>
@@ -1625,8 +1758,8 @@ const renderListLayout = () => {
                 <Typography variant="subtitle2">{section.label}</Typography>
                 <Chip label={`${section.tasks.length} 件`} size="small" />
               </Box>
-              <Stack divider={<Divider />}>
-                {section.tasks.map((task) => {
+              {(() => {
+                const renderListRow = (task) => {
                   const isSelected = listPanelTask?.id === task.id;
                   return (
                     <Box
@@ -1660,8 +1793,26 @@ const renderListLayout = () => {
                       )}
                     </Box>
                   );
-                })}
-              </Stack>
+                };
+                if (secondaryGroupBy) {
+                  const subGroups = groupTasksSecondary(section.tasks, secondaryGroupBy) || [];
+                  return subGroups.map((group) => (
+                    <Box key={group.key}>
+                      <Box sx={{ px: 2, py: 0.5, bgcolor: 'action.selected' }}>
+                        <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>{group.label}</Typography>
+                      </Box>
+                      <Stack divider={<Divider />}>
+                        {group.tasks.map(renderListRow)}
+                      </Stack>
+                    </Box>
+                  ));
+                }
+                return (
+                  <Stack divider={<Divider />}>
+                    {section.tasks.map(renderListRow)}
+                  </Stack>
+                );
+              })()}
             </Paper>
           ))}
         </Box>
@@ -1850,6 +2001,140 @@ const renderListLayout = () => {
     );
   };
 
+  const renderGalleryLayout = () => {
+    if (conditionFilteredTasks.length === 0) {
+      return (
+        <Paper sx={{ p: { xs: 3, md: 4 } }}>
+          <Typography color="text.secondary">表示できるタスクがありません。</Typography>
+        </Paper>
+      );
+    }
+
+    return (
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+          gap: 2,
+        }}
+      >
+        {conditionFilteredTasks.map((task) => {
+          const { total, completed, percent } = calculateSubtaskSummary(task.subtasks);
+          const coverAttachment = Array.isArray(task.attachments)
+            ? task.attachments.find((a) => a.type?.startsWith('image/'))
+            : null;
+          const importanceColor = task.importance === 2 ? 'error.main' : task.importance === 1 ? 'warning.main' : 'success.main';
+          const importanceLabel = task.importance === 2 ? '高' : task.importance === 1 ? '中' : '低';
+
+          return (
+            <Paper
+              key={task.id}
+              variant="outlined"
+              sx={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', cursor: 'pointer', transition: 'box-shadow 0.15s', '&:hover': { boxShadow: 4 } }}
+              onClick={() => handleEditTask(task)}
+            >
+              {/* Cover image or status-colored band */}
+              {coverAttachment ? (
+                <Box
+                  component="img"
+                  src={coverAttachment.url || coverAttachment.data}
+                  alt=""
+                  sx={{ width: '100%', height: 120, objectFit: 'cover' }}
+                />
+              ) : (
+                <Box sx={{ height: 6, bgcolor: getStatusColor(task.status) }} />
+              )}
+
+              <Box sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1, flexGrow: 1 }}>
+                <Typography
+                  variant="body2"
+                  sx={{ fontWeight: 600, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+                >
+                  {task.title || 'タイトル未設定'}
+                </Typography>
+
+                <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                  <Chip
+                    label={STATUS_LABEL_JA[task.status] ?? task.status ?? '未設定'}
+                    size="small"
+                    sx={{ height: 18, fontSize: '0.65rem', bgcolor: getStatusColor(task.status), color: '#fff' }}
+                  />
+                  <Chip
+                    label={`重要度: ${importanceLabel}`}
+                    size="small"
+                    sx={{ height: 18, fontSize: '0.65rem', color: importanceColor, borderColor: importanceColor }}
+                    variant="outlined"
+                  />
+                </Stack>
+
+                {Array.isArray(task.assignees) && task.assignees.length > 0 && (
+                  <Typography variant="caption" color="text.secondary" noWrap>
+                    {task.assignees.slice(0, 2).join(' · ')}{task.assignees.length > 2 ? ` +${task.assignees.length - 2}` : ''}
+                  </Typography>
+                )}
+
+                {task.deadline && (
+                  <Typography variant="caption" color="text.secondary">
+                    期限: {getDeadlineLabel(task.deadline)}
+                  </Typography>
+                )}
+
+                {total > 0 && (
+                  <Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.25 }}>
+                      <Typography variant="caption" color="text.secondary">サブタスク</Typography>
+                      <Typography variant="caption" color="text.secondary">{completed}/{total}</Typography>
+                    </Box>
+                    <LinearProgress variant="determinate" value={percent} sx={{ height: 4, borderRadius: 2 }} />
+                  </Box>
+                )}
+
+                {Array.isArray(task.attachments) && task.attachments.length > 0 && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <AttachFileIcon sx={{ fontSize: '0.75rem', color: 'text.disabled' }} />
+                    <Typography variant="caption" color="text.disabled">{task.attachments.length}</Typography>
+                  </Box>
+                )}
+              </Box>
+
+              <Box
+                sx={{ px: 1.5, py: 0.75, borderTop: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Tooltip title="編集">
+                  <IconButton size="small" onClick={() => handleEditTask(task)}><EditIcon fontSize="small" /></IconButton>
+                </Tooltip>
+                <Tooltip title="削除">
+                  <IconButton size="small" onClick={() => handleDeleteTask(task.id)}><DeleteIcon fontSize="small" /></IconButton>
+                </Tooltip>
+              </Box>
+            </Paper>
+          );
+        })}
+      </Box>
+    );
+  };
+
+  const groupTasksSecondary = (tasks, groupBy) => {
+    if (!groupBy) return null;
+    const groups = new Map();
+    tasks.forEach((task) => {
+      let key;
+      let label;
+      if (groupBy === 'category') {
+        key = (task.category || DEFAULT_CATEGORY_LABEL).trim();
+        label = key;
+      } else if (groupBy === 'importance') {
+        const imp = task.importance ?? 1;
+        key = String(imp);
+        label = imp === 2 ? '重要度: 高' : imp === 1 ? '重要度: 中' : '重要度: 低';
+      }
+      if (!groups.has(key)) groups.set(key, { key, label, tasks: [] });
+      groups.get(key).tasks.push(task);
+    });
+    return Array.from(groups.values());
+  };
+
   const renderStatusLayout = () => {
     if (statusSections.length === 0) {
       return (
@@ -1904,16 +2189,24 @@ const renderListLayout = () => {
             </Box>
             {/* Scrollable task list */}
             <Box sx={{ p: 1.25, overflowY: 'auto', flexGrow: 1 }}>
-              <Stack spacing={1}>
-                {section.tasks.length > 0
-                  ? section.tasks.map((task) => renderKanbanCard(task))
-                  : (
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', py: 2 }}>
-                      タスクはありません
-                    </Typography>
-                  )
-                }
-              </Stack>
+              {section.tasks.length === 0 ? (
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', py: 2 }}>
+                  タスクはありません
+                </Typography>
+              ) : secondaryGroupBy ? (
+                <Stack spacing={1.5}>
+                  {groupTasksSecondary(section.tasks, secondaryGroupBy).map((group) => (
+                    <Box key={group.key}>
+                      <Typography variant="caption" sx={{ display: 'block', px: 0.25, pb: 0.5, color: 'text.secondary', fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider', mb: 0.75 }}>
+                        {group.label}
+                      </Typography>
+                      <Stack spacing={1}>{group.tasks.map(renderKanbanCard)}</Stack>
+                    </Box>
+                  ))}
+                </Stack>
+              ) : (
+                <Stack spacing={1}>{section.tasks.map(renderKanbanCard)}</Stack>
+              )}
             </Box>
           </Paper>
         ))}
@@ -1978,7 +2271,7 @@ const renderListLayout = () => {
           </Typography>
         </Box>
         <Stack direction="row" spacing={1} sx={{ flex: { xs: '1 1 100%', md: '1 1 240px' }, flexWrap: 'wrap' }}>
-          <Chip label={`総数 ${searchFilteredTasks.length} 件`} color="primary" size="small" />
+          <Chip label={`総数 ${conditionFilteredTasks.length} 件`} color="primary" size="small" />
           {STATUS_DEFINITIONS.map((definition) => {
             const count = statusSummary[definition.value] || 0;
             if (count === 0) return null;
@@ -2093,6 +2386,124 @@ const renderListLayout = () => {
             </Box>
           )}
 
+          {/* ── AND/OR Filter Conditions ── */}
+          <Box sx={{ flex: '1 1 100%' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.75 }}>
+              <Typography variant="caption" color="text.secondary">フィルター条件</Typography>
+              <Button size="small" startIcon={<AddIcon />} onClick={addFilterCondition} sx={{ minWidth: 0, px: 1 }}>
+                条件を追加
+              </Button>
+            </Box>
+            {filterConditions.length === 0 && (
+              <Typography variant="caption" color="text.disabled">条件なし（全件表示）</Typography>
+            )}
+            <Stack spacing={0.75}>
+              {filterConditions.map((cond, idx) => {
+                const operators = FILTER_OPERATORS[cond.field] || [];
+                const needsValue = cond.operator !== 'isEmpty' && cond.operator !== 'isNotEmpty';
+                return (
+                  <Box key={cond.id} sx={{ display: 'flex', gap: 0.75, alignItems: 'center', flexWrap: 'wrap' }}>
+                    {idx > 0 && (
+                      <Select
+                        size="small"
+                        value={cond.logic}
+                        onChange={(e) => updateFilterCondition(cond.id, { logic: e.target.value })}
+                        sx={{ minWidth: 64 }}
+                      >
+                        <MenuItem value="AND">AND</MenuItem>
+                        <MenuItem value="OR">OR</MenuItem>
+                      </Select>
+                    )}
+                    {idx === 0 && <Box sx={{ minWidth: 64 }} />}
+                    <Select
+                      size="small"
+                      value={cond.field}
+                      onChange={(e) => updateFilterCondition(cond.id, { field: e.target.value })}
+                      sx={{ minWidth: 100 }}
+                    >
+                      {FILTER_FIELDS.map((f) => (
+                        <MenuItem key={f.value} value={f.value}>{f.label}</MenuItem>
+                      ))}
+                    </Select>
+                    <Select
+                      size="small"
+                      value={cond.operator}
+                      onChange={(e) => updateFilterCondition(cond.id, { operator: e.target.value })}
+                      sx={{ minWidth: 120 }}
+                    >
+                      {operators.map((op) => (
+                        <MenuItem key={op.value} value={op.value}>{op.label}</MenuItem>
+                      ))}
+                    </Select>
+                    {needsValue && cond.field === 'status' && (
+                      <Select
+                        size="small"
+                        value={cond.value}
+                        onChange={(e) => updateFilterCondition(cond.id, { value: e.target.value })}
+                        sx={{ minWidth: 140 }}
+                        displayEmpty
+                      >
+                        <MenuItem value=""><em>選択</em></MenuItem>
+                        {STATUS_DEFINITIONS.map((s) => (
+                          <MenuItem key={s.value} value={s.value}>{s.label}</MenuItem>
+                        ))}
+                      </Select>
+                    )}
+                    {needsValue && cond.field === 'importance' && (
+                      <Select
+                        size="small"
+                        value={cond.value}
+                        onChange={(e) => updateFilterCondition(cond.id, { value: e.target.value })}
+                        sx={{ minWidth: 80 }}
+                        displayEmpty
+                      >
+                        <MenuItem value=""><em>選択</em></MenuItem>
+                        {IMPORTANCE_FILTER_OPTIONS.map((opt) => (
+                          <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                        ))}
+                      </Select>
+                    )}
+                    {needsValue && cond.field === 'deadline' && (
+                      <TextField
+                        size="small"
+                        type="date"
+                        value={cond.value}
+                        onChange={(e) => updateFilterCondition(cond.id, { value: e.target.value })}
+                        sx={{ minWidth: 140 }}
+                      />
+                    )}
+                    {needsValue && cond.field === 'category' && (
+                      <Select
+                        size="small"
+                        value={cond.value}
+                        onChange={(e) => updateFilterCondition(cond.id, { value: e.target.value })}
+                        sx={{ minWidth: 140 }}
+                        displayEmpty
+                      >
+                        <MenuItem value=""><em>選択</em></MenuItem>
+                        {derivedCategories.map((cat) => (
+                          <MenuItem key={cat} value={cat}>{cat}</MenuItem>
+                        ))}
+                      </Select>
+                    )}
+                    {needsValue && (cond.field === 'assignee' || cond.field === 'tag') && (
+                      <TextField
+                        size="small"
+                        placeholder={cond.field === 'tag' ? 'タグ名' : '担当者名'}
+                        value={cond.value}
+                        onChange={(e) => updateFilterCondition(cond.id, { value: e.target.value })}
+                        sx={{ minWidth: 120 }}
+                      />
+                    )}
+                    <IconButton size="small" onClick={() => removeFilterCondition(cond.id)} color="default">
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                );
+              })}
+            </Stack>
+          </Box>
+
           {/* Category filter */}
           <Box sx={{ flex: '1 1 240px', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
             <Autocomplete
@@ -2114,6 +2525,21 @@ const renderListLayout = () => {
                 {TASK_SORT_OPTIONS.map((option) => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>)}
               </Select>
             </FormControl>
+            {(layout === 'status' || layout === 'list') && (
+              <FormControl size="small" fullWidth>
+                <InputLabel id="secondary-group-label">グループ化</InputLabel>
+                <Select
+                  labelId="secondary-group-label"
+                  value={secondaryGroupBy}
+                  label="グループ化"
+                  onChange={(e) => setSecondaryGroupBy(e.target.value)}
+                >
+                  <MenuItem value="">なし</MenuItem>
+                  <MenuItem value="category">カテゴリ</MenuItem>
+                  <MenuItem value="importance">重要度</MenuItem>
+                </Select>
+              </FormControl>
+            )}
             {layout === 'category' && (
               <>
                 <FormControlLabel
@@ -2189,14 +2615,15 @@ const renderListLayout = () => {
         {layout === 'category' && renderCategoryLayout()}
         {layout === 'status' && renderStatusLayout()}
         {layout === 'list' && renderListLayout()}
+        {layout === 'gallery' && renderGalleryLayout()}
         {layout === 'calendar' && (
           <Paper sx={{ p: 0, overflow: 'hidden', height: 680 }}>
-            <TaskCalendar tasks={searchFilteredTasks} onTaskSelect={handleEditTask} />
+            <TaskCalendar tasks={conditionFilteredTasks} onTaskSelect={handleEditTask} />
           </Paper>
         )}
         {layout === 'assignee' && renderAssigneeLayout()}
         {layout === 'timeline' && (
-          <TaskTimelineView tasks={searchFilteredTasks} onEditTask={handleEditTask} />
+          <TaskTimelineView tasks={conditionFilteredTasks} onEditTask={handleEditTask} />
         )}
       </Box>
 

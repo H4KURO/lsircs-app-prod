@@ -1,7 +1,7 @@
 # lsir-cs アプリケーション仕様書
 
 > **メンテナンス注意**: このファイルはアプリ変更のたびに更新すること（CLAUDE.md 参照）。  
-> 最終更新: 2026-07-30（資産管理CRM フェーズ1（テスト環境・管理者限定）を `claude/crm-asset-management-system-0bs8i0` ブランチに追加。main 未マージ）
+> 最終更新: 2026-07-30（main の Phase 4: リッチテキストエディター・ギャラリービュー・コメントスレッド返信 を取り込み。加えて資産管理CRM フェーズ1（テスト環境・管理者限定）を `claude/crm-asset-management-system-0bs8i0` ブランチに追加。資産管理部分は main 未マージ）
 
 ---
 
@@ -43,12 +43,13 @@
 
 | レイヤー | 技術 |
 |---|---|
-| フロントエンド | React 19 + Vite, Material-UI v7, React Big Calendar, i18next, Axios |
+| フロントエンド | React 19 + Vite, Material-UI v7, React Big Calendar, Tiptap v3（リッチテキスト）, i18next, Axios |
 | バックエンド | Azure Functions (Node.js 20) |
 | データベース | Azure Cosmos DB (NoSQL) |
 | ファイルストレージ | Azure Blob Storage |
-| AI 解析 | n8n webhook 経由 Claude API（PDF抽出）|
-| 通知 | Slack Web API |
+| ワークフロー自動化 | n8n（webhook・AI連携・Slack通知・定期バッチ等）|
+| AI 解析 | n8n 経由 Claude API（メール・PDF解析、タスク自動生成）|
+| 通知 | Slack Web API（直接呼び出し）/ n8n 経由（複雑なフロー）|
 | Google 連携 | Google Sheets API (OAuth 2.0) |
 | デプロイ | Azure Static Web Apps + GitHub Actions |
 
@@ -226,20 +227,27 @@ lsircs-app-prod/
 
 #### フィルターパネル（折りたたみ式）
 
+- **AND/ORフィルター条件**: 複数条件をAND/ORで組み合わせるフィルター行（フィールド・演算子・値を行単位で追加/削除）
+- **グループ化**: カンバン・リストビューで「カテゴリ」または「重要度」によるサブグループ化
+  - フィールド: ステータス・重要度・期限・担当者・タグ・カテゴリ
+  - 演算子: フィールドに応じて切り替え（は/でない、含む/含まない、前/後、未設定/設定済み）
+  - 条件は左から右にチェーンして適用
 - カテゴリフィルター（複数選択）
 - 担当者フィルター（複数選択、担当者ビュー時）
 - 並び順選択
+- **グループ化**: カンバン・リストビュー時に列/セクション内をカテゴリまたは重要度でサブグループ化
 - カテゴリ内並び順・タググループ化（カテゴリビュー時）
 - カテゴリの表示順変更（矢印ボタン）
 - 保存済みビューの適用・削除
 
 #### ビュー設定の永続化
 
-- 有効な `layout` 値（サーバー側 `ALLOWED_LAYOUTS`）: `category`, `status`, `list`, `calendar`, `assignee`, `timeline`
+- 有効な `layout` 値（サーバー側 `ALLOWED_LAYOUTS`）: `category`, `status`, `list`, `gallery`, `calendar`, `assignee`, `timeline`
 - 600ms デバウンスで `UpdateTaskViewPreferences` API に自動保存（ユーザーごと）
 
 #### その他機能
 
+- **ギャラリービュー**: カード形式グリッド表示。画像添付ファイルがある場合はカバー画像を表示。ステータスカラーバンド・重要度・担当者・期限・サブタスク進捗を一覧できる。
 - **キーワード検索**: ヘッダーの検索ボックスに入力するとリアルタイムで絞り込み。対象フィールド: タイトル・説明・カテゴリ・タグ・担当者。全レイアウトに反映。
 - **メールインポート**: メール件名・本文からタスクを AI 生成（`EmailImportModal` → `ParseEmailToTask` API）
 - **URLディープリンク**: `?view=tasks&taskId={id}` でタスク直接アクセス
@@ -447,8 +455,13 @@ Google Sheets / Box ドキュメントを iframe で埋め込み閲覧・編集�
     enabled: boolean,
     frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly',
   } | null,
+  url: string | null,          // 関連URL（Additional Info）
+  phoneNumber: string | null,  // 電話番号（Additional Info）
+  numericValue: number | null, // 数値・金額・面積等（Additional Info）
   createdAt: string,
-  updatedAt: string,
+  lastUpdatedAt: string,
+  lastUpdatedById: string,
+  lastUpdatedByName: string,
 }
 ```
 
@@ -456,13 +469,17 @@ Google Sheets / Box ドキュメントを iframe で埋め込み閲覧・編集�
 
 ```javascript
 {
-  id: string,          // UUID
-  authorName: string,  // displayName
-  authorEmail: string,
-  body: string,        // コメント本文（@mention 含む）
-  createdAt: string,   // ISO8601
+  id: string,               // UUID
+  authorDisplayName: string, // displayName
+  authorUserId: string,
+  text: string,             // コメント本文（@mention 含む）
+  createdAt: string,        // ISO8601
 }
 ```
+
+コメント投稿時に `@DisplayName` 形式のメンションが含まれている場合、Slack チャンネルへ通知を送信（`SLACK_BOT_TOKEN`・`SLACK_CHANNEL_ID` 設定時のみ）。
+
+スレッド返信: `replyTo: string | null` フィールドで親コメントIDを参照。UI上では親コメントの下にインデントして表示。返信ボタンで入力欄に返信対象が表示される。
 
 ### 6.2 ステータスフロー
 
@@ -475,7 +492,7 @@ Started（着手前）→ Inprogress（進行中）→ Done（完了）
 
 **カテゴリ「PM」の場合**:
 ```
-WaitingEstimate（見積もり待ち）→ WaitingOwnerApproval（オーナー承諾待ち）→ WaitingCompletionReport（完了報告待ち）→ Done（完了）
+WaitingEstimate（見積もり待ち）→ WaitingOwnerApproval（オーナー承諾待ち）→ WaitingCompletionReport（完了報告待ち）→ DoneWithoutReport（完了・報告なし）→ Done（完了）
 ```
 
 - 一方向のみ（`getNextTaskStatus(status, category)` で次のステータスを取得）
