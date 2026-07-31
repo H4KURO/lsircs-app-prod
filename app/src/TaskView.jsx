@@ -2297,7 +2297,13 @@ const renderListLayout = () => {
       if (!groups.has(key)) groups.set(key, { key, label, tasks: [] });
       groups.get(key).tasks.push(task);
     });
-    return Array.from(groups.values());
+    const result = Array.from(groups.values());
+    if (groupBy === 'status') {
+      result.sort((a, b) => (statusOrderMap[a.key] ?? 999) - (statusOrderMap[b.key] ?? 999));
+    } else {
+      result.sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
+    }
+    return result;
   };
 
   const renderStatusLayout = () => {
