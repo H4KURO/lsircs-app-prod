@@ -2367,6 +2367,27 @@ const renderListLayout = () => {
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', py: 2 }}>
                       タスクはありません
                     </Typography>
+                  ) : secondaryGroupBy ? (
+                    <Stack spacing={1.5}>
+                      {(groupTasksSecondary(section.tasks, secondaryGroupBy) || []).map((group) => (
+                        <Box key={group.key}>
+                          <Typography variant="caption" sx={{ display: 'block', px: 0.25, pb: 0.5, color: 'text.secondary', fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider', mb: 0.75 }}>
+                            {group.label}
+                          </Typography>
+                          <Stack spacing={1}>
+                            {group.tasks.map((task) => (
+                              tagDnd ? (
+                                <DraggableTaskCard key={task.id} taskId={task.id}>
+                                  {renderKanbanCard(task)}
+                                </DraggableTaskCard>
+                              ) : (
+                                <Box key={task.id}>{renderKanbanCard(task)}</Box>
+                              )
+                            ))}
+                          </Stack>
+                        </Box>
+                      ))}
+                    </Stack>
                   ) : (
                     <Stack spacing={1}>
                       {section.tasks.map((task) => (
