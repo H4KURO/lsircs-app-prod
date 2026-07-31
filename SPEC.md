@@ -204,6 +204,7 @@ lsircs-app-prod/
 |---|---|---|
 | カンバン | `status` | Trello スタイル横並び列。ステータスごとに固定幅260px・独立スクロール。コンパクトカード表示（タイトル・期限・担当者チップ・サブタスク進捗バー） |
 | リスト | `list` | 左列: ステータスグループ化リスト、右パネル: 選択タスクの詳細（スティッキー）。クリックで詳細パネルに表示 |
+| ギャラリー | `gallery` | カード形式グリッド表示。画像添付ファイルがある場合はカバー画像を表示。ステータスカラーバンド・重要度・担当者・期限・サブタスク進捗を一覧できる |
 | カレンダー | `calendar` | React Big Calendar によるデッドライン表示（高さ 680px 固定）。クリックで編集モーダル |
 | タイムライン | `timeline` | ガントチャート形式（`TaskTimelineView`）。開始日～期限をバーで表示 |
 
@@ -227,14 +228,13 @@ lsircs-app-prod/
 #### フィルターパネル（折りたたみ式）
 
 - **AND/ORフィルター条件**: 複数条件をAND/ORで組み合わせるフィルター行（フィールド・演算子・値を行単位で追加/削除）
-- **グループ化**: カンバン・リストビューで「カテゴリ」または「重要度」によるサブグループ化
   - フィールド: ステータス・重要度・期限・担当者・タグ・カテゴリ
   - 演算子: フィールドに応じて切り替え（は/でない、含む/含まない、前/後、未設定/設定済み）
   - 条件は左から右にチェーンして適用
+- **グループ化**: カンバン・リストビュー時に列/セクション内をカテゴリまたは重要度でサブグループ化
 - カテゴリフィルター（複数選択）
 - 担当者フィルター（複数選択、担当者ビュー時）
 - 並び順選択
-- **グループ化**: カンバン・リストビュー時に列/セクション内をカテゴリまたは重要度でサブグループ化
 - カテゴリ内並び順・タググループ化（カテゴリビュー時）
 - カテゴリの表示順変更（矢印ボタン）
 - 保存済みビューの適用・削除
@@ -246,7 +246,6 @@ lsircs-app-prod/
 
 #### その他機能
 
-- **ギャラリービュー**: カード形式グリッド表示。画像添付ファイルがある場合はカバー画像を表示。ステータスカラーバンド・重要度・担当者・期限・サブタスク進捗を一覧できる。
 - **キーワード検索**: ヘッダーの検索ボックスに入力するとリアルタイムで絞り込み。対象フィールド: タイトル・説明・カテゴリ・タグ・担当者。全レイアウトに反映。
 - **メールインポート**: メール件名・本文からタスクを AI 生成（`EmailImportModal` → `ParseEmailToTask` API）
 - **URLディープリンク**: `?view=tasks&taskId={id}` でタスク直接アクセス
@@ -415,7 +414,7 @@ Google Sheets / Box ドキュメントを iframe で埋め込み閲覧・編集�
 {
   id: string,              // Cosmos DB ドキュメントID
   title: string,
-  description: string,     // Markdown テキスト
+  description: string,     // HTML（Tiptap リッチテキストエディター出力）
   status: 'Started' | 'Inprogress' | 'Done',
   priority: 'High' | 'Medium' | 'Low',
   importance: 0 | 1 | 2,  // 0=低, 1=中, 2=高
@@ -451,13 +450,14 @@ Google Sheets / Box ドキュメントを iframe で埋め込み閲覧・編集�
   authorDisplayName: string, // displayName
   authorUserId: string,
   text: string,             // コメント本文（@mention 含む）
+  replyTo: string | null,   // 返信先コメントID（スレッド用。省略時は null）
   createdAt: string,        // ISO8601
 }
 ```
 
 コメント投稿時に `@DisplayName` 形式のメンションが含まれている場合、Slack チャンネルへ通知を送信（`SLACK_BOT_TOKEN`・`SLACK_CHANNEL_ID` 設定時のみ）。
 
-スレッド返信: `replyTo: string | null` フィールドで親コメントIDを参照。UI上では親コメントの下にインデントして表示。返信ボタンで入力欄に返信対象が表示される。
+スレッド返信: `replyTo` フィールドで親コメントIDを参照するフラット構造。UI上では親コメントの下にインデントして表示。返信ボタンで入力欄に返信対象が表示され、送信後 `replyTo` に親コメントIDを付加して保存。
 
 ### 6.2 ステータスフロー
 
@@ -504,7 +504,7 @@ tags: string[],      // サブタスク固有のタグ
 | フィールド | 入力形式 |
 |---|---|
 | タイトル | テキスト（必須） |
-| 説明 | Markdown エディタ（プレビュー/編集 トグル・ツールバー付き） |
+| 説明 | Tiptap リッチテキストエディター（見出し・太字・斜体・取り消し線・コード・リスト・引用・リンク等。HTML として保存） |
 | ステータス | セレクト（3択） |
 | 優先度 | セレクト（High/Medium/Low） |
 | 重要度 | セレクト（高/中/低） |
@@ -521,11 +521,14 @@ tags: string[],      // サブタスク固有のタグ
 
 ## 6.5 Phase 1 完了機能
 
-### 6.5.1 Markdown 説明欄
+### 6.5.1 リッチテキスト説明欄（Tiptap v3）
 
-- `description` フィールドを Markdown テキストとして保存・表示
-- タスク詳細モーダル内でプレビュー/編集をトグルで切り替え
-- ツールバー: FormatBold・FormatItalic・FormatListBulleted 等のアイコンボタン
+- `description` フィールドを HTML として保存・表示（Tiptap v3 エディター出力）
+- タスク詳細モーダル内に `RichTextEditor` コンポーネントを配置（`app/src/RichTextEditor.jsx`）
+- ツールバー: 見出し（H2）・太字・斜体・取り消し線・コード・箇条書き・番号リスト・引用・水平線・リンク挿入/解除
+- アクティブなフォーマットはツールバーボタンが青背景でハイライト
+- 拡張機能: `StarterKit`・`Link`・`Placeholder`
+- タスク切り替え時は `editor.commands.setContent()` で内容を外部 value と同期
 
 ### 6.5.2 グローバル検索（`GlobalSearch.jsx`）
 
@@ -673,7 +676,7 @@ tags: string[],      // サブタスク固有のタグ
 
 ```javascript
 {
-  layout: 'category' | 'status' | 'assignee' | 'timeline',
+  layout: 'category' | 'status' | 'list' | 'gallery' | 'calendar' | 'assignee' | 'timeline',
   sortMode: 'statusDeadline' | 'deadlineAsc' | 'deadlineDesc' | 'titleAsc' | 'createdAtDesc',
   selectedCategories: string[],
   selectedAssignees: string[],
