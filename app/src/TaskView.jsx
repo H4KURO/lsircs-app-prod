@@ -30,6 +30,7 @@ import {
   DialogActions,
   ToggleButton,
   ToggleButtonGroup,
+  Drawer,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
@@ -629,6 +630,8 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   const [expandedSubtaskIds, setExpandedSubtaskIds] = useState(new Set());
   const [dndActiveTaskId, setDndActiveTaskId] = useState(null);
   const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const [kanbanGroupBy, setKanbanGroupBy] = useState('status');
+  const [kanbanPanelTask, setKanbanPanelTask] = useState(null);
 
   const handleToggleSubtaskExpand = useCallback((taskId) => {
     if (!taskId) return;
@@ -1016,6 +1019,70 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
     }));
   }, [layout, conditionFilteredTasks, sortMode]);
 
+  const kanbanSections = useMemo(() => {
+    if (layout !== 'status') return [];
+    const effectiveSortMode = sortMode === 'statusDeadline' ? 'deadlineAsc' : sortMode;
+    if (kanbanGroupBy === 'status') {
+      return groupTasksByStatus(conditionFilteredTasks).map((s) => ({
+        ...s,
+        columnId: `status:${s.key}`,
+        tasks: sortTasksByMode(s.tasks, effectiveSortMode),
+      }));
+    }
+    if (kanbanGroupBy === 'category') {
+      const map = new Map();
+      conditionFilteredTasks.forEach((task) => {
+        const key = task.category?.trim() || DEFAULT_CATEGORY_LABEL;
+        if (!map.has(key)) map.set(key, []);
+        map.get(key).push(task);
+      });
+      const allKeys = [...new Set([...derivedCategories.map((c) => c || DEFAULT_CATEGORY_LABEL), ...map.keys()])];
+      return allKeys.filter((k) => map.has(k)).map((key) => ({
+        key,
+        columnId: `category:${key}`,
+        label: key,
+        tasks: sortTasksByMode(map.get(key) || [], effectiveSortMode),
+      }));
+    }
+    if (kanbanGroupBy === 'assignee') {
+      const map = new Map();
+      conditionFilteredTasks.forEach((task) => {
+        const key = task.assignees?.[0] || UNASSIGNED_ASSIGNEE_KEY;
+        if (!map.has(key)) map.set(key, []);
+        map.get(key).push(task);
+      });
+      const allKeys = [...new Set([...derivedAssignees, ...map.keys()])];
+      const sections = allKeys.filter((k) => map.has(k)).map((key) => ({
+        key,
+        columnId: `assignee:${key}`,
+        label: key === UNASSIGNED_ASSIGNEE_KEY ? UNASSIGNED_ASSIGNEE_LABEL : key,
+        tasks: sortTasksByMode(map.get(key) || [], effectiveSortMode),
+      }));
+      const unassigned = map.get(UNASSIGNED_ASSIGNEE_KEY);
+      if (unassigned && !sections.find((s) => s.key === UNASSIGNED_ASSIGNEE_KEY)) {
+        sections.push({ key: UNASSIGNED_ASSIGNEE_KEY, columnId: `assignee:${UNASSIGNED_ASSIGNEE_KEY}`, label: UNASSIGNED_ASSIGNEE_LABEL, tasks: sortTasksByMode(unassigned, effectiveSortMode) });
+      }
+      return sections;
+    }
+    if (kanbanGroupBy === 'tag') {
+      const map = new Map();
+      conditionFilteredTasks.forEach((task) => {
+        const tags = Array.isArray(task.tags) && task.tags.length > 0 ? task.tags : [DEFAULT_TAG_LABEL];
+        tags.forEach((tag) => {
+          if (!map.has(tag)) map.set(tag, []);
+          map.get(tag).push(task);
+        });
+      });
+      return [...map.entries()].map(([key, tasks]) => ({
+        key,
+        columnId: `tag:${key}`,
+        label: key,
+        tasks: sortTasksByMode(tasks, effectiveSortMode),
+      }));
+    }
+    return [];
+  }, [layout, kanbanGroupBy, conditionFilteredTasks, sortMode, derivedCategories, derivedAssignees]);
+
   const assigneeColumns = useMemo(() => {
     if (layout !== 'assignee') {
       return [];
@@ -1120,10 +1187,33 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
     setDndActiveTaskId(null);
     if (!over) return;
     const taskId = String(active.id);
-    const newStatus = String(over.id);
+    const overId = String(over.id);
     const task = tasks.find((t) => String(t.id) === taskId);
-    if (!task || task.status === newStatus) return;
-    const updatedTask = { ...task, status: newStatus };
+    if (!task) return;
+    const colonIdx = overId.indexOf(':');
+    if (colonIdx === -1) return;
+    const groupField = overId.slice(0, colonIdx);
+    const groupValue = overId.slice(colonIdx + 1);
+    let updatedTask;
+    if (groupField === 'status') {
+      if (task.status === groupValue) return;
+      updatedTask = { ...task, status: groupValue };
+    } else if (groupField === 'category') {
+      const newCategory = groupValue === DEFAULT_CATEGORY_LABEL ? null : groupValue;
+      if ((task.category || null) === newCategory) return;
+      updatedTask = { ...task, category: newCategory };
+    } else if (groupField === 'assignee') {
+      if (groupValue === UNASSIGNED_ASSIGNEE_KEY) {
+        if (!task.assignees?.length) return;
+        updatedTask = { ...task, assignees: [], assignee: null };
+      } else {
+        if (task.assignees?.[0] === groupValue) return;
+        const rest = (task.assignees || []).filter((a) => a !== groupValue);
+        updatedTask = { ...task, assignees: [groupValue, ...rest], assignee: groupValue };
+      }
+    } else {
+      return;
+    }
     setTasks((prev) => prev.map((t) => String(t.id) === taskId ? normalizeTask(updatedTask) : t));
     axios
       .put(`${API_URL}/UpdateTask/${taskId}`, updatedTask)
@@ -1281,6 +1371,10 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
       categoryGroupByTag: typeof view.categoryGroupByTag === 'boolean' ? view.categoryGroupByTag : prev.categoryGroupByTag,
       categoryTaskOrder: view.categoryTaskOrder || prev.categoryTaskOrder,
     }));
+    setFilterConditions([]);
+    setSecondaryGroupBy('');
+    setListPanelTask(null);
+    setKanbanPanelTask(null);
   };
 
   const handleSortModeChange = (event) => {
@@ -1996,7 +2090,7 @@ const renderListLayout = () => {
           '&:hover': { boxShadow: 2 },
           transition: 'box-shadow 0.15s',
         }}
-        onClick={() => handleEditTask(task)}
+        onClick={() => setKanbanPanelTask((prev) => (prev?.id === task.id ? null : task))}
       >
         <Typography
           variant="body2"
@@ -2196,7 +2290,7 @@ const renderListLayout = () => {
   };
 
   const renderStatusLayout = () => {
-    if (statusSections.length === 0) {
+    if (kanbanSections.length === 0) {
       return (
         <Paper sx={{ p: { xs: 3, md: 4 } }}>
           <Typography color="text.secondary">表示できるタスクがありません。</Typography>
@@ -2205,100 +2299,89 @@ const renderListLayout = () => {
     }
 
     const activeTask = dndActiveTaskId ? tasks.find((t) => String(t.id) === String(dndActiveTaskId)) : null;
+    const tagDnd = kanbanGroupBy !== 'tag';
 
     return (
-      <DndContext
-        sensors={dndSensors}
-        onDragStart={({ active }) => setDndActiveTaskId(active.id)}
-        onDragEnd={handleDragEnd}
-        onDragCancel={() => setDndActiveTaskId(null)}
-      >
-        <Box
-          sx={{
-            display: 'flex',
-            gap: 2,
-            overflowX: 'auto',
-            pb: 2,
-            alignItems: 'flex-start',
-          }}
-        >
-          {statusSections.map((section) => (
-            <Paper
-              key={section.key}
-              variant="outlined"
-              sx={{
-                width: 260,
-                flexShrink: 0,
-                display: 'flex',
-                flexDirection: 'column',
-                maxHeight: 'calc(100vh - 280px)',
-                minHeight: 120,
-              }}
-            >
-              {/* Column header */}
-              <Box
-                sx={{
-                  px: 2,
-                  py: 1.25,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  borderBottom: '1px solid',
-                  borderColor: 'divider',
-                  flexShrink: 0,
-                  bgcolor: 'action.hover',
-                }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <CircleIcon sx={{ color: getStatusColor(section.key), fontSize: '0.7rem' }} />
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{section.label}</Typography>
-                </Box>
-                <Chip label={section.tasks.length} size="small" sx={{ height: 20, fontSize: '0.7rem' }} />
-              </Box>
-              {/* Droppable task list */}
-              <KanbanDropColumn columnId={section.key}>
-                {section.tasks.length === 0 ? (
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', py: 2 }}>
-                    タスクはありません
-                  </Typography>
-                ) : secondaryGroupBy ? (
-                  <Stack spacing={1.5}>
-                    {groupTasksSecondary(section.tasks, secondaryGroupBy).map((group) => (
-                      <Box key={group.key}>
-                        <Typography variant="caption" sx={{ display: 'block', px: 0.25, pb: 0.5, color: 'text.secondary', fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider', mb: 0.75 }}>
-                          {group.label}
-                        </Typography>
-                        <Stack spacing={1}>
-                          {group.tasks.map((task) => (
-                            <DraggableTaskCard key={task.id} taskId={task.id}>
-                              {renderKanbanCard(task)}
-                            </DraggableTaskCard>
-                          ))}
-                        </Stack>
-                      </Box>
-                    ))}
-                  </Stack>
-                ) : (
-                  <Stack spacing={1}>
-                    {section.tasks.map((task) => (
-                      <DraggableTaskCard key={task.id} taskId={task.id}>
-                        {renderKanbanCard(task)}
-                      </DraggableTaskCard>
-                    ))}
-                  </Stack>
-                )}
-              </KanbanDropColumn>
-            </Paper>
+      <>
+        {/* グループ軸セレクター */}
+        <Box sx={{ display: 'flex', gap: 1, mb: 1.5, alignItems: 'center' }}>
+          <Typography variant="caption" color="text.secondary" sx={{ mr: 0.5 }}>グループ:</Typography>
+          {[
+            { value: 'status', label: 'ステータス' },
+            { value: 'category', label: 'カテゴリ' },
+            { value: 'assignee', label: '担当者' },
+            { value: 'tag', label: 'タグ' },
+          ].map((opt) => (
+            <Chip
+              key={opt.value}
+              label={opt.label}
+              size="small"
+              variant={kanbanGroupBy === opt.value ? 'filled' : 'outlined'}
+              color={kanbanGroupBy === opt.value ? 'primary' : 'default'}
+              onClick={() => setKanbanGroupBy(opt.value)}
+              sx={{ cursor: 'pointer' }}
+            />
           ))}
         </Box>
-        <DragOverlay dropAnimation={null}>
-          {activeTask ? (
-            <Box sx={{ opacity: 0.9, transform: 'rotate(1.5deg)', boxShadow: 6, borderRadius: 1 }}>
-              {renderKanbanCard(activeTask)}
-            </Box>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+
+        <DndContext
+          sensors={dndSensors}
+          onDragStart={({ active }) => setDndActiveTaskId(active.id)}
+          onDragEnd={handleDragEnd}
+          onDragCancel={() => setDndActiveTaskId(null)}
+        >
+          <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 2, alignItems: 'flex-start' }}>
+            {kanbanSections.map((section) => (
+              <Paper
+                key={section.columnId}
+                variant="outlined"
+                sx={{ width: 260, flexShrink: 0, display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 320px)', minHeight: 120 }}
+              >
+                <Box
+                  sx={{
+                    px: 2, py: 1.25, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    borderBottom: '1px solid', borderColor: 'divider', flexShrink: 0, bgcolor: 'action.hover',
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {kanbanGroupBy === 'status' && (
+                      <CircleIcon sx={{ color: getStatusColor(section.key), fontSize: '0.7rem' }} />
+                    )}
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{section.label}</Typography>
+                  </Box>
+                  <Chip label={section.tasks.length} size="small" sx={{ height: 20, fontSize: '0.7rem' }} />
+                </Box>
+                <KanbanDropColumn columnId={tagDnd ? section.columnId : `__nodrop_${section.columnId}`}>
+                  {section.tasks.length === 0 ? (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', py: 2 }}>
+                      タスクはありません
+                    </Typography>
+                  ) : (
+                    <Stack spacing={1}>
+                      {section.tasks.map((task) => (
+                        tagDnd ? (
+                          <DraggableTaskCard key={task.id} taskId={task.id}>
+                            {renderKanbanCard(task)}
+                          </DraggableTaskCard>
+                        ) : (
+                          <Box key={task.id}>{renderKanbanCard(task)}</Box>
+                        )
+                      ))}
+                    </Stack>
+                  )}
+                </KanbanDropColumn>
+              </Paper>
+            ))}
+          </Box>
+          <DragOverlay dropAnimation={null}>
+            {activeTask ? (
+              <Box sx={{ opacity: 0.9, transform: 'rotate(1.5deg)', boxShadow: 6, borderRadius: 1 }}>
+                {renderKanbanCard(activeTask)}
+              </Box>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      </>
     );
   };
 
@@ -2714,6 +2797,80 @@ const renderListLayout = () => {
           <TaskTimelineView tasks={conditionFilteredTasks} onEditTask={handleEditTask} />
         )}
       </Box>
+
+      {/* ── KANBAN RIGHT PANEL ── */}
+      <Drawer
+        anchor="right"
+        open={Boolean(kanbanPanelTask)}
+        onClose={() => setKanbanPanelTask(null)}
+        PaperProps={{ sx: { width: { xs: '90vw', sm: 400 }, p: 2.5 } }}
+      >
+        {kanbanPanelTask && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, height: '100%' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, lineHeight: 1.4, flex: 1 }}>
+                {kanbanPanelTask.title || 'タイトル未設定'}
+              </Typography>
+              <IconButton size="small" onClick={() => setKanbanPanelTask(null)} sx={{ mt: -0.25 }}>
+                ✕
+              </IconButton>
+            </Box>
+            <Stack direction="row" flexWrap="wrap" gap={0.75}>
+              <Chip label={getStatusLabel(kanbanPanelTask.status)} size="small" variant="outlined"
+                sx={{ color: getStatusColor(kanbanPanelTask.status), borderColor: getStatusColor(kanbanPanelTask.status) }} />
+              {kanbanPanelTask.deadline && <Chip label={`期限: ${getDeadlineLabel(kanbanPanelTask.deadline)}`} size="small" />}
+              {Array.isArray(kanbanPanelTask.assignees) && kanbanPanelTask.assignees.length > 0 && (
+                <Chip label={`担当: ${kanbanPanelTask.assignees.join(', ')}`} size="small" />
+              )}
+            </Stack>
+            {kanbanPanelTask.category && (
+              <Typography variant="caption" color="text.secondary">
+                カテゴリ: {getCategoryLabel(kanbanPanelTask.category)}
+              </Typography>
+            )}
+            {kanbanPanelTask.description && (
+              <Box
+                sx={{ fontSize: '0.85rem', lineHeight: 1.6, color: 'text.primary', '& h2': { fontSize: '1rem', fontWeight: 700, my: 0.5 }, '& ul, & ol': { pl: 2 }, '& p': { my: 0.25 } }}
+                dangerouslySetInnerHTML={{ __html: kanbanPanelTask.description }}
+              />
+            )}
+            {Array.isArray(kanbanPanelTask.tags) && kanbanPanelTask.tags.length > 0 && (
+              <Stack direction="row" flexWrap="wrap" gap={0.5}>
+                {kanbanPanelTask.tags.map((tag) => (
+                  <Chip key={tag} label={tag} size="small" variant="outlined" />
+                ))}
+              </Stack>
+            )}
+            {Array.isArray(kanbanPanelTask.subtasks) && kanbanPanelTask.subtasks.length > 0 && (
+              <Box>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                  サブタスク ({kanbanPanelTask.subtasks.filter((s) => s.completed).length}/{kanbanPanelTask.subtasks.length})
+                </Typography>
+                <Stack spacing={0.5}>
+                  {kanbanPanelTask.subtasks.map((sub) => (
+                    <Box key={sub.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                      {sub.completed ? <CheckCircleIcon color="success" sx={{ fontSize: '1rem' }} /> : <RadioButtonUncheckedIcon color="disabled" sx={{ fontSize: '1rem' }} />}
+                      <Typography variant="caption" sx={{ textDecoration: sub.completed ? 'line-through' : 'none', color: sub.completed ? 'text.disabled' : 'text.primary' }}>
+                        {sub.title}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              </Box>
+            )}
+            <Box sx={{ flex: 1 }} />
+            <Divider />
+            <Stack direction="row" spacing={1}>
+              <Button size="small" variant="contained" onClick={() => { handleEditTask(kanbanPanelTask); setKanbanPanelTask(null); }} startIcon={<EditIcon />}>
+                編集
+              </Button>
+              <Button size="small" color="error" variant="outlined" onClick={() => { handleDeleteTask(kanbanPanelTask.id); setKanbanPanelTask(null); }} startIcon={<DeleteIcon />}>
+                削除
+              </Button>
+            </Stack>
+          </Box>
+        )}
+      </Drawer>
 
       {/* ── MODALS ── */}
       <EmailImportModal open={emailImportOpen} onClose={() => setEmailImportOpen(false)} onParsed={handleEmailParsed} />
