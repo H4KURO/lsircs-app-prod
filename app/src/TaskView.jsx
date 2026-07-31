@@ -1398,6 +1398,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
       includeUnassignedColumn: preferences.includeUnassignedColumn,
       categoryGroupByTag: preferences.categoryGroupByTag,
       categoryTaskOrder: preferences.categoryTaskOrder,
+      kanbanGroupBy,
     };
     try {
       const { data } = await axios.post(`${API_URL}/SaveView`, viewToSave);
@@ -1430,6 +1431,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
       categoryGroupByTag: typeof view.categoryGroupByTag === 'boolean' ? view.categoryGroupByTag : prev.categoryGroupByTag,
       categoryTaskOrder: view.categoryTaskOrder || prev.categoryTaskOrder,
     }));
+    if (view.kanbanGroupBy) setKanbanGroupBy(view.kanbanGroupBy);
     setFilterConditions([]);
     setSecondaryGroupBy('');
     setListPanelTask(null);

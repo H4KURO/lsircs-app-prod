@@ -8,6 +8,7 @@ const {
 } = require('./userProfileStore');
 
 const ALLOWED_LAYOUTS = new Set(['category', 'status', 'assignee']);
+const ALLOWED_KANBAN_GROUP_BY = new Set(['status', 'category', 'assignee', 'tag']);
 const ALLOWED_SORT_MODES = new Set(['statusDeadline', 'deadlineAsc', 'deadlineDesc', 'titleAsc']);
 const MAX_SAVED_VIEWS = 20;
 
@@ -41,6 +42,7 @@ app.http('SaveView', {
       includeUnassignedColumn: typeof body.includeUnassignedColumn === 'boolean' ? body.includeUnassignedColumn : true,
       categoryGroupByTag: typeof body.categoryGroupByTag === 'boolean' ? body.categoryGroupByTag : true,
       categoryTaskOrder: body.categoryTaskOrder || 'progress',
+      kanbanGroupBy: ALLOWED_KANBAN_GROUP_BY.has(body.kanbanGroupBy) ? body.kanbanGroupBy : 'status',
       createdAt: new Date().toISOString(),
     };
 
