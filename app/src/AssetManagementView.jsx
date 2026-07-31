@@ -47,7 +47,7 @@ export function AssetManagementView() {
       {tab === 2 && <AssetContractsTab properties={properties} onContractsChange={setContracts} />}
       {tab === 3 && <AssetRentTransactionsTab contracts={contracts} properties={properties} />}
       {tab === 4 && <AssetExpensesTab properties={properties} />}
-      {tab === 5 && <AssetFinancialDashboardTab properties={properties} />}
+      {tab === 5 && <AssetFinancialDashboardTab properties={properties} contracts={contracts} />}
     </Box>
   );
 }

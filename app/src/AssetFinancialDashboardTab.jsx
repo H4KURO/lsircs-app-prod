@@ -59,7 +59,7 @@ function lastNYearMonths(n) {
   return months;
 }
 
-export function AssetFinancialDashboardTab({ properties }) {
+export function AssetFinancialDashboardTab({ properties, contracts = [] }) {
   const [transactions, setTransactions] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -189,7 +189,7 @@ export function AssetFinancialDashboardTab({ properties }) {
   }, [gridMonths]);
 
   const handleProcessRowUpdate = useCallback(async (newRow, oldRow) => {
-    if (newRow.type !== 'expense') return oldRow;
+    if (newRow.type !== 'expense' && newRow.type !== 'income') return oldRow;
 
     const changedField = Object.keys(newRow).find((key) => /^m\d+$/.test(key) && newRow[key] !== oldRow[key]);
     if (!changedField) return newRow;
@@ -197,26 +197,59 @@ export function AssetFinancialDashboardTab({ properties }) {
     const monthIndex = Number(changedField.slice(1)) - 1;
     const yearMonth = gridMonths[monthIndex];
     const newAmount = Number(newRow[changedField]) || 0;
-    const category = newRow.category;
 
     setGridError('');
     try {
-      const existing = expenses.filter(
-        (e) => e.propertyId === selectedPropertyId && e.category === category && e.yearMonth === yearMonth,
-      );
-      if (existing.length > 1) {
-        setGridError(`${yearMonth}の${newRow.label}は複数件登録されているため、グリッドからは編集できません。「支出」タブで編集してください。`);
-        return oldRow;
-      }
-      if (existing.length === 1) {
-        await axios.post(`${API_URL}/UpdateAssetExpense`, { id: existing[0].id, amount: newAmount });
+      if (newRow.type === 'expense') {
+        const category = newRow.category;
+        const existing = expenses.filter(
+          (e) => e.propertyId === selectedPropertyId && e.category === category && e.yearMonth === yearMonth,
+        );
+        if (existing.length > 1) {
+          setGridError(`${yearMonth}の${newRow.label}は複数件登録されているため、グリッドからは編集できません。「支出」タブで編集してください。`);
+          return oldRow;
+        }
+        if (existing.length === 1) {
+          await axios.post(`${API_URL}/UpdateAssetExpense`, { id: existing[0].id, amount: newAmount });
+        } else {
+          await axios.post(`${API_URL}/CreateAssetExpense`, {
+            propertyId: selectedPropertyId,
+            category,
+            yearMonth,
+            amount: newAmount,
+          });
+        }
       } else {
-        await axios.post(`${API_URL}/CreateAssetExpense`, {
-          propertyId: selectedPropertyId,
-          category,
-          yearMonth,
-          amount: newAmount,
-        });
+        // 収入行: 賃料入出金(AssetRentTransactions)は契約単位の記録のため、
+        // 更新対象を安全に一意特定できる場合のみ編集を許可する
+        const existingTx = transactions.filter(
+          (t) => t.propertyId === selectedPropertyId && t.yearMonth === yearMonth,
+        );
+        if (existingTx.length > 1) {
+          setGridError(`${yearMonth}は複数契約の入金が合算されているため、グリッドからは編集できません。「賃料入出金」タブで編集してください。`);
+          return oldRow;
+        }
+        if (existingTx.length === 1) {
+          await axios.post(`${API_URL}/UpdateAssetRentTransaction`, { id: existingTx[0].id, receivedAmount: newAmount });
+        } else {
+          const propertyContracts = contracts.filter((c) => c.propertyId === selectedPropertyId);
+          if (propertyContracts.length === 0) {
+            setGridError('先に「契約」タブで契約を登録してください。');
+            return oldRow;
+          }
+          if (propertyContracts.length > 1) {
+            setGridError(`${yearMonth}はどの契約の入金か特定できないため、グリッドからは新規登録できません。「賃料入出金」タブで契約を指定して登録してください。`);
+            return oldRow;
+          }
+          await axios.post(`${API_URL}/CreateAssetRentTransaction`, {
+            contractId: propertyContracts[0].id,
+            propertyId: selectedPropertyId,
+            yearMonth,
+            expectedAmount: newAmount,
+            receivedAmount: newAmount,
+            status: newAmount > 0 ? 'paid' : 'unpaid',
+          });
+        }
       }
       await fetchData();
       return newRow;
@@ -224,7 +257,7 @@ export function AssetFinancialDashboardTab({ properties }) {
       setGridError(err.response?.data?.message || err.response?.data || err.message || '保存に失敗しました');
       return oldRow;
     }
-  }, [expenses, gridMonths, selectedPropertyId, fetchData]);
+  }, [expenses, transactions, contracts, gridMonths, selectedPropertyId, fetchData]);
 
   return (
     <Box>
@@ -340,7 +373,7 @@ export function AssetFinancialDashboardTab({ properties }) {
               </IconButton>
             </Box>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-              支出のセルはダブルクリックで直接編集できます（収入・収支は自動計算のため編集不可）
+              賃料収入・支出のセルはダブルクリックで直接編集できます（収支は自動計算のため編集不可。収入は対象月の契約が1件かつ記録が1件以下の場合のみ編集可能）
             </Typography>
             {gridError && (
               <Alert severity="error" sx={{ mb: 1 }} onClose={() => setGridError('')}>{gridError}</Alert>
@@ -352,7 +385,7 @@ export function AssetFinancialDashboardTab({ properties }) {
                 columns={gridColumns}
                 hideFooter
                 disableRowSelectionOnClick
-                isCellEditable={(params) => params.row.type === 'expense'}
+                isCellEditable={(params) => params.row.type === 'expense' || params.row.type === 'income'}
                 processRowUpdate={handleProcessRowUpdate}
                 onProcessRowUpdateError={(err) => setGridError(err.message || '保存に失敗しました')}
                 getRowClassName={(params) => (params.row.type === 'net' ? 'asset-grid-net-row' : '')}

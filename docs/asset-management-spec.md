@@ -153,15 +153,21 @@
 
 オーナー様からWealth Parkの収支管理画面（スプレッドシート風グリッド、行=収支項目・列=月）を参考にしたいとの要望を受けて追加。
 
-- `@mui/x-data-grid` の `DataGrid` を使用。ライブラリの列定義(`GridColDef`)は「列単位でtrue/falseのみ」しか`editable`を指定できないため、行ごとの編集可否は**グリッド本体の`isCellEditable` prop**（`(params) => params.row.type === 'expense'`）で判定している。列に`isCellEditable`を書いても無視される点に注意（実装時に踏んだ落とし穴）
-- **行構成**: `賃料収入`（`AssetRentTransactions`集計、編集不可）／支出科目5行（`AssetExpenses`、編集可）／`収支`（自動計算、編集不可）
+- `@mui/x-data-grid` の `DataGrid` を使用。ライブラリの列定義(`GridColDef`)は「列単位でtrue/falseのみ」しか`editable`を指定できないため、行ごとの編集可否は**グリッド本体の`isCellEditable` prop**（`(params) => params.row.type === 'expense' || params.row.type === 'income'`）で判定している。列に`isCellEditable`を書いても無視される点に注意（実装時に踏んだ落とし穴）
+- **行構成**: `賃料収入`（`AssetRentTransactions`集計、**編集可**）／支出科目5行（`AssetExpenses`、編集可）／`収支`（自動計算、編集不可）
 - **列構成**: 1月〜12月（`gridYear` stateで年を切替、◀▶ボタン）＋ 年間合計
-- **セル編集の保存ロジック**（`handleProcessRowUpdate`）:
+- **支出セルの保存ロジック**（`handleProcessRowUpdate`）:
   1. 対象の物件・科目・年月に一致する`AssetExpenses`レコードを`expenses`ステートから検索
   2. 0件 → `CreateAssetExpense`で新規作成
   3. 1件 → `UpdateAssetExpense`でその1件の金額を更新
   4. 2件以上 → 更新対象を一意に決められないため保存を拒否し、エラーメッセージで「支出」タブでの編集を促す
-  5. 保存成功後は`fetchData()`で収入・支出を再取得し、グリッド自身だけでなく上部のグラフ・一覧表にも即座に反映
+- **収入セルの保存ロジック**（`handleProcessRowUpdate`）: `AssetRentTransactions`は契約(`AssetContracts`)単位の記録であり、賃料収入セルは複数契約の合算になり得るため、支出より慎重な分岐にしている
+  1. 対象の物件・年月に一致する`AssetRentTransactions`を`transactions`ステートから検索
+  2. 1件 → その1件の`receivedAmount`を`UpdateAssetRentTransaction`で更新
+  3. 0件 → 物件に紐づく契約（`contracts`ステート）を確認し、**契約が1件のみ**なら`CreateAssetRentTransaction`で新規作成（`expectedAmount`＝`receivedAmount`＝入力値、`status`は入力値>0なら`paid`／0なら`unpaid`）
+  4. 0件かつ契約が0件 → 「先に『契約』タブで契約を登録してください」と案内し保存を拒否
+  5. 0件かつ契約が2件以上、または記録が2件以上 → どの契約の入金か一意に特定できないため保存を拒否し、「賃料入出金」タブでの編集・契約指定登録を促す
+- 保存成功後は`fetchData()`で収入・支出を再取得し、グリッド自身だけでなく上部のグラフ・一覧表にも即座に反映
 - 収支行の負の値（赤字）はセルに`asset-grid-negative`クラスを付与し赤字色で表示（色覚多様性の観点から、値そのものもマイナス符号付きで表示されるため色だけに依存しない）
 
 ---
@@ -173,3 +179,4 @@
 | 2026-07-30 | 初版作成。フェーズ1（物件・オーナー・契約・賃料入出金）の画面・API・データモデルを記載 |
 | 2026-07-30 | フェーズ2（支出記録＋収支ダッシュボード）を追加。`ensureNamedContainer`未使用によるコンテナ未作成500エラーの修正、配色のCVD検証結果を記載 |
 | 2026-07-31 | フェーズ2にWealth Park風のグリッド式収支入力（`@mui/x-data-grid`）を追加。行単位の編集可否判定はグリッド本体の`isCellEditable`で行う点を実装メモとして記載 |
+| 2026-07-31 | 賃料収入行もグリッドから編集可能に変更。契約・記録の件数に応じた安全な更新/新規作成/拒否ロジックを追加 |
