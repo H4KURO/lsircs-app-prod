@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, useDroppable, useDraggable } from '@dnd-kit/core';
+import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, useDroppable, useDraggable, closestCenter } from '@dnd-kit/core';
 import axios from 'axios';
 import {
   Box,
@@ -48,6 +48,7 @@ import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import GridViewIcon from '@mui/icons-material/GridView';
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import { TaskDetailModal } from './TaskDetailModal';
 import { TaskTimelineView } from './TaskTimelineView';
@@ -602,6 +603,44 @@ function DraggableTaskCard({ taskId, children }) {
   );
 }
 
+function DroppableColumnSlot({ columnId, children }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `colpos:${columnId}` });
+  return (
+    <Box
+      ref={setNodeRef}
+      sx={{
+        borderRadius: 1,
+        outline: isOver ? '2px dashed' : '2px solid transparent',
+        outlineColor: isOver ? 'primary.main' : undefined,
+        transition: 'outline-color 0.15s',
+      }}
+    >
+      {children}
+    </Box>
+  );
+}
+
+function DraggableColumnHeader({ columnId, children }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `col:${columnId}` });
+  return (
+    <Box ref={setNodeRef} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, width: '100%', opacity: isDragging ? 0.4 : 1 }}>
+      <Box
+        {...listeners}
+        {...attributes}
+        sx={{
+          display: 'flex', alignItems: 'center', cursor: 'grab', color: 'text.disabled', flexShrink: 0,
+          '&:hover': { color: 'text.secondary' },
+          '&:active': { cursor: 'grabbing' },
+        }}
+        title="ドラッグして並び替え"
+      >
+        <DragIndicatorIcon sx={{ fontSize: '1rem' }} />
+      </Box>
+      {children}
+    </Box>
+  );
+}
+
 export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   const { t } = useTranslation();
   const [tasks, setTasks] = useState([]);
@@ -629,6 +668,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedSubtaskIds, setExpandedSubtaskIds] = useState(new Set());
   const [dndActiveTaskId, setDndActiveTaskId] = useState(null);
+  const [kanbanColumnOrder, setKanbanColumnOrder] = useState({});
   const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   const [kanbanGroupBy, setKanbanGroupBy] = useState('status');
   const [kanbanPanelTask, setKanbanPanelTask] = useState(null);
@@ -1083,6 +1123,29 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
     return [];
   }, [layout, kanbanGroupBy, conditionFilteredTasks, sortMode, derivedCategories, derivedAssignees]);
 
+  const orderedKanbanSections = useMemo(() => {
+    const order = kanbanColumnOrder[kanbanGroupBy];
+    if (!order || order.length === 0) return kanbanSections;
+    return [...kanbanSections].sort((a, b) => {
+      const ai = order.indexOf(a.columnId);
+      const bi = order.indexOf(b.columnId);
+      if (ai === -1 && bi === -1) return 0;
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    });
+  }, [kanbanSections, kanbanColumnOrder, kanbanGroupBy]);
+
+  const kanbanCollisionDetection = useCallback((args) => {
+    const activeId = String(args.active.id);
+    if (activeId.startsWith('col:')) {
+      const colDroppables = args.droppableContainers.filter((dc) => String(dc.id).startsWith('colpos:'));
+      return closestCenter({ ...args, droppableContainers: colDroppables });
+    }
+    const taskDroppables = args.droppableContainers.filter((dc) => !String(dc.id).startsWith('colpos:'));
+    return closestCenter({ ...args, droppableContainers: taskDroppables });
+  }, []);
+
   const assigneeColumns = useMemo(() => {
     if (layout !== 'assignee') {
       return [];
@@ -1186,8 +1249,30 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   const handleDragEnd = useCallback(({ active, over }) => {
     setDndActiveTaskId(null);
     if (!over) return;
-    const taskId = String(active.id);
+    const activeId = String(active.id);
     const overId = String(over.id);
+
+    // 列の並び替え
+    if (activeId.startsWith('col:') && overId.startsWith('colpos:')) {
+      const draggedColId = activeId.slice(4);
+      const targetColId = overId.slice(7);
+      if (draggedColId === targetColId) return;
+      setKanbanColumnOrder((prev) => {
+        const base = (prev[kanbanGroupBy] && prev[kanbanGroupBy].length > 0)
+          ? prev[kanbanGroupBy]
+          : kanbanSections.map((s) => s.columnId);
+        const fromIdx = base.indexOf(draggedColId);
+        const toIdx = base.indexOf(targetColId);
+        if (fromIdx === -1 || toIdx === -1) return prev;
+        const next = [...base];
+        next.splice(fromIdx, 1);
+        next.splice(toIdx, 0, draggedColId);
+        return { ...prev, [kanbanGroupBy]: next };
+      });
+      return;
+    }
+
+    const taskId = activeId;
     const task = tasks.find((t) => String(t.id) === taskId);
     if (!task) return;
     const colonIdx = overId.indexOf(':');
@@ -1224,7 +1309,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
       .catch(() => {
         setTasks((prev) => prev.map((t) => String(t.id) === taskId ? task : t));
       });
-  }, [tasks]);
+  }, [tasks, kanbanGroupBy, kanbanSections]);
 
   const handleAdvanceTaskStatus = useCallback(
     (task) => {
@@ -2316,80 +2401,97 @@ const renderListLayout = () => {
 
         <DndContext
           sensors={dndSensors}
+          collisionDetection={kanbanCollisionDetection}
           onDragStart={({ active }) => setDndActiveTaskId(active.id)}
           onDragEnd={handleDragEnd}
           onDragCancel={() => setDndActiveTaskId(null)}
         >
           <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 2, alignItems: 'flex-start' }}>
-            {kanbanSections.map((section) => (
-              <Paper
-                key={section.columnId}
-                variant="outlined"
-                sx={{ width: 260, flexShrink: 0, display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 320px)', minHeight: 120 }}
-              >
-                <Box
-                  sx={{
-                    px: 2, py: 1.25, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    borderBottom: '1px solid', borderColor: 'divider', flexShrink: 0, bgcolor: 'action.hover',
-                  }}
+            {orderedKanbanSections.map((section) => (
+              <DroppableColumnSlot key={section.columnId} columnId={section.columnId}>
+                <Paper
+                  variant="outlined"
+                  sx={{ width: 260, flexShrink: 0, display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 320px)', minHeight: 120 }}
                 >
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    {kanbanGroupBy === 'status' && (
-                      <CircleIcon sx={{ color: getStatusColor(section.key), fontSize: '0.7rem' }} />
-                    )}
-                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{section.label}</Typography>
+                  <Box
+                    sx={{
+                      px: 1.5, py: 1.25, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      borderBottom: '1px solid', borderColor: 'divider', flexShrink: 0, bgcolor: 'action.hover',
+                    }}
+                  >
+                    <DraggableColumnHeader columnId={section.columnId}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+                        {kanbanGroupBy === 'status' && (
+                          <CircleIcon sx={{ color: getStatusColor(section.key), fontSize: '0.7rem', flexShrink: 0 }} />
+                        )}
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{section.label}</Typography>
+                      </Box>
+                    </DraggableColumnHeader>
+                    <Chip label={section.tasks.length} size="small" sx={{ height: 20, fontSize: '0.7rem', flexShrink: 0, ml: 0.5 }} />
                   </Box>
-                  <Chip label={section.tasks.length} size="small" sx={{ height: 20, fontSize: '0.7rem' }} />
-                </Box>
-                <KanbanDropColumn columnId={tagDnd ? section.columnId : `__nodrop_${section.columnId}`}>
-                  {section.tasks.length === 0 ? (
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', py: 2 }}>
-                      タスクはありません
-                    </Typography>
-                  ) : secondaryGroupBy ? (
-                    <Stack spacing={1.5}>
-                      {(groupTasksSecondary(section.tasks, secondaryGroupBy) || []).map((group) => (
-                        <Box key={group.key}>
-                          <Typography variant="caption" sx={{ display: 'block', px: 0.25, pb: 0.5, color: 'text.secondary', fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider', mb: 0.75 }}>
-                            {group.label}
-                          </Typography>
-                          <Stack spacing={1}>
-                            {group.tasks.map((task) => (
-                              tagDnd ? (
-                                <DraggableTaskCard key={task.id} taskId={task.id}>
-                                  {renderKanbanCard(task)}
-                                </DraggableTaskCard>
-                              ) : (
-                                <Box key={task.id}>{renderKanbanCard(task)}</Box>
-                              )
-                            ))}
-                          </Stack>
-                        </Box>
-                      ))}
-                    </Stack>
-                  ) : (
-                    <Stack spacing={1}>
-                      {section.tasks.map((task) => (
-                        tagDnd ? (
-                          <DraggableTaskCard key={task.id} taskId={task.id}>
-                            {renderKanbanCard(task)}
-                          </DraggableTaskCard>
-                        ) : (
-                          <Box key={task.id}>{renderKanbanCard(task)}</Box>
-                        )
-                      ))}
-                    </Stack>
-                  )}
-                </KanbanDropColumn>
-              </Paper>
+                  <KanbanDropColumn columnId={tagDnd ? section.columnId : `__nodrop_${section.columnId}`}>
+                    {section.tasks.length === 0 ? (
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', py: 2 }}>
+                        タスクはありません
+                      </Typography>
+                    ) : secondaryGroupBy ? (
+                      <Stack spacing={1.5}>
+                        {(groupTasksSecondary(section.tasks, secondaryGroupBy) || []).map((group) => (
+                          <Box key={group.key}>
+                            <Typography variant="caption" sx={{ display: 'block', px: 0.25, pb: 0.5, color: 'text.secondary', fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider', mb: 0.75 }}>
+                              {group.label}
+                            </Typography>
+                            <Stack spacing={1}>
+                              {group.tasks.map((task) => (
+                                tagDnd ? (
+                                  <DraggableTaskCard key={task.id} taskId={task.id}>
+                                    {renderKanbanCard(task)}
+                                  </DraggableTaskCard>
+                                ) : (
+                                  <Box key={task.id}>{renderKanbanCard(task)}</Box>
+                                )
+                              ))}
+                            </Stack>
+                          </Box>
+                        ))}
+                      </Stack>
+                    ) : (
+                      <Stack spacing={1}>
+                        {section.tasks.map((task) => (
+                          tagDnd ? (
+                            <DraggableTaskCard key={task.id} taskId={task.id}>
+                              {renderKanbanCard(task)}
+                            </DraggableTaskCard>
+                          ) : (
+                            <Box key={task.id}>{renderKanbanCard(task)}</Box>
+                          )
+                        ))}
+                      </Stack>
+                    )}
+                  </KanbanDropColumn>
+                </Paper>
+              </DroppableColumnSlot>
             ))}
           </Box>
           <DragOverlay dropAnimation={null}>
-            {activeTask ? (
-              <Box sx={{ opacity: 0.9, transform: 'rotate(1.5deg)', boxShadow: 6, borderRadius: 1 }}>
-                {renderKanbanCard(activeTask)}
-              </Box>
-            ) : null}
+            {(() => {
+              const aid = dndActiveTaskId ? String(dndActiveTaskId) : null;
+              if (!aid) return null;
+              if (aid.startsWith('col:')) {
+                const sec = kanbanSections.find((s) => s.columnId === aid.slice(4));
+                return sec ? (
+                  <Paper variant="outlined" sx={{ px: 2, py: 1, opacity: 0.9, boxShadow: 8, bgcolor: 'action.hover', width: 260 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{sec.label}</Typography>
+                  </Paper>
+                ) : null;
+              }
+              const activeTask = tasks.find((t) => String(t.id) === aid);
+              return activeTask ? (
+                <Box sx={{ opacity: 0.9, transform: 'rotate(1.5deg)', boxShadow: 6, borderRadius: 1 }}>
+                  {renderKanbanCard(activeTask)}
+                </Box>
+              ) : null;
+            })()}
           </DragOverlay>
         </DndContext>
       </>
