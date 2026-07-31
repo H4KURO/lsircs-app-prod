@@ -1280,35 +1280,6 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
     setSelectedTask(normalizeTask(task));
   }, []);
 
-  const handleMoveCategory = useCallback(
-    (category, direction) => {
-      if (!category) {
-        return;
-      }
-      updatePreferences((prev) => {
-        const baseList = prev.selectedCategories.length === 0 ? derivedCategories : prev.selectedCategories;
-        if (!Array.isArray(baseList) || baseList.length === 0) {
-          return prev;
-        }
-        const current = [...baseList];
-        const index = current.indexOf(category);
-        if (index === -1) {
-          return prev;
-        }
-        const targetIndex = index + direction;
-        if (targetIndex < 0 || targetIndex >= current.length) {
-          return prev;
-        }
-        const [moved] = current.splice(index, 1);
-        current.splice(targetIndex, 0, moved);
-        return {
-          ...prev,
-          selectedCategories: current,
-        };
-      });
-    },
-    [derivedCategories, updatePreferences],
-  );
 
   const handleCategorySelectionChange = (event, newValue) => {
     updatePreferences((prev) => ({
@@ -1352,11 +1323,13 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   };
 
   const handleDeleteSavedView = async (viewId) => {
+    setSavedViews((prev) => prev.filter((v) => v.id !== viewId));
     try {
-      const { data } = await axios.delete(`${API_URL}/DeleteSavedView/${viewId}`);
-      setSavedViews(data);
+      await axios.delete(`${API_URL}/DeleteSavedView/${viewId}`);
     } catch (err) {
       console.error('DeleteSavedView failed', err);
+      const { data } = await axios.get(`${API_URL}/GetSavedViews`).catch(() => ({ data: [] }));
+      setSavedViews(data);
     }
   };
 
@@ -2784,41 +2757,6 @@ const renderListLayout = () => {
             )}
           </Box>
 
-          {/* Category order */}
-          <Box sx={{ flex: '1 1 200px', display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <Typography variant="subtitle2">カテゴリ一覧</Typography>
-            <Typography variant="caption" color="text.secondary">矢印ボタンで表示順を変更できます。</Typography>
-            <Stack spacing={1}>
-              {navCategories.length > 0 ? navCategories.map((category, index) => {
-                const displayLabel = getCategoryLabel(category);
-                const taskCount = categoryToTagsMap[category]
-                  ? Object.values(categoryToTagsMap[category]).reduce((count, items) => count + items.length, 0)
-                  : 0;
-                return (
-                  <Box key={`nav-${category}`} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-                    <Stack direction="row" alignItems="center" spacing={1}>
-                      <Chip label={displayLabel} size="small" />
-                      <Typography variant="caption" color="text.secondary">{taskCount} 件</Typography>
-                    </Stack>
-                    <Stack direction="row" spacing={0.5}>
-                      <Tooltip title="カテゴリを上に移動"><span>
-                        <IconButton size="small" onClick={() => handleMoveCategory(category, -1)} disabled={index === 0} aria-label="カテゴリを上に移動">
-                          <KeyboardArrowUpIcon fontSize="inherit" />
-                        </IconButton>
-                      </span></Tooltip>
-                      <Tooltip title="カテゴリを下に移動"><span>
-                        <IconButton size="small" onClick={() => handleMoveCategory(category, 1)} disabled={index === navCategories.length - 1} aria-label="カテゴリを下に移動">
-                          <KeyboardArrowDownIcon fontSize="inherit" />
-                        </IconButton>
-                      </span></Tooltip>
-                    </Stack>
-                  </Box>
-                );
-              }) : (
-                <Typography variant="body2" color="text.secondary">データを読み込むとカテゴリ一覧を表示します。</Typography>
-              )}
-            </Stack>
-          </Box>
         </Paper>
       )}
 
