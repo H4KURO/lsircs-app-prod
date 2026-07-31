@@ -6,6 +6,8 @@ import { AssetOwnersTab } from './AssetOwnersTab';
 import { AssetPropertiesTab } from './AssetPropertiesTab';
 import { AssetContractsTab } from './AssetContractsTab';
 import { AssetRentTransactionsTab } from './AssetRentTransactionsTab';
+import { AssetExpensesTab } from './AssetExpensesTab';
+import { AssetFinancialDashboardTab } from './AssetFinancialDashboardTab';
 
 const API_URL = '/api';
 
@@ -36,12 +38,16 @@ export function AssetManagementView() {
         <Tab label="オーナー" />
         <Tab label="契約" />
         <Tab label="賃料入出金" />
+        <Tab label="支出" />
+        <Tab label="収支ダッシュボード" />
       </Tabs>
 
       {tab === 0 && <AssetPropertiesTab owners={owners} onPropertiesChange={setProperties} />}
       {tab === 1 && <AssetOwnersTab onOwnersChange={setOwners} />}
       {tab === 2 && <AssetContractsTab properties={properties} onContractsChange={setContracts} />}
       {tab === 3 && <AssetRentTransactionsTab contracts={contracts} properties={properties} />}
+      {tab === 4 && <AssetExpensesTab properties={properties} />}
+      {tab === 5 && <AssetFinancialDashboardTab properties={properties} />}
     </Box>
   );
 }

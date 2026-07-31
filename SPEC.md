@@ -1,7 +1,7 @@
 # lsir-cs アプリケーション仕様書
 
 > **メンテナンス注意**: このファイルはアプリ変更のたびに更新すること（CLAUDE.md 参照）。  
-> 最終更新: 2026-07-30（main の Phase 4: リッチテキストエディター・ギャラリービュー・コメントスレッド返信 を取り込み。加えて資産管理CRM フェーズ1（テスト環境・管理者限定）を `claude/crm-asset-management-system-0bs8i0` ブランチに追加。資産管理部分は main 未マージ）
+> 最終更新: 2026-07-30（main の Phase 4: リッチテキストエディター・ギャラリービュー・コメントスレッド返信 を取り込み。加えて資産管理CRM フェーズ1・フェーズ2（テスト環境・管理者限定、支出記録＋物件別収支ダッシュボードを追加）を `claude/crm-asset-management-system-0bs8i0` ブランチに追加。資産管理部分は main 未マージ）
 
 ---
 
@@ -43,7 +43,7 @@
 
 | レイヤー | 技術 |
 |---|---|
-| フロントエンド | React 19 + Vite, Material-UI v7, React Big Calendar, Tiptap v3（リッチテキスト）, i18next, Axios |
+| フロントエンド | React 19 + Vite, Material-UI v7, React Big Calendar, Tiptap v3（リッチテキスト）, @mui/x-charts（資産管理フェーズ2の収支ダッシュボード）, i18next, Axios |
 | バックエンド | Azure Functions (Node.js 20) |
 | データベース | Azure Cosmos DB (NoSQL) |
 | ファイルストレージ | Azure Blob Storage |
@@ -408,15 +408,15 @@ Google Sheets / Box ドキュメントを iframe で埋め込み閲覧・編集�
 
 ---
 
-### 5.10 資産管理 (`AssetManagementView`)（管理者のみ・フェーズ1テスト環境）
+### 5.10 資産管理 (`AssetManagementView`)（管理者のみ・フェーズ1/2テスト環境）
 
 **位置づけ**: Wealth Park や GMO の賃貸DXのような「オーナーポータル・資産管理」の機能コンセプトを参考にした独自実装。既存のタスク管理システム（`TaskView`）と並行してアップデートが進んでいるため、使い勝手への影響を避ける目的で以下のように隔離している。
 
 - ブランチ `claude/crm-asset-management-system-0bs8i0` 上でのみ開発し、実用段階になるまで `main` にはマージしない
 - ナビゲーションのアイコンレールには管理者（`accessStatus.isAdmin`）のみに表示（`App.jsx` の `navItems` で条件分岐）
-- 実際の送金・決済は一切行わない。賃料の入出金・オーナーへの送金予定額はあくまで**記録・集計のみ**を扱う
+- 実際の送金・決済は一切行わない。賃料の入出金・支出・オーナーへの送金予定額はあくまで**記録・集計のみ**を扱う
 
-**画面構成**: 4タブ構成（`AssetManagementView.jsx` がタブ切替を管理し、参照データ（オーナー・物件・契約）はマウント時に先読みして各タブ間で共有）
+**画面構成**: 6タブ構成（`AssetManagementView.jsx` がタブ切替を管理し、参照データ（オーナー・物件・契約）はマウント時に先読みして各タブ間で共有）
 
 | タブ | コンポーネント | 説明 |
 |---|---|---|
@@ -424,8 +424,16 @@ Google Sheets / Box ドキュメントを iframe で埋め込み閲覧・編集�
 | オーナー | `AssetOwnersTab` | オーナー台帳（連絡先・振込先銀行情報） |
 | 契約 | `AssetContractsTab` | 賃貸契約（物件・入居者・賃料・契約期間） |
 | 賃料入出金 | `AssetRentTransactionsTab` | 月次の入金予定・入金実績・オーナー送金予定額の記録 |
+| 支出 | `AssetExpensesTab`（フェーズ2） | 物件ごとの支出記録（修繕費・管理委託手数料・保険料・固定資産税等） |
+| 収支ダッシュボード | `AssetFinancialDashboardTab`（フェーズ2） | 物件を選択し、直近12ヶ月の月次収入・支出・収支（黒字/赤字）をグラフ＋一覧表で可視化 |
 
-**データの関連**: オーナー 1—N 物件、物件 1—N 契約、契約 1—N 賃料入出金（月次）。各テーブルはドロップダウンで親エンティティを選択する形でリレーションを表現（Cosmos DB はNoSQLのため外部キー制約はアプリ側でバリデーション）。
+**データの関連**: オーナー 1—N 物件、物件 1—N 契約、契約 1—N 賃料入出金（月次）、物件 1—N 支出（月次）。各テーブルはドロップダウンで親エンティティを選択する形でリレーションを表現（Cosmos DB はNoSQLのため外部キー制約はアプリ側でバリデーション）。
+
+**収支ダッシュボードの集計方法**（フェーズ2）:
+- 直近12ヶ月分の年月（`YYYY-MM`）を生成し、選択した物件の `AssetRentTransactions.receivedAmount` を年月ごとに合計 → 月次収入
+- 同様に `AssetExpenses.amount` を年月ごとに合計 → 月次支出
+- 収支 = 収入 − 支出。現時点ではクライアント側で集計（データ量が増えたら専用集計APIを検討）
+- グラフは `@mui/x-charts` の `BarChart` を使用。収入/支出は固定の系列色（青/オレンジ）、収支（黒字/赤字）は色覚多様性検証で緑/赤ペアがCVD閾値を下回ったため、色だけに頼らずゼロ基準線からの向き＋バー直接ラベルで冗長化している
 
 ---
 
@@ -672,7 +680,7 @@ tags: string[],      // サブタスク固有のタグ
 | POST | `/api/UpdateProject` | プロジェクト更新（id必須。更新可能フィールド: name・developer・spreadsheetId・sheetName・headerRows・status） |
 | POST | `/api/DeleteProject` | プロジェクト削除 |
 
-### 資産管理（管理者のみ・フェーズ1テスト環境）
+### 資産管理（管理者のみ・フェーズ1/2テスト環境）
 
 | メソッド | エンドポイント | 説明 |
 |---|---|---|
@@ -692,6 +700,10 @@ tags: string[],      // サブタスク固有のタグ
 | POST | `/api/CreateAssetRentTransaction` | 入出金記録作成（contractId・yearMonth必須） |
 | POST | `/api/UpdateAssetRentTransaction` | 入出金記録更新（id必須） |
 | POST | `/api/DeleteAssetRentTransaction` | 入出金記録削除 |
+| GET | `/api/GetAssetExpenses`（フェーズ2） | 支出一覧取得（対象年月降順） |
+| POST | `/api/CreateAssetExpense`（フェーズ2） | 支出作成（propertyId・yearMonth必須） |
+| POST | `/api/UpdateAssetExpense`（フェーズ2） | 支出更新（id必須） |
+| POST | `/api/DeleteAssetExpense`（フェーズ2） | 支出削除 |
 
 ### ホワイトリスト（管理者のみ）
 
@@ -853,6 +865,25 @@ tags: string[],      // サブタスク固有のタグ
 }
 ```
 
+### 8.9 資産管理: 支出（`AssetExpenses`）（フェーズ2）
+
+```javascript
+{
+  id: string,
+  propertyId: string,            // AssetProperties への参照（必須）
+  category: 'repair' | 'management_fee' | 'insurance' | 'tax' | 'other',
+  yearMonth: string,              // YYYY-MM（必須）
+  amount: number,                 // 支出額
+  paidDate: string,               // YYYY-MM-DD
+  vendor: string,                 // 支払先
+  notes: string,
+  createdAt: string,
+  updatedAt: string,
+  createdBy: string,
+  updatedBy: string | null,
+}
+```
+
 ---
 
 ## 9. Cosmos DB コレクション
@@ -872,6 +903,7 @@ tags: string[],      // サブタスク固有のタグ
 | AssetProperties | `/id` | 資産管理: 物件台帳（env: `COSMOS_ASSET_PROPERTIES_CONTAINER`、フェーズ1テスト環境） |
 | AssetContracts | `/id` | 資産管理: 賃貸契約（env: `COSMOS_ASSET_CONTRACTS_CONTAINER`、フェーズ1テスト環境） |
 | AssetRentTransactions | `/id` | 資産管理: 賃料入出金記録（env: `COSMOS_ASSET_RENT_TRANSACTIONS_CONTAINER`、フェーズ1テスト環境） |
+| AssetExpenses | `/id` | 資産管理: 支出記録（env: `COSMOS_ASSET_EXPENSES_CONTAINER`、フェーズ2テスト環境） |
 
 ---
 

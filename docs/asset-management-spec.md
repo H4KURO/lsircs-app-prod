@@ -1,4 +1,4 @@
-# 資産管理CRM 仕様書（フェーズ1）
+# 資産管理CRM 仕様書（フェーズ1/2）
 
 > **この文書について**: 資産管理CRM機能の詳細仕様。将来的なマニュアル作成のベース資料として、
 > **常に最新かつ正しい状態を先頭に記載**し、過去の変更点は末尾の「変更履歴」にまとめる。
@@ -10,17 +10,18 @@
 
 | 項目 | 内容 |
 |---|---|
-| ステータス | フェーズ1実装済み・テスト環境で検証中 |
+| ステータス | フェーズ1・フェーズ2実装済み・テスト環境で検証中 |
 | 公開範囲 | 管理者ユーザーのみ（`accessStatus.isAdmin`） |
-| 画面 | `AssetManagementView`（4タブ構成） |
+| 画面 | `AssetManagementView`（6タブ構成） |
 | 送金・決済 | 行わない（記録・集計のみ） |
 | ブランチ | `claude/crm-asset-management-system-0bs8i0`（main未マージ） |
+| 新規依存 | `@mui/x-charts`（収支ダッシュボードのグラフ描画、フェーズ2で追加） |
 
 ---
 
 ## 1. 画面構成
 
-ナビゲーションアイコン「資産管理（テスト）」（管理者のみ表示）→ `AssetManagementView.jsx` が4タブを管理。
+ナビゲーションアイコン「資産管理（テスト）」（管理者のみ表示）→ `AssetManagementView.jsx` が6タブを管理。
 
 | タブ | コンポーネント | 概要 |
 |---|---|---|
@@ -28,13 +29,16 @@
 | オーナー | `AssetOwnersTab.jsx` | オーナー台帳。連絡先・振込先銀行情報 |
 | 契約 | `AssetContractsTab.jsx` | 賃貸契約。物件・入居者・賃料・管理費・敷金・契約期間・ステータス |
 | 賃料入出金 | `AssetRentTransactionsTab.jsx` | 月次の入金予定額・入金実績・オーナー送金予定額の記録 |
+| 支出（フェーズ2） | `AssetExpensesTab.jsx` | 物件ごとの支出記録。科目（修繕費/管理委託手数料/保険料/固定資産税/その他）・金額・支払日・支払先 |
+| 収支ダッシュボード（フェーズ2） | `AssetFinancialDashboardTab.jsx` | 物件を選択し、直近12ヶ月の月次収入・支出・収支をグラフ＋一覧表で可視化 |
 
-各タブは一覧テーブル＋追加・編集ダイアログ＋削除ボタンのCRUD UI（既存の`ProjectsView`と同じパターン）。参照データ（オーナー・物件・契約）は`AssetManagementView`がマウント時に先読みし、タブをまたいでプルダウン選択に利用する。
+各タブは一覧テーブル＋追加・編集ダイアログ＋削除ボタンのCRUD UI（既存の`ProjectsView`と同じパターン）。参照データ（オーナー・物件・契約）は`AssetManagementView`がマウント時に先読みし、タブをまたいでプルダウン選択に利用する。収支ダッシュボードは独自に`AssetRentTransactions`と`AssetExpenses`を取得して集計する。
 
 ### エンティティの関連
 
 ```
 オーナー (1) ── (N) 物件 ── (N) 契約 ── (N) 賃料入出金（月次）
+                     └── (N) 支出（月次）
 ```
 
 ## 2. データモデル
@@ -94,6 +98,19 @@
 | status | enum | `unpaid`(未入金) / `partial`(一部入金) / `paid`(入金済み) |
 | notes | string | 備考 |
 
+### 2.5 支出（Cosmos DB: `AssetExpenses`）（フェーズ2）
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| id | string | ドキュメントID |
+| propertyId | string | 物件への参照（必須） |
+| category | enum | `repair`(修繕費) / `management_fee`(管理委託手数料) / `insurance`(保険料) / `tax`(固定資産税) / `other`(その他) |
+| yearMonth | string | 対象年月（YYYY-MM、必須） |
+| amount | number | 支出額（円） |
+| paidDate | string | 支払日（YYYY-MM-DD） |
+| vendor | string | 支払先 |
+| notes | string | 備考 |
+
 ## 3. APIエンドポイント
 
 全て `x-ms-client-principal` ヘッダーによる認証必須（未ログイン時 401）。一覧取得はGET、作成・更新・削除はPOST。
@@ -104,8 +121,11 @@
 | 物件 | `GetAssetProperties` | `CreateAssetProperty` | `UpdateAssetProperty` | `DeleteAssetProperty` |
 | 契約 | `GetAssetContracts` | `CreateAssetContract` | `UpdateAssetContract` | `DeleteAssetContract` |
 | 賃料入出金 | `GetAssetRentTransactions` | `CreateAssetRentTransaction` | `UpdateAssetRentTransaction` | `DeleteAssetRentTransaction` |
+| 支出（フェーズ2） | `GetAssetExpenses` | `CreateAssetExpense` | `UpdateAssetExpense` | `DeleteAssetExpense` |
 
 更新・削除は `id` 必須。作成時の必須フィールドは各データモデル表の「（必須）」記載の通り。
+
+> **実装上の注意（フェーズ1で発生した不具合）**: 各エンティティの`Create*`系APIは、Cosmos DBのコンテナが未作成でも自動作成されるよう`cosmosClient.js`の`ensureNamedContainer`（存在しなければ作成）を使うこと。当初`getNamedContainer`（既存前提の参照のみ）を使っていたため、初回投入時にコンテナが存在せず全件500エラーになる不具合が発生した（プレビュー環境でのテストデータ投入時に発覚・修正済み）。
 
 ## 4. アクセス制御
 
@@ -117,7 +137,17 @@
 
 - **実際の送金・決済は一切行わない**。`ownerPayoutAmount` 等はあくまで記録・集計項目
 - テスト環境のため、画面上部に警告バナーを常時表示
-- Azure Static Web Apps のプレビュー環境は現在PRでは自動生成されない設定になっている（2026-07-30時点、`df8d0c1`の変更による）。Azure上での実機能確認は `main` マージ後のみ可能
+- Azure Static Web Apps のプレビュー環境は`main`の方針としては自動生成されない設定（2026-07-30、`df8d0c1`の変更による）。ただしPR #11に限り、動作確認のためワークフローの`build_and_deploy_job`条件を一時的に復活させている（確認完了後にrevert予定。詳細はPR #11のコミット履歴参照）
+- **収支ダッシュボードの配色**: 黒字/赤字を表す緑・赤ペアは、色覚多様性検証（dataviz skillの`validate_palette.js`）でCVD separationが閾値未達（ΔE 4.1）だったため、色のみに依存せずゼロ基準線からの向き＋バー直接ラベルで冗長化している。今後この画面の配色を変更する際は同様に検証すること
+
+## 6. フェーズ2で追加した機能（収支ダッシュボード）
+
+- 新規エンティティ `AssetExpenses`（支出記録）を追加
+- 新規タブ「収支ダッシュボード」（`AssetFinancialDashboardTab.jsx`）を追加。物件を選択すると:
+  1. 月次収入・支出の推移を`@mui/x-charts`のグラフ（棒グラフ、固定系列色: 収入=青`#2a78d6`、支出=オレンジ`#eb6834`）で表示
+  2. 月次収支（黒字/赤字）を別グラフで表示（黒字=緑`#0ca30c`、赤字=赤`#d03b3b`、バーの向き＋直接ラベルで色以外の手がかりも提供）
+  3. 同じデータを一覧表でも表示（アクセシビリティ対応、数値の正確な確認用）
+- 集計は直近12ヶ月分をクライアント側で計算（`AssetRentTransactions.receivedAmount`と`AssetExpenses.amount`を`yearMonth`ごとに合算）。データ量が増えた場合は専用集計APIへの切り出しを検討
 
 ---
 
@@ -126,3 +156,4 @@
 | 日付 | 内容 |
 |---|---|
 | 2026-07-30 | 初版作成。フェーズ1（物件・オーナー・契約・賃料入出金）の画面・API・データモデルを記載 |
+| 2026-07-30 | フェーズ2（支出記録＋収支ダッシュボード）を追加。`ensureNamedContainer`未使用によるコンテナ未作成500エラーの修正、配色のCVD検証結果を記載 |
