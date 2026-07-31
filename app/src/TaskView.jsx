@@ -49,6 +49,7 @@ import BookmarkIcon from '@mui/icons-material/Bookmark';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import GridViewIcon from '@mui/icons-material/GridView';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
+import CloseIcon from '@mui/icons-material/Close';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import { TaskDetailModal } from './TaskDetailModal';
 import { TaskTimelineView } from './TaskTimelineView';
@@ -2654,17 +2655,28 @@ const renderListLayout = () => {
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>保存済みビュー</Typography>
               <Stack direction="row" flexWrap="wrap" gap={0.75}>
                 {savedViews.map((view) => (
-                  <Chip
+                  <Box
                     key={view.id}
-                    label={view.name}
-                    icon={<BookmarkIcon sx={{ fontSize: '0.9rem !important' }} />}
-                    size="small"
                     onClick={() => handleApplySavedView(view)}
-                    onDelete={() => handleDeleteSavedView(view.id)}
-                    variant="outlined"
-                    color="primary"
-                    sx={{ cursor: 'pointer' }}
-                  />
+                    sx={{
+                      display: 'inline-flex', alignItems: 'center', gap: 0.5,
+                      border: '1px solid', borderColor: 'primary.main', borderRadius: 4,
+                      px: 1, py: 0.25, cursor: 'pointer',
+                      '&:hover': { bgcolor: 'primary.main', '& *': { color: '#fff' } },
+                      transition: 'background-color 0.15s',
+                    }}
+                  >
+                    <BookmarkIcon sx={{ fontSize: '0.85rem', color: 'primary.main' }} />
+                    <Typography variant="caption" sx={{ color: 'primary.main', lineHeight: 1.5 }}>{view.name}</Typography>
+                    <IconButton
+                      size="small"
+                      sx={{ p: 0.125, ml: 0.25, color: 'primary.main' }}
+                      onClick={(e) => { e.stopPropagation(); handleDeleteSavedView(view.id); }}
+                      aria-label={`${view.name}を削除`}
+                    >
+                      <CloseIcon sx={{ fontSize: '0.75rem' }} />
+                    </IconButton>
+                  </Box>
                 ))}
               </Stack>
             </Box>
