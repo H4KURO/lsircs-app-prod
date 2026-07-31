@@ -8,6 +8,7 @@ import {
   CircularProgress,
   Alert,
   Button,
+  IconButton,
   Select,
   MenuItem,
   FormControl,
@@ -20,6 +21,9 @@ import {
   TableRow,
 } from '@mui/material';
 import { BarChart } from '@mui/x-charts/BarChart';
+import { DataGrid } from '@mui/x-data-grid';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 
 const API_URL = '/api';
 
@@ -31,8 +35,18 @@ const COLOR_DEFICIT = '#d03b3b';
 
 const MONTHS_BACK = 12;
 
+const EXPENSE_CATEGORIES = [
+  { value: 'repair', label: '修繕費' },
+  { value: 'management_fee', label: '管理委託手数料' },
+  { value: 'insurance', label: '保険料' },
+  { value: 'tax', label: '固定資産税' },
+  { value: 'other', label: 'その他' },
+];
+
 function formatCurrency(value) {
-  return `¥${Number(value || 0).toLocaleString('ja-JP')}`;
+  const num = Number(value || 0);
+  const sign = num < 0 ? '-' : '';
+  return `${sign}¥${Math.abs(num).toLocaleString('ja-JP')}`;
 }
 
 function lastNYearMonths(n) {
@@ -103,6 +117,114 @@ export function AssetFinancialDashboardTab({ properties }) {
   }, [months, transactions, expenses, selectedPropertyId]);
 
   const selectedProperty = properties.find((p) => p.id === selectedPropertyId);
+
+  // ── グリッド式収支入力（年単位、Wealth Park風） ──────────────
+  const [gridYear, setGridYear] = useState(() => new Date().getFullYear());
+  const [gridError, setGridError] = useState('');
+
+  const gridMonths = useMemo(
+    () => Array.from({ length: 12 }, (_, i) => `${gridYear}-${String(i + 1).padStart(2, '0')}`),
+    [gridYear],
+  );
+
+  const gridRows = useMemo(() => {
+    if (!selectedPropertyId) return [];
+
+    const incomeRow = { id: 'income', label: '賃料収入', type: 'income' };
+    gridMonths.forEach((ym, idx) => {
+      incomeRow[`m${idx + 1}`] = transactions
+        .filter((t) => t.propertyId === selectedPropertyId && t.yearMonth === ym)
+        .reduce((sum, t) => sum + (Number(t.receivedAmount) || 0), 0);
+    });
+
+    const expenseRows = EXPENSE_CATEGORIES.map((cat) => {
+      const row = { id: `exp-${cat.value}`, label: cat.label, type: 'expense', category: cat.value };
+      gridMonths.forEach((ym, idx) => {
+        row[`m${idx + 1}`] = expenses
+          .filter((e) => e.propertyId === selectedPropertyId && e.category === cat.value && e.yearMonth === ym)
+          .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+      });
+      return row;
+    });
+
+    const netRow = { id: 'net', label: '収支', type: 'net' };
+    gridMonths.forEach((ym, idx) => {
+      const income = incomeRow[`m${idx + 1}`];
+      const expenseTotal = expenseRows.reduce((sum, r) => sum + (r[`m${idx + 1}`] || 0), 0);
+      netRow[`m${idx + 1}`] = income - expenseTotal;
+    });
+
+    return [incomeRow, ...expenseRows, netRow];
+  }, [gridMonths, transactions, expenses, selectedPropertyId]);
+
+  const gridColumns = useMemo(() => {
+    const monthColumns = gridMonths.map((ym, idx) => ({
+      field: `m${idx + 1}`,
+      headerName: `${idx + 1}月`,
+      width: 100,
+      type: 'number',
+      align: 'right',
+      headerAlign: 'right',
+      valueFormatter: (value) => (value == null ? '' : formatCurrency(value)),
+      // 列単位では true/false しか指定できないため、行ごとの編集可否は DataGrid の isCellEditable prop（グリッドレベル）側で判定する
+      editable: true,
+      cellClassName: (params) => (params.row.type === 'net' && Number(params.value) < 0 ? 'asset-grid-negative' : ''),
+    }));
+
+    return [
+      { field: 'label', headerName: '収支項目', width: 160, sortable: false },
+      ...monthColumns,
+      {
+        field: 'yearTotal',
+        headerName: '年間合計',
+        width: 130,
+        align: 'right',
+        headerAlign: 'right',
+        sortable: false,
+        valueGetter: (_value, row) => gridMonths.reduce((sum, _ym, idx) => sum + (Number(row[`m${idx + 1}`]) || 0), 0),
+        valueFormatter: (value) => formatCurrency(value),
+        cellClassName: (params) => (params.row.type === 'net' && Number(params.value) < 0 ? 'asset-grid-negative' : ''),
+      },
+    ];
+  }, [gridMonths]);
+
+  const handleProcessRowUpdate = useCallback(async (newRow, oldRow) => {
+    if (newRow.type !== 'expense') return oldRow;
+
+    const changedField = Object.keys(newRow).find((key) => /^m\d+$/.test(key) && newRow[key] !== oldRow[key]);
+    if (!changedField) return newRow;
+
+    const monthIndex = Number(changedField.slice(1)) - 1;
+    const yearMonth = gridMonths[monthIndex];
+    const newAmount = Number(newRow[changedField]) || 0;
+    const category = newRow.category;
+
+    setGridError('');
+    try {
+      const existing = expenses.filter(
+        (e) => e.propertyId === selectedPropertyId && e.category === category && e.yearMonth === yearMonth,
+      );
+      if (existing.length > 1) {
+        setGridError(`${yearMonth}の${newRow.label}は複数件登録されているため、グリッドからは編集できません。「支出」タブで編集してください。`);
+        return oldRow;
+      }
+      if (existing.length === 1) {
+        await axios.post(`${API_URL}/UpdateAssetExpense`, { id: existing[0].id, amount: newAmount });
+      } else {
+        await axios.post(`${API_URL}/CreateAssetExpense`, {
+          propertyId: selectedPropertyId,
+          category,
+          yearMonth,
+          amount: newAmount,
+        });
+      }
+      await fetchData();
+      return newRow;
+    } catch (err) {
+      setGridError(err.response?.data?.message || err.response?.data || err.message || '保存に失敗しました');
+      return oldRow;
+    }
+  }, [expenses, gridMonths, selectedPropertyId, fetchData]);
 
   return (
     <Box>
@@ -175,7 +297,7 @@ export function AssetFinancialDashboardTab({ properties }) {
             />
           </Paper>
 
-          <Paper elevation={2} sx={{ p: 2 }}>
+          <Paper elevation={2} sx={{ p: 2, mb: 2 }}>
             <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>一覧表</Typography>
             <TableContainer>
               <Table size="small">
@@ -201,6 +323,46 @@ export function AssetFinancialDashboardTab({ properties }) {
                 </TableBody>
               </Table>
             </TableContainer>
+          </Paper>
+
+          <Paper elevation={2} sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <Typography variant="subtitle2" color="text.secondary">
+                {selectedProperty.name} — 収支入力（グリッド）
+              </Typography>
+              <Box sx={{ flexGrow: 1 }} />
+              <IconButton size="small" onClick={() => setGridYear((y) => y - 1)} aria-label="前年">
+                <ChevronLeftIcon fontSize="small" />
+              </IconButton>
+              <Typography variant="body2" fontWeight={600} sx={{ minWidth: 56, textAlign: 'center' }}>{gridYear}年</Typography>
+              <IconButton size="small" onClick={() => setGridYear((y) => y + 1)} aria-label="翌年">
+                <ChevronRightIcon fontSize="small" />
+              </IconButton>
+            </Box>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+              支出のセルはダブルクリックで直接編集できます（収入・収支は自動計算のため編集不可）
+            </Typography>
+            {gridError && (
+              <Alert severity="error" sx={{ mb: 1 }} onClose={() => setGridError('')}>{gridError}</Alert>
+            )}
+            <Box sx={{ width: '100%', overflowX: 'auto' }}>
+              <DataGrid
+                autoHeight
+                rows={gridRows}
+                columns={gridColumns}
+                hideFooter
+                disableRowSelectionOnClick
+                isCellEditable={(params) => params.row.type === 'expense'}
+                processRowUpdate={handleProcessRowUpdate}
+                onProcessRowUpdateError={(err) => setGridError(err.message || '保存に失敗しました')}
+                getRowClassName={(params) => (params.row.type === 'net' ? 'asset-grid-net-row' : '')}
+                sx={{
+                  minWidth: 1000,
+                  '& .asset-grid-net-row': { fontWeight: 700, bgcolor: 'action.hover' },
+                  '& .asset-grid-negative': { color: 'error.main' },
+                }}
+              />
+            </Box>
           </Paper>
         </>
       ) : null}

@@ -15,7 +15,7 @@
 | 画面 | `AssetManagementView`（6タブ構成） |
 | 送金・決済 | 行わない（記録・集計のみ） |
 | ブランチ | `claude/crm-asset-management-system-0bs8i0`（main未マージ） |
-| 新規依存 | `@mui/x-charts`（収支ダッシュボードのグラフ描画、フェーズ2で追加） |
+| 新規依存 | `@mui/x-charts`（グラフ描画）・`@mui/x-data-grid`（グリッド式収支入力）、いずれもフェーズ2で追加 |
 
 ---
 
@@ -30,7 +30,7 @@
 | 契約 | `AssetContractsTab.jsx` | 賃貸契約。物件・入居者・賃料・管理費・敷金・契約期間・ステータス |
 | 賃料入出金 | `AssetRentTransactionsTab.jsx` | 月次の入金予定額・入金実績・オーナー送金予定額の記録 |
 | 支出（フェーズ2） | `AssetExpensesTab.jsx` | 物件ごとの支出記録。科目（修繕費/管理委託手数料/保険料/固定資産税/その他）・金額・支払日・支払先 |
-| 収支ダッシュボード（フェーズ2） | `AssetFinancialDashboardTab.jsx` | 物件を選択し、直近12ヶ月の月次収入・支出・収支をグラフ＋一覧表で可視化 |
+| 収支ダッシュボード（フェーズ2） | `AssetFinancialDashboardTab.jsx` | 物件を選択し、直近12ヶ月の月次収入・支出・収支をグラフ＋一覧表で可視化。加えてWealth Park風のグリッド式収支入力（年単位、セル編集可）を提供 |
 
 各タブは一覧テーブル＋追加・編集ダイアログ＋削除ボタンのCRUD UI（既存の`ProjectsView`と同じパターン）。参照データ（オーナー・物件・契約）は`AssetManagementView`がマウント時に先読みし、タブをまたいでプルダウン選択に利用する。収支ダッシュボードは独自に`AssetRentTransactions`と`AssetExpenses`を取得して集計する。
 
@@ -149,6 +149,21 @@
   3. 同じデータを一覧表でも表示（アクセシビリティ対応、数値の正確な確認用）
 - 集計は直近12ヶ月分をクライアント側で計算（`AssetRentTransactions.receivedAmount`と`AssetExpenses.amount`を`yearMonth`ごとに合算）。データ量が増えた場合は専用集計APIへの切り出しを検討
 
+## 7. フェーズ2追加機能（グリッド式収支入力）
+
+オーナー様からWealth Parkの収支管理画面（スプレッドシート風グリッド、行=収支項目・列=月）を参考にしたいとの要望を受けて追加。
+
+- `@mui/x-data-grid` の `DataGrid` を使用。ライブラリの列定義(`GridColDef`)は「列単位でtrue/falseのみ」しか`editable`を指定できないため、行ごとの編集可否は**グリッド本体の`isCellEditable` prop**（`(params) => params.row.type === 'expense'`）で判定している。列に`isCellEditable`を書いても無視される点に注意（実装時に踏んだ落とし穴）
+- **行構成**: `賃料収入`（`AssetRentTransactions`集計、編集不可）／支出科目5行（`AssetExpenses`、編集可）／`収支`（自動計算、編集不可）
+- **列構成**: 1月〜12月（`gridYear` stateで年を切替、◀▶ボタン）＋ 年間合計
+- **セル編集の保存ロジック**（`handleProcessRowUpdate`）:
+  1. 対象の物件・科目・年月に一致する`AssetExpenses`レコードを`expenses`ステートから検索
+  2. 0件 → `CreateAssetExpense`で新規作成
+  3. 1件 → `UpdateAssetExpense`でその1件の金額を更新
+  4. 2件以上 → 更新対象を一意に決められないため保存を拒否し、エラーメッセージで「支出」タブでの編集を促す
+  5. 保存成功後は`fetchData()`で収入・支出を再取得し、グリッド自身だけでなく上部のグラフ・一覧表にも即座に反映
+- 収支行の負の値（赤字）はセルに`asset-grid-negative`クラスを付与し赤字色で表示（色覚多様性の観点から、値そのものもマイナス符号付きで表示されるため色だけに依存しない）
+
 ---
 
 ## 変更履歴
@@ -157,3 +172,4 @@
 |---|---|
 | 2026-07-30 | 初版作成。フェーズ1（物件・オーナー・契約・賃料入出金）の画面・API・データモデルを記載 |
 | 2026-07-30 | フェーズ2（支出記録＋収支ダッシュボード）を追加。`ensureNamedContainer`未使用によるコンテナ未作成500エラーの修正、配色のCVD検証結果を記載 |
+| 2026-07-31 | フェーズ2にWealth Park風のグリッド式収支入力（`@mui/x-data-grid`）を追加。行単位の編集可否判定はグリッド本体の`isCellEditable`で行う点を実装メモとして記載 |
