@@ -9,7 +9,7 @@ const templatesContainer = () =>
 app.http('UpdateTaskTemplate', {
   methods: ['PUT'],
   authLevel: 'anonymous',
-  route: 'UpdateTaskTemplate/:id',
+  route: 'UpdateTaskTemplate/{id}',
   handler: async (request, context) => {
     const principal = parseClientPrincipal(request);
     if (!principal) return { status: 401, body: 'Not logged in' };

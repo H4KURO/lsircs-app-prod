@@ -8,7 +8,7 @@ const templatesContainer = () =>
 app.http('DeleteTaskTemplate', {
   methods: ['DELETE'],
   authLevel: 'anonymous',
-  route: 'DeleteTaskTemplate/:id',
+  route: 'DeleteTaskTemplate/{id}',
   handler: async (request, context) => {
     const principal = parseClientPrincipal(request);
     if (!principal) return { status: 401, body: 'Not logged in' };

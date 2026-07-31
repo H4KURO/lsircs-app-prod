@@ -9,7 +9,7 @@ const {
 app.http('DeleteSavedView', {
   methods: ['DELETE'],
   authLevel: 'anonymous',
-  route: 'DeleteSavedView/:id',
+  route: 'DeleteSavedView/{id}',
   handler: async (request, context) => {
     const principal = parseClientPrincipal(request);
     if (!principal) return { status: 401, body: 'Not logged in' };

@@ -301,7 +301,7 @@
       "allowedRoles": ["anonymous"]
     },
     {
-      "route": "/api/DeleteSavedView/:id",
+      "route": "/api/DeleteSavedView/{id}",
       "methods": ["DELETE"],
       "allowedRoles": ["anonymous"]
     },
@@ -315,12 +315,12 @@
       "allowedRoles": ["anonymous"]
     },
     {
-      "route": "/api/UpdateTaskTemplate/:id",
+      "route": "/api/UpdateTaskTemplate/{id}",
       "methods": ["PUT"],
       "allowedRoles": ["anonymous"]
     },
     {
-      "route": "/api/DeleteTaskTemplate/:id",
+      "route": "/api/DeleteTaskTemplate/{id}",
       "methods": ["DELETE"],
       "allowedRoles": ["anonymous"]
     },
