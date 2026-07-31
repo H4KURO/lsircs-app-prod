@@ -2282,6 +2282,17 @@ const renderListLayout = () => {
         const imp = task.importance ?? 1;
         key = String(imp);
         label = imp === 2 ? '重要度: 高' : imp === 1 ? '重要度: 中' : '重要度: 低';
+      } else if (groupBy === 'status') {
+        key = task.status || 'Started';
+        label = STATUS_LABEL_JA[key] ?? key;
+      } else if (groupBy === 'assignee') {
+        key = task.assignees?.[0] || UNASSIGNED_ASSIGNEE_KEY;
+        label = key === UNASSIGNED_ASSIGNEE_KEY ? UNASSIGNED_ASSIGNEE_LABEL : key;
+      } else if (groupBy === 'tag') {
+        key = (Array.isArray(task.tags) && task.tags.length > 0) ? task.tags[0] : DEFAULT_TAG_LABEL;
+        label = key === DEFAULT_TAG_LABEL ? 'タグ未設定' : key;
+      } else {
+        return;
       }
       if (!groups.has(key)) groups.set(key, { key, label, tasks: [] });
       groups.get(key).tasks.push(task);
@@ -2706,8 +2717,11 @@ const renderListLayout = () => {
                   onChange={(e) => setSecondaryGroupBy(e.target.value)}
                 >
                   <MenuItem value="">なし</MenuItem>
+                  <MenuItem value="status">ステータス</MenuItem>
                   <MenuItem value="category">カテゴリ</MenuItem>
                   <MenuItem value="importance">重要度</MenuItem>
+                  <MenuItem value="assignee">担当者</MenuItem>
+                  <MenuItem value="tag">タグ</MenuItem>
                 </Select>
               </FormControl>
             )}
