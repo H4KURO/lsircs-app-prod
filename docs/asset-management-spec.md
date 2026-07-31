@@ -1,8 +1,8 @@
-# 資産管理CRM 仕様書（フェーズ1/2）
+# 資産管理CRM 仕様書（フェーズ1/2/3）
 
 > **この文書について**: 資産管理CRM機能の詳細仕様。将来的なマニュアル作成のベース資料として、
 > **常に最新かつ正しい状態を先頭に記載**し、過去の変更点は末尾の「変更履歴」にまとめる。
-> アプリ全体の仕様書は [`/SPEC.md`](../SPEC.md)（5.10・7・8.5-8.8・9節）にも同内容を反映済み。差異が出た場合は本ファイルとSPEC.mdの両方を更新すること。
+> アプリ全体の仕様書は [`/SPEC.md`](../SPEC.md)（5.10・7・8.5-8.11・9節）にも同内容を反映済み。差異が出た場合は本ファイルとSPEC.mdの両方を更新すること。
 
 ---
 
@@ -10,18 +10,18 @@
 
 | 項目 | 内容 |
 |---|---|
-| ステータス | フェーズ1・フェーズ2実装済み・テスト環境で検証中 |
+| ステータス | フェーズ1・2・3実装済み・テスト環境で検証中 |
 | 公開範囲 | 管理者ユーザーのみ（`accessStatus.isAdmin`） |
-| 画面 | `AssetManagementView`（6タブ構成） |
+| 画面 | `AssetManagementView`（7タブ構成） |
 | 送金・決済 | 行わない（記録・集計のみ） |
 | ブランチ | `claude/crm-asset-management-system-0bs8i0`（main未マージ） |
-| 新規依存 | `@mui/x-charts`（グラフ描画）・`@mui/x-data-grid`（グリッド式収支入力）、いずれもフェーズ2で追加 |
+| 新規依存 | `@mui/x-charts`（グラフ描画）・`@mui/x-data-grid`（グリッド式収支入力）、いずれもフェーズ2で追加。フェーズ3は追加ライブラリなし（ポーリング方式） |
 
 ---
 
 ## 1. 画面構成
 
-ナビゲーションアイコン「資産管理（テスト）」（管理者のみ表示）→ `AssetManagementView.jsx` が6タブを管理。
+ナビゲーションアイコン「資産管理（テスト）」（管理者のみ表示）→ `AssetManagementView.jsx` が7タブを管理。
 
 | タブ | コンポーネント | 概要 |
 |---|---|---|
@@ -30,9 +30,10 @@
 | 契約 | `AssetContractsTab.jsx` | 賃貸契約。物件・入居者・賃料・管理費・敷金・契約期間・ステータス |
 | 賃料入出金 | `AssetRentTransactionsTab.jsx` | 月次の入金予定額・入金実績・オーナー送金予定額の記録 |
 | 支出（フェーズ2） | `AssetExpensesTab.jsx` | 物件ごとの支出記録。科目（修繕費/管理委託手数料/保険料/固定資産税/その他）・金額・支払日・支払先 |
-| 収支ダッシュボード（フェーズ2） | `AssetFinancialDashboardTab.jsx` | 物件を選択し、直近12ヶ月の月次収入・支出・収支をグラフ＋一覧表で可視化。加えてWealth Park風のグリッド式収支入力（年単位、セル編集可）を提供 |
+| 収支ダッシュボード（フェーズ2） | `AssetFinancialDashboardTab.jsx` | 物件を選択し、直近12ヶ月の月次収入・支出・収支をグラフ＋一覧表で可視化。加えてWealth Park風のグリッド式収支入力（年単位、賃料収入・支出セルとも編集可）を提供 |
+| チャット（フェーズ3） | `AssetChatTab.jsx` | 社内スタッフ間チャット。スレッド作成（任意で物件と紐づけ）＋メッセージ送受信、5秒ポーリング |
 
-各タブは一覧テーブル＋追加・編集ダイアログ＋削除ボタンのCRUD UI（既存の`ProjectsView`と同じパターン）。参照データ（オーナー・物件・契約）は`AssetManagementView`がマウント時に先読みし、タブをまたいでプルダウン選択に利用する。収支ダッシュボードは独自に`AssetRentTransactions`と`AssetExpenses`を取得して集計する。
+各タブは一覧テーブル＋追加・編集ダイアログ＋削除ボタンのCRUD UI（既存の`ProjectsView`と同じパターン）。参照データ（オーナー・物件・契約）は`AssetManagementView`がマウント時に先読みし、タブをまたいでプルダウン選択に利用する。収支ダッシュボードは独自に`AssetRentTransactions`と`AssetExpenses`を取得して集計する。チャットは独自に`GetUserProfile`（自分の表示名取得）・`AssetChatThreads`・`AssetChatMessages`を取得する。
 
 ### エンティティの関連
 
@@ -111,6 +112,28 @@
 | vendor | string | 支払先 |
 | notes | string | 備考 |
 
+### 2.6 チャットスレッド（Cosmos DB: `AssetChatThreads`）（フェーズ3）
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| id | string | ドキュメントID |
+| type | enum | `staff`固定（フェーズ4で`owner`/`customer`を追加予定） |
+| title | string | スレッド名（必須） |
+| relatedPropertyId | string\|null | 物件への参照（任意） |
+| createdAt / updatedAt | string | 監査項目。`updatedAt`は最新メッセージ送信時に更新（一覧の並び替えに使用） |
+| createdBy | string | 作成者メールアドレス |
+
+### 2.7 チャットメッセージ（Cosmos DB: `AssetChatMessages`）（フェーズ3）
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| id | string | ドキュメントID |
+| threadId | string | スレッドへの参照（必須） |
+| senderEmail | string | 投稿者メールアドレス（削除権限の判定に使用） |
+| senderName | string | 表示名（`displayName`、無ければメールアドレス） |
+| body | string | メッセージ本文（必須） |
+| createdAt | string | 送信日時 |
+
 ## 3. APIエンドポイント
 
 全て `x-ms-client-principal` ヘッダーによる認証必須（未ログイン時 401）。一覧取得はGET、作成・更新・削除はPOST。
@@ -124,6 +147,17 @@
 | 支出（フェーズ2） | `GetAssetExpenses` | `CreateAssetExpense` | `UpdateAssetExpense` | `DeleteAssetExpense` |
 
 更新・削除は `id` 必須。作成時の必須フィールドは各データモデル表の「（必須）」記載の通り。
+
+**チャット関連（フェーズ3）**は他エンティティと形が異なるため別掲:
+
+| メソッド | エンドポイント | 説明 |
+|---|---|---|
+| GET | `GetAssetChatThreads` | スレッド一覧取得（最終更新降順） |
+| POST | `CreateAssetChatThread` | スレッド作成（title必須） |
+| POST | `DeleteAssetChatThread` | スレッド削除（所属メッセージも削除） |
+| GET | `GetAssetChatMessages` | メッセージ一覧取得（`?threadId=xxx`必須、作成日時昇順） |
+| POST | `CreateAssetChatMessage` | メッセージ送信（threadId・body必須） |
+| POST | `DeleteAssetChatMessage` | メッセージ削除（投稿者本人のみ、`senderEmail`が一致しないと403） |
 
 > **実装上の注意（フェーズ1で発生した不具合）**: 各エンティティの`Create*`系APIは、Cosmos DBのコンテナが未作成でも自動作成されるよう`cosmosClient.js`の`ensureNamedContainer`（存在しなければ作成）を使うこと。当初`getNamedContainer`（既存前提の参照のみ）を使っていたため、初回投入時にコンテナが存在せず全件500エラーになる不具合が発生した（プレビュー環境でのテストデータ投入時に発覚・修正済み）。
 
@@ -170,6 +204,17 @@
 - 保存成功後は`fetchData()`で収入・支出を再取得し、グリッド自身だけでなく上部のグラフ・一覧表にも即座に反映
 - 収支行の負の値（赤字）はセルに`asset-grid-negative`クラスを付与し赤字色で表示（色覚多様性の観点から、値そのものもマイナス符号付きで表示されるため色だけに依存しない）
 
+## 8. フェーズ3追加機能（社内チャット）
+
+オーナー様の「チャット機能は将来実装前提で枠組みだけ作っておきたい／テスト環境で無料で試せるなら今から実装してほしい」という要望に対し、企画部の技術調査（Wealth Park・GMO賃貸DXともにチャットを主要コミュニケーション手段として提供）を踏まえ、**社内スタッフ間チャットに絞って実装**（オーナー・顧客向けはフェーズ4）。
+
+- **リアルタイム性の実現方法**: Azure SignalR Service等の追加リソースは使わず、**5秒間隔のポーリング**（`AssetChatTab.jsx`の`useEffect`内`setInterval`で`GetAssetChatThreads`/`GetAssetChatMessages`を定期呼び出し）で実現。既存のCosmos DB + Azure Functions構成のまま追加費用なしで動作する
+- **画面構成**: 左ペインにスレッド一覧（＋新規作成ボタン）、右ペインに選択中スレッドのメッセージ表示＋送信欄（LINE/Slack風の吹き出しUI、自分の発言は右寄せ・色反転）
+- **送信者表示名**: フロントエンドが`GetUserProfile`で自分の`displayName`を取得し、メッセージ送信時に`senderName`としてリクエストに含める（未設定ならメールアドレスにフォールバック）。サーバー側は`x-ms-client-principal`から取れる`userDetails`（メールアドレス）を`senderEmail`として真正性の判定に使う
+- **メッセージ削除**: `senderEmail`が一致する自分の投稿のみ削除可能（他人の発言は削除ボタン自体を表示しない＋サーバー側でも403で拒否する二重チェック）
+- **スレッドと物件の紐づけ**: スレッド作成時に任意で`relatedPropertyId`を指定可能。物件に関する相談用スレッドなどを想定しているが、必須ではない（`null`可）
+- **スレッド削除**: `DeleteAssetChatThread`はスレッド本体に加えて、そのスレッドに属する全メッセージも合わせて削除する
+
 ---
 
 ## 変更履歴
@@ -180,3 +225,4 @@
 | 2026-07-30 | フェーズ2（支出記録＋収支ダッシュボード）を追加。`ensureNamedContainer`未使用によるコンテナ未作成500エラーの修正、配色のCVD検証結果を記載 |
 | 2026-07-31 | フェーズ2にWealth Park風のグリッド式収支入力（`@mui/x-data-grid`）を追加。行単位の編集可否判定はグリッド本体の`isCellEditable`で行う点を実装メモとして記載 |
 | 2026-07-31 | 賃料収入行もグリッドから編集可能に変更。契約・記録の件数に応じた安全な更新/新規作成/拒否ロジックを追加 |
+| 2026-07-31 | フェーズ3（社内チャットの土台）を追加。`AssetChatThreads`/`AssetChatMessages`の2コレクション、5秒ポーリング方式、自分の投稿のみ削除可能な権限モデルを記載 |

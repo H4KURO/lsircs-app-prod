@@ -8,6 +8,7 @@ import { AssetContractsTab } from './AssetContractsTab';
 import { AssetRentTransactionsTab } from './AssetRentTransactionsTab';
 import { AssetExpensesTab } from './AssetExpensesTab';
 import { AssetFinancialDashboardTab } from './AssetFinancialDashboardTab';
+import { AssetChatTab } from './AssetChatTab';
 
 const API_URL = '/api';
 
@@ -40,6 +41,7 @@ export function AssetManagementView() {
         <Tab label="賃料入出金" />
         <Tab label="支出" />
         <Tab label="収支ダッシュボード" />
+        <Tab label="チャット" />
       </Tabs>
 
       {tab === 0 && <AssetPropertiesTab owners={owners} onPropertiesChange={setProperties} />}
@@ -48,6 +50,7 @@ export function AssetManagementView() {
       {tab === 3 && <AssetRentTransactionsTab contracts={contracts} properties={properties} />}
       {tab === 4 && <AssetExpensesTab properties={properties} />}
       {tab === 5 && <AssetFinancialDashboardTab properties={properties} contracts={contracts} />}
+      {tab === 6 && <AssetChatTab properties={properties} />}
     </Box>
   );
 }
