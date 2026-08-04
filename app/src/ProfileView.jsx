@@ -9,15 +9,15 @@ const API_URL = '/api';
 export function ProfileView() {
   const [profile, setProfile] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [slackOauthStatus, setSlackOauthStatus] = useState(null); // 'success' | 'error' | 'cancelled'
+  const [slackOauthStatus, setSlackOauthStatus] = useState(null);
+  const [manualSlackId, setManualSlackId] = useState('');
+  const [slackIdSaving, setSlackIdSaving] = useState(false);
 
   useEffect(() => {
-    // URLパラメータでOAuth結果を確認
     const params = new URLSearchParams(window.location.search);
     const oauthResult = params.get('slack_oauth');
     if (oauthResult) {
       setSlackOauthStatus(oauthResult);
-      // URLからパラメータを除去
       const url = new URL(window.location.href);
       url.searchParams.delete('slack_oauth');
       window.history.replaceState({}, '', url.toString());
@@ -50,8 +50,20 @@ export function ProfileView() {
       });
   };
 
-  const handleSlackLink = () => {
-    window.location.href = `${API_URL}/SlackOAuthStart`;
+  const handleSlackIdSave = () => {
+    const id = manualSlackId.trim();
+    if (!id) return;
+    setSlackIdSaving(true);
+    axios.put(`${API_URL}/UpdateUserProfile`, { displayName: profile.displayName, slackMemberId: id })
+      .then(res => {
+        setProfile(res.data);
+        setManualSlackId('');
+      })
+      .catch(err => {
+        console.error('Failed to save Slack Member ID', err);
+        alert('エラー：保存に失敗しました。');
+      })
+      .finally(() => setSlackIdSaving(false));
   };
 
   const handleSlackUnlink = () => {
@@ -120,7 +132,7 @@ export function ProfileView() {
 
         <Typography variant="subtitle1" gutterBottom>Slack連携</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          連携すると、コメントで@メンションされたときにSlackのDMや通知チャンネルに個人宛の通知が届きます。
+          連携すると、コメントで@メンションされたときにSlackに個人宛の通知が届きます。
         </Typography>
 
         {isSlackLinked ? (
@@ -135,19 +147,32 @@ export function ProfileView() {
             </Button>
           </Box>
         ) : (
-          <Button
-            variant="outlined"
-            onClick={handleSlackLink}
-            startIcon={
-              <Box component="img"
-                src="https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png"
-                sx={{ width: 18, height: 18 }}
-                onError={(e) => { e.target.style.display = 'none'; }}
+          <Box>
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              SlackメンバーIDを入力して連携できます。
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+              確認方法：Slackでプロフィールを開く → 「...」メニュー → 「メンバーIDをコピー」（例：U0AB12CDE）
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+              <TextField
+                label="Slack メンバーID"
+                placeholder="U0AB12CDE"
+                value={manualSlackId}
+                onChange={(e) => setManualSlackId(e.target.value)}
+                size="small"
+                sx={{ flexGrow: 1 }}
               />
-            }
-          >
-            Slackアカウントと連携する
-          </Button>
+              <Button
+                variant="contained"
+                onClick={handleSlackIdSave}
+                disabled={!manualSlackId.trim() || slackIdSaving}
+                sx={{ mt: 0.5 }}
+              >
+                保存
+              </Button>
+            </Box>
+          </Box>
         )}
       </Paper>
     </Box>

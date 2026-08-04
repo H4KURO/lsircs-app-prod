@@ -48,6 +48,8 @@ app.http('UpdateUserProfile', {
 
       if (updates?.unlinkSlack === true) {
         delete updatedProfile.slackMemberId;
+      } else if (typeof updates?.slackMemberId === 'string' && updates.slackMemberId.trim()) {
+        updatedProfile.slackMemberId = updates.slackMemberId.trim();
       }
       const { resource } = await container
         .item(userId, userId)
