@@ -339,6 +339,11 @@
       "allowedRoles": ["anonymous"]
     },
     {
+      "route": "/api/DeadlineReminder",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
       "route": "/api/AppendSheetRow",
       "methods": [
         "POST"
@@ -366,9 +371,13 @@
       ]
     }
   ],
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": ["/api/*", "/*.{js,css,png,jpg,gif,ico,svg,woff,woff2,ttf,eot,json}"]
+  },
   "responseOverrides": {
     "401": {
-      "redirect": "/login",
+      "redirect": "/.auth/login/aad",
       "statusCode": 302
     }
   },

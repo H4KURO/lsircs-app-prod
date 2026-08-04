@@ -1,7 +1,7 @@
 # lsir-cs アプリケーション仕様書
 
 > **メンテナンス注意**: このファイルはアプリ変更のたびに更新すること（CLAUDE.md 参照）。  
-> 最終更新: 2026-07-30（Phase 4: リッチテキストエディター・ギャラリービュー・コメントスレッド返信）
+> 最終更新: 2026-08-04（Slack手動メンバーID連携・セカンダリグループby保存・期限リマインダーAPI・SWAナビゲーションフォールバック修正）
 
 ---
 
@@ -568,6 +568,7 @@ tags: string[],      // サブタスク固有のタグ
 | DELETE | `/api/DeleteTask/{id}` | タスク削除 |
 | POST | `/api/AddTaskComment` | タスクにコメント追加 |
 | DELETE | `/api/DeleteTaskComment` | タスクのコメント削除 |
+| POST | `/api/DeadlineReminder` | 期限リマインダー送信（n8n呼び出し用、`x-n8n-secret-key` 認証） |
 
 ### ユーザー・プロファイル
 
@@ -750,11 +751,15 @@ tags: string[],      // サブタスク固有のタグ
 - **Slack スラッシュコマンド**: `/api/SlackCommand` で受信
 - **タスク作成**: コマンドからタスクを Cosmos DB に追加
 - **ステータス変更通知**: タスク更新時に Slack チャンネルへ通知
+- **コメントメンション通知**: コメントで `@担当者名` を記載すると、対象者の Slack アカウントへダイレクトメンション通知（`slackMemberId` 連携時）
+- **期限リマインダー**: `/api/DeadlineReminder` (POST) — n8n から定期呼び出し。指定日数以内に期限を迎えるタスクの担当者へ Slack メンション付き通知。`x-n8n-secret-key` ヘッダー認証必須。`daysAhead` パラメータで通知対象日数を指定（デフォルト3日）
+- **Slack メンバーID連携**: プロファイル画面でユーザー自身が Slack メンバーID（例: `U0AB12CDE`）を手入力して連携。Users コレクションの `slackMemberId` フィールドに保存
 
 **必要な環境変数**:
 - `SLACK_BOT_TOKEN`
 - `SLACK_SIGNING_SECRET`
 - `SLACK_CHANNEL_ID`
+- `APP_BASE_URL`（タスクリンク生成用）
 
 ### 10.2 AI タスク生成（メールインポート）
 
@@ -839,7 +844,7 @@ git push origin main
 
 | 機能 | ステータス | 概要 |
 |---|---|---|
-| カスタムビュー保存 | 実装中 | フィルター状態（layout/sortMode/selectedCategories/selectedAssignees）を名前付きで保存し、ワンクリックで切り替え。savedViews はユーザープロファイル（Users コレクション）に保存。API: GetSavedViews / SaveView / DeleteSavedView/{id} |
+| カスタムビュー保存 | 実装済 | フィルター状態（layout/sortMode/selectedCategories/selectedAssignees/kanbanGroupBy/secondaryGroupBy 等）を名前付きで保存し、ワンクリックで切り替え。savedViews はユーザープロファイル（Users コレクション）に保存。API: GetSavedViews / SaveView / DeleteSavedView/{id} |
 | タスクテンプレート | 実装中 | よく使うタスク構成（サブタスク・カテゴリ・タグ）をテンプレートとして保存し、新規タスク作成時に適用。新規 Cosmos コレクション `TaskTemplates`。API: GetTaskTemplates / CreateTaskTemplate / UpdateTaskTemplate/{id} / DeleteTaskTemplate/{id} |
 | タイムライン表示 | 完了 | ガントチャート形式でタスクをカテゴリ別に表示。期限・開始日に基づくバー表示。今日ライン・期限超過ハイライト・クリックで編集。ビュー選択から「タイムライン（ガント）」を選択。`TaskTimelineView.jsx` |
 | タスク依存関係 | 完了 | タスク詳細モーダルで「依存関係」セクションを追加。`blockedBy: string[]` フィールドでブロッカータスクを指定。タスクカードに「ブロック中 (N)」バッジを表示。 |
