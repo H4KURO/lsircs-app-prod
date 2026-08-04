@@ -292,6 +292,16 @@
       "allowedRoles": ["anonymous"]
     },
     {
+      "route": "/api/SlackOAuthStart",
+      "methods": ["GET"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/SlackOAuthCallback",
+      "methods": ["GET"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
       "route": "/api/GetSavedViews",
       "allowedRoles": ["anonymous"]
     },

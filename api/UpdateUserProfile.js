@@ -44,6 +44,11 @@ app.http('UpdateUserProfile', {
 
       const now = new Date().toISOString();
       const updatedProfile = { ...existing, displayName, updatedAt: now };
+
+      // Slack連携解除（unlinkSlack: true が送られた場合）
+      if (updates?.unlinkSlack === true) {
+        delete updatedProfile.slackMemberId;
+      }
       const { resource } = await container
         .item(userId, userId)
         .replace(updatedProfile, { disableAutomaticIdGeneration: true });
