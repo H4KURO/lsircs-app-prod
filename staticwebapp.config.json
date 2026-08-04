@@ -292,6 +292,10 @@
       "allowedRoles": ["anonymous"]
     },
     {
+      "route": "/api/SlackTest",
+      "allowedRoles": ["anonymous"]
+    },
+    {
       "route": "/api/SlackOAuthStart",
       "methods": ["GET"],
       "allowedRoles": ["anonymous"]
