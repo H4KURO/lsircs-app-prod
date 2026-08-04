@@ -45,6 +45,7 @@ app.http('SaveView', {
       categoryTaskOrder: body.categoryTaskOrder || 'progress',
       kanbanGroupBy: ALLOWED_KANBAN_GROUP_BY.has(body.kanbanGroupBy) ? body.kanbanGroupBy : 'status',
       secondaryGroupBy: ALLOWED_SECONDARY_GROUP_BY.has(body.secondaryGroupBy) ? body.secondaryGroupBy : '',
+      kanbanColumnOrder: sanitizeStringArray(body.kanbanColumnOrder),
       createdAt: new Date().toISOString(),
     };
 
