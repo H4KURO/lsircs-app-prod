@@ -1,9 +1,11 @@
 const { app } = require('@azure/functions');
+const axios = require('axios');
 const { usersContainer, readUserProfile } = require('./userProfileStore');
 
 app.http('SlackOAuthCallback', {
   methods: ['GET'],
   authLevel: 'anonymous',
+  route: 'SlackOAuthCallback',
   handler: async (request, context) => {
     const baseUrl = process.env.APP_BASE_URL || '';
     const clientId = process.env.SLACK_CLIENT_ID;
@@ -21,28 +23,32 @@ app.http('SlackOAuthCallback', {
     if (error || !code || !state) return failRedirect('cancelled');
     if (!clientId || !clientSecret) return failRedirect('not_configured');
 
-    // stateからuserIdを復元
     let userId;
     try {
       const decoded = JSON.parse(Buffer.from(state, 'base64url').toString());
       userId = decoded?.userId;
-    } catch {
+    } catch (e) {
+      context.log('SlackOAuthCallback state decode error', e?.message);
       return failRedirect('invalid_state');
     }
     if (!userId) return failRedirect('invalid_state');
 
-    // Slackのcodeをtokenに交換
     const redirectUri = `${baseUrl}/api/SlackOAuthCallback`;
     let tokenData;
     try {
-      const res = await fetch('https://slack.com/api/oauth.v2.access', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, code, redirect_uri: redirectUri }),
+      const params = new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        code,
+        redirect_uri: redirectUri,
       });
-      tokenData = await res.json();
+      const { data } = await axios.post('https://slack.com/api/oauth.v2.access', params.toString(), {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        timeout: 8000,
+      });
+      tokenData = data;
     } catch (fetchErr) {
-      context.log('SlackOAuthCallback fetch error', fetchErr);
+      context.log('SlackOAuthCallback token exchange error', fetchErr?.message);
       return failRedirect('error');
     }
 
@@ -54,7 +60,6 @@ app.http('SlackOAuthCallback', {
     const slackMemberId = tokenData.authed_user?.id;
     if (!slackMemberId) return failRedirect('error');
 
-    // Cosmos DBのユーザープロフィールにslackMemberIdを保存
     try {
       const container = await usersContainer();
       const existing = await readUserProfile(container, userId);
@@ -63,7 +68,7 @@ app.http('SlackOAuthCallback', {
       const updated = { ...existing, slackMemberId, updatedAt: new Date().toISOString() };
       await container.item(userId, userId).replace(updated, { disableAutomaticIdGeneration: true });
     } catch (dbErr) {
-      context.log('SlackOAuthCallback DB error', dbErr);
+      context.log('SlackOAuthCallback DB error', dbErr?.message);
       return failRedirect('error');
     }
 

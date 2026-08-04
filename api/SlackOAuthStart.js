@@ -4,6 +4,7 @@ const { parseClientPrincipal, getPrincipalUserId } = require('./userProfileStore
 app.http('SlackOAuthStart', {
   methods: ['GET'],
   authLevel: 'anonymous',
+  route: 'SlackOAuthStart',
   handler: async (request, context) => {
     const principal = parseClientPrincipal(request);
     if (!principal) return { status: 401, body: 'Not logged in' };
