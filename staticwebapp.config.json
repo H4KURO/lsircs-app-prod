@@ -83,6 +83,7 @@
     },
     {
       "route": "/api/GetTasks",
+      "methods": ["GET", "POST"],
       "allowedRoles": [
         "anonymous"
       ]
@@ -292,6 +293,20 @@
       "allowedRoles": ["anonymous"]
     },
     {
+      "route": "/api/SlackTest",
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/SlackOAuthStart",
+      "methods": ["GET"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/SlackOAuthCallback",
+      "methods": ["GET"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
       "route": "/api/GetSavedViews",
       "allowedRoles": ["anonymous"]
     },
@@ -301,7 +316,7 @@
       "allowedRoles": ["anonymous"]
     },
     {
-      "route": "/api/DeleteSavedView/:id",
+      "route": "/api/DeleteSavedView/{id}",
       "methods": ["DELETE"],
       "allowedRoles": ["anonymous"]
     },
@@ -315,12 +330,12 @@
       "allowedRoles": ["anonymous"]
     },
     {
-      "route": "/api/UpdateTaskTemplate/:id",
+      "route": "/api/UpdateTaskTemplate/{id}",
       "methods": ["PUT"],
       "allowedRoles": ["anonymous"]
     },
     {
-      "route": "/api/DeleteTaskTemplate/:id",
+      "route": "/api/DeleteTaskTemplate/{id}",
       "methods": ["DELETE"],
       "allowedRoles": ["anonymous"]
     },
@@ -352,9 +367,13 @@
       ]
     }
   ],
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": ["/api/*", "/*.{js,css,png,jpg,gif,ico,svg,woff,woff2,ttf,eot,json}"]
+  },
   "responseOverrides": {
     "401": {
-      "redirect": "/login",
+      "redirect": "/.auth/login/aad",
       "statusCode": 302
     }
   },

@@ -1,7 +1,7 @@
 # lsir-cs アプリケーション仕様書
 
 > **メンテナンス注意**: このファイルはアプリ変更のたびに更新すること（CLAUDE.md 参照）。  
-> 最終更新: 2026-07-31（main の Phase 4: リッチテキストエディター・ギャラリービュー・コメントスレッド返信 を取り込み。加えて資産管理CRM フェーズ1・2・3（テスト環境・管理者限定、支出記録＋物件別収支ダッシュボード＋Wealth Park風グリッド式収支入力＋社内チャットの土台＋契約書類フォルダ（Box等）リンク保存を追加）を `claude/crm-asset-management-system-0bs8i0` ブランチに追加。資産管理部分は main 未マージ）
+> 最終更新: 2026-08-05（main の Slack手動メンバーID連携・セカンダリグループby保存・期限リマインダーAPI・SWAナビゲーションフォールバック修正 を取り込み。加えて資産管理CRM フェーズ1・2・3（テスト環境・管理者限定、支出記録＋物件別収支ダッシュボード＋Wealth Park風グリッド式収支入力＋社内チャットの土台＋契約書類フォルダ（Box等）リンク保存を追加）を `claude/crm-asset-management-system-0bs8i0` ブランチに追加。資産管理部分は main 未マージ）
 
 ---
 
@@ -205,6 +205,7 @@ lsircs-app-prod/
 |---|---|---|
 | カンバン | `status` | Trello スタイル横並び列。ステータスごとに固定幅260px・独立スクロール。コンパクトカード表示（タイトル・期限・担当者チップ・サブタスク進捗バー） |
 | リスト | `list` | 左列: ステータスグループ化リスト、右パネル: 選択タスクの詳細（スティッキー）。クリックで詳細パネルに表示 |
+| ギャラリー | `gallery` | カード形式グリッド表示。画像添付ファイルがある場合はカバー画像を表示。ステータスカラーバンド・重要度・担当者・期限・サブタスク進捗を一覧できる |
 | カレンダー | `calendar` | React Big Calendar によるデッドライン表示（高さ 680px 固定）。クリックで編集モーダル |
 | タイムライン | `timeline` | ガントチャート形式（`TaskTimelineView`）。開始日～期限をバーで表示 |
 
@@ -228,14 +229,13 @@ lsircs-app-prod/
 #### フィルターパネル（折りたたみ式）
 
 - **AND/ORフィルター条件**: 複数条件をAND/ORで組み合わせるフィルター行（フィールド・演算子・値を行単位で追加/削除）
-- **グループ化**: カンバン・リストビューで「カテゴリ」または「重要度」によるサブグループ化
   - フィールド: ステータス・重要度・期限・担当者・タグ・カテゴリ
   - 演算子: フィールドに応じて切り替え（は/でない、含む/含まない、前/後、未設定/設定済み）
   - 条件は左から右にチェーンして適用
+- **グループ化**: カンバン・リストビュー時に列/セクション内をカテゴリまたは重要度でサブグループ化
 - カテゴリフィルター（複数選択）
 - 担当者フィルター（複数選択、担当者ビュー時）
 - 並び順選択
-- **グループ化**: カンバン・リストビュー時に列/セクション内をカテゴリまたは重要度でサブグループ化
 - カテゴリ内並び順・タググループ化（カテゴリビュー時）
 - カテゴリの表示順変更（矢印ボタン）
 - 保存済みビューの適用・削除
@@ -247,7 +247,6 @@ lsircs-app-prod/
 
 #### その他機能
 
-- **ギャラリービュー**: カード形式グリッド表示。画像添付ファイルがある場合はカバー画像を表示。ステータスカラーバンド・重要度・担当者・期限・サブタスク進捗を一覧できる。
 - **キーワード検索**: ヘッダーの検索ボックスに入力するとリアルタイムで絞り込み。対象フィールド: タイトル・説明・カテゴリ・タグ・担当者。全レイアウトに反映。
 - **メールインポート**: メール件名・本文からタスクを AI 生成（`EmailImportModal` → `ParseEmailToTask` API）
 - **URLディープリンク**: `?view=tasks&taskId={id}` でタスク直接アクセス
@@ -463,7 +462,7 @@ Google Sheets / Box ドキュメントを iframe で埋め込み閲覧・編集�
 {
   id: string,              // Cosmos DB ドキュメントID
   title: string,
-  description: string,     // Markdown テキスト
+  description: string,     // HTML（Tiptap リッチテキストエディター出力）
   status: 'Started' | 'Inprogress' | 'Done',
   priority: 'High' | 'Medium' | 'Low',
   importance: 0 | 1 | 2,  // 0=低, 1=中, 2=高
@@ -499,13 +498,14 @@ Google Sheets / Box ドキュメントを iframe で埋め込み閲覧・編集�
   authorDisplayName: string, // displayName
   authorUserId: string,
   text: string,             // コメント本文（@mention 含む）
+  replyTo: string | null,   // 返信先コメントID（スレッド用。省略時は null）
   createdAt: string,        // ISO8601
 }
 ```
 
 コメント投稿時に `@DisplayName` 形式のメンションが含まれている場合、Slack チャンネルへ通知を送信（`SLACK_BOT_TOKEN`・`SLACK_CHANNEL_ID` 設定時のみ）。
 
-スレッド返信: `replyTo: string | null` フィールドで親コメントIDを参照。UI上では親コメントの下にインデントして表示。返信ボタンで入力欄に返信対象が表示される。
+スレッド返信: `replyTo` フィールドで親コメントIDを参照するフラット構造。UI上では親コメントの下にインデントして表示。返信ボタンで入力欄に返信対象が表示され、送信後 `replyTo` に親コメントIDを付加して保存。
 
 ### 6.2 ステータスフロー
 
@@ -552,7 +552,7 @@ tags: string[],      // サブタスク固有のタグ
 | フィールド | 入力形式 |
 |---|---|
 | タイトル | テキスト（必須） |
-| 説明 | Markdown エディタ（プレビュー/編集 トグル・ツールバー付き） |
+| 説明 | Tiptap リッチテキストエディター（見出し・太字・斜体・取り消し線・コード・リスト・引用・リンク等。HTML として保存） |
 | ステータス | セレクト（3択） |
 | 優先度 | セレクト（High/Medium/Low） |
 | 重要度 | セレクト（高/中/低） |
@@ -569,11 +569,14 @@ tags: string[],      // サブタスク固有のタグ
 
 ## 6.5 Phase 1 完了機能
 
-### 6.5.1 Markdown 説明欄
+### 6.5.1 リッチテキスト説明欄（Tiptap v3）
 
-- `description` フィールドを Markdown テキストとして保存・表示
-- タスク詳細モーダル内でプレビュー/編集をトグルで切り替え
-- ツールバー: FormatBold・FormatItalic・FormatListBulleted 等のアイコンボタン
+- `description` フィールドを HTML として保存・表示（Tiptap v3 エディター出力）
+- タスク詳細モーダル内に `RichTextEditor` コンポーネントを配置（`app/src/RichTextEditor.jsx`）
+- ツールバー: 見出し（H2）・太字・斜体・取り消し線・コード・箇条書き・番号リスト・引用・水平線・リンク挿入/解除
+- アクティブなフォーマットはツールバーボタンが青背景でハイライト
+- 拡張機能: `StarterKit`・`Link`・`Placeholder`
+- タスク切り替え時は `editor.commands.setContent()` で内容を外部 value と同期
 
 ### 6.5.2 グローバル検索（`GlobalSearch.jsx`）
 
@@ -613,6 +616,7 @@ tags: string[],      // サブタスク固有のタグ
 | DELETE | `/api/DeleteTask/{id}` | タスク削除 |
 | POST | `/api/AddTaskComment` | タスクにコメント追加 |
 | DELETE | `/api/DeleteTaskComment` | タスクのコメント削除 |
+| POST | `/api/DeadlineReminder` | 期限リマインダー送信（n8n呼び出し用、`x-n8n-secret-key` 認証） |
 
 ### ユーザー・プロファイル
 
@@ -752,7 +756,7 @@ tags: string[],      // サブタスク固有のタグ
 
 ```javascript
 {
-  layout: 'category' | 'status' | 'assignee' | 'timeline',
+  layout: 'category' | 'status' | 'list' | 'gallery' | 'calendar' | 'assignee' | 'timeline',
   sortMode: 'statusDeadline' | 'deadlineAsc' | 'deadlineDesc' | 'titleAsc' | 'createdAtDesc',
   selectedCategories: string[],
   selectedAssignees: string[],
@@ -968,11 +972,15 @@ tags: string[],      // サブタスク固有のタグ
 - **Slack スラッシュコマンド**: `/api/SlackCommand` で受信
 - **タスク作成**: コマンドからタスクを Cosmos DB に追加
 - **ステータス変更通知**: タスク更新時に Slack チャンネルへ通知
+- **コメントメンション通知**: コメントで `@担当者名` を記載すると、対象者の Slack アカウントへダイレクトメンション通知（`slackMemberId` 連携時）
+- **期限リマインダー**: `/api/DeadlineReminder` (POST) — n8n から定期呼び出し。指定日数以内に期限を迎えるタスクの担当者へ Slack メンション付き通知。`x-n8n-secret-key` ヘッダー認証必須。`daysAhead` パラメータで通知対象日数を指定（デフォルト3日）
+- **Slack メンバーID連携**: プロファイル画面でユーザー自身が Slack メンバーID（例: `U0AB12CDE`）を手入力して連携。Users コレクションの `slackMemberId` フィールドに保存
 
 **必要な環境変数**:
 - `SLACK_BOT_TOKEN`
 - `SLACK_SIGNING_SECRET`
 - `SLACK_CHANNEL_ID`
+- `APP_BASE_URL`（タスクリンク生成用）
 
 ### 10.2 AI タスク生成（メールインポート）
 
@@ -1057,7 +1065,7 @@ git push origin main
 
 | 機能 | ステータス | 概要 |
 |---|---|---|
-| カスタムビュー保存 | 実装中 | フィルター状態（layout/sortMode/selectedCategories/selectedAssignees）を名前付きで保存し、ワンクリックで切り替え。savedViews はユーザープロファイル（Users コレクション）に保存。API: GetSavedViews / SaveView / DeleteSavedView/{id} |
+| カスタムビュー保存 | 実装済 | フィルター状態（layout/sortMode/selectedCategories/selectedAssignees/kanbanGroupBy/secondaryGroupBy 等）を名前付きで保存し、ワンクリックで切り替え。savedViews はユーザープロファイル（Users コレクション）に保存。API: GetSavedViews / SaveView / DeleteSavedView/{id} |
 | タスクテンプレート | 実装中 | よく使うタスク構成（サブタスク・カテゴリ・タグ）をテンプレートとして保存し、新規タスク作成時に適用。新規 Cosmos コレクション `TaskTemplates`。API: GetTaskTemplates / CreateTaskTemplate / UpdateTaskTemplate/{id} / DeleteTaskTemplate/{id} |
 | タイムライン表示 | 完了 | ガントチャート形式でタスクをカテゴリ別に表示。期限・開始日に基づくバー表示。今日ライン・期限超過ハイライト・クリックで編集。ビュー選択から「タイムライン（ガント）」を選択。`TaskTimelineView.jsx` |
 | タスク依存関係 | 完了 | タスク詳細モーダルで「依存関係」セクションを追加。`blockedBy: string[]` フィールドでブロッカータスクを指定。タスクカードに「ブロック中 (N)」バッジを表示。 |

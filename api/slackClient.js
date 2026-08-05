@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { usersContainer } = require('./userProfileStore');
 
 const slackBotToken = process.env.SLACK_BOT_TOKEN;
 const defaultChannel = process.env.SLACK_CHANNEL_ID;
@@ -241,11 +242,27 @@ async function notifyDxTeamCustomerUpdated(customer, changedFields, context, met
   return postToSlack({ text, blocks }, context, { channel: dxChannel });
 }
 
+async function buildMentionStrings(mentionedNames) {
+  try {
+    const container = await usersContainer();
+    const { resources } = await container.items
+      .query({ query: 'SELECT c.displayName, c.slackMemberId FROM c WHERE IS_DEFINED(c.slackMemberId)' })
+      .fetchAll();
+    const slackIdMap = {};
+    resources.forEach((r) => { if (r.displayName && r.slackMemberId) slackIdMap[r.displayName] = r.slackMemberId; });
+    return (mentionedNames || []).map((name) => slackIdMap[name] ? `<@${slackIdMap[name]}>` : `@${name}`);
+  } catch {
+    return (mentionedNames || []).map((n) => `@${n}`);
+  }
+}
+
 async function notifyCommentMention({ task, commentText, authorName, mentionedNames }, context, metadata = {}) {
   if (!SLACK_ENABLED) return false;
 
-  const names = (mentionedNames || []).join(', ');
-  const text = `:speech_balloon: ${authorName} さんがコメントで ${names} をメンションしました — "${task.title || 'タスク'}"`;
+  const mentionStrings = await buildMentionStrings(mentionedNames);
+  const names = mentionStrings.join(', ');
+  const plainNames = (mentionedNames || []).join(', ');
+  const text = `:speech_balloon: ${authorName} さんがコメントで ${plainNames} をメンションしました — "${task.title || 'タスク'}"`;
 
   const taskLink = buildTaskLink(task.id);
   const blocks = [
@@ -253,7 +270,7 @@ async function notifyCommentMention({ task, commentText, authorName, mentionedNa
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `*${authorName}* が <${taskLink || '#'}|${task.title || 'タスク'}> のコメントで *${names}* をメンションしました`,
+        text: `*${authorName}* が <${taskLink || '#'}|${task.title || 'タスク'}> のコメントで ${names} をメンションしました`,
       },
     },
     {
@@ -274,10 +291,59 @@ async function notifyCommentMention({ task, commentText, authorName, mentionedNa
   return postToSlack({ text, blocks }, context, metadata);
 }
 
+async function notifyDeadlineReminders(tasks, context) {
+  if (!SLACK_ENABLED) return { sent: 0, skipped: tasks.length };
+
+  let sent = 0;
+  for (const task of tasks) {
+    const assigneeNames = Array.isArray(task.assignees) ? task.assignees : [];
+    const mentions = assigneeNames.length > 0
+      ? await buildMentionStrings(assigneeNames)
+      : [];
+    const mentionText = mentions.length > 0 ? mentions.join(' ') + ' ' : '';
+
+    const deadline = task.deadline ? task.deadline.split('T')[0] : '期限未設定';
+    const taskLink = buildTaskLink(task.id);
+
+    const text = `⏰ 期限リマインダー: ${task.title}（期限: ${deadline}）`;
+
+    const blocks = [
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `⏰ *期限が近づいています* ${mentionText}\n*<${taskLink || '#'}|${task.title}>*\n期限: *${deadline}*`,
+        },
+      },
+    ];
+
+    if (assigneeNames.length > 0) {
+      blocks.push({
+        type: 'context',
+        elements: [{ type: 'mrkdwn', text: `担当者: ${assigneeNames.join(', ')}` }],
+      });
+    }
+
+    if (taskLink) {
+      blocks.push({
+        type: 'actions',
+        elements: [
+          { type: 'button', text: { type: 'plain_text', text: 'タスクを開く' }, url: taskLink, style: 'primary' },
+        ],
+      });
+    }
+
+    const ok = await postToSlack({ text, blocks }, context);
+    if (ok) sent++;
+  }
+  return { sent, skipped: tasks.length - sent };
+}
+
 module.exports = {
   notifyTaskCreated,
   notifyTaskStatusChanged,
   notifyCommentMention,
+  notifyDeadlineReminders,
   buildTaskLink,
   SLACK_ENABLED,
   notifyDxTeamCustomerUpdated,

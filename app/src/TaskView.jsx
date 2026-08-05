@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, useDroppable, useDraggable, closestCenter } from '@dnd-kit/core';
 import axios from 'axios';
 import {
   Box,
@@ -29,6 +30,7 @@ import {
   DialogActions,
   ToggleButton,
   ToggleButtonGroup,
+  Drawer,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
@@ -46,6 +48,8 @@ import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import GridViewIcon from '@mui/icons-material/GridView';
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
+import CloseIcon from '@mui/icons-material/Close';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import { TaskDetailModal } from './TaskDetailModal';
 import { TaskTimelineView } from './TaskTimelineView';
@@ -107,6 +111,8 @@ const TASK_SORT_OPTIONS = [
   { value: 'deadlineAsc', label: '期限が早い順' },
   { value: 'deadlineDesc', label: '期限が遅い順' },
   { value: 'titleAsc', label: 'タイトル順' },
+  { value: 'createdAtDesc', label: '作成日が新しい順' },
+  { value: 'createdAtAsc', label: '作成日が古い順' },
 ];
 
 const CATEGORY_TASK_ORDER_OPTIONS = [
@@ -371,6 +377,14 @@ const compareCreatedAtDesc = (a, b) => {
   return compareDeadlineAsc(a, b);
 };
 
+const compareCreatedAtAsc = (a, b) => {
+  const diff = getCreatedAtValue(a) - getCreatedAtValue(b);
+  if (diff !== 0) {
+    return diff;
+  }
+  return compareDeadlineAsc(a, b);
+};
+
 const sortTasksByMode = (tasks, mode) => {
   const sorted = [...tasks];
   const effectiveMode = mode === 'progress' ? 'statusDeadline' : mode;
@@ -391,6 +405,8 @@ const sortTasksByMode = (tasks, mode) => {
       return sorted.sort(compareDeadlineDesc);
     case 'createdAtDesc':
       return sorted.sort(compareCreatedAtDesc);
+    case 'createdAtAsc':
+      return sorted.sort(compareCreatedAtAsc);
     case 'titleAsc':
       return sorted.sort(compareTitleAsc);
     default:
@@ -563,6 +579,81 @@ function arePreferencesEqual(a, b) {
 }
 
 const getTaskCategoryKey = (task) => (task?.category?.trim() ? task.category.trim() : DEFAULT_CATEGORY_LABEL);
+
+function KanbanDropColumn({ columnId, children }) {
+  const { setNodeRef, isOver } = useDroppable({ id: columnId });
+  return (
+    <Box
+      ref={setNodeRef}
+      sx={{
+        p: 1.25,
+        overflowY: 'auto',
+        flexGrow: 1,
+        transition: 'background-color 0.15s',
+        bgcolor: isOver ? 'action.selected' : undefined,
+      }}
+    >
+      {children}
+    </Box>
+  );
+}
+
+function DraggableTaskCard({ taskId, children }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: taskId });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+        opacity: isDragging ? 0.3 : 1,
+        touchAction: 'none',
+      }}
+      {...attributes}
+      {...listeners}
+    >
+      {children}
+    </div>
+  );
+}
+
+function DroppableColumnSlot({ columnId, children }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `colpos:${columnId}` });
+  return (
+    <Box
+      ref={setNodeRef}
+      sx={{
+        borderRadius: 1,
+        outline: isOver ? '2px dashed' : '2px solid transparent',
+        outlineColor: isOver ? 'primary.main' : undefined,
+        transition: 'outline-color 0.15s',
+      }}
+    >
+      {children}
+    </Box>
+  );
+}
+
+function DraggableColumnHeader({ columnId, children }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `col:${columnId}` });
+  return (
+    <Box ref={setNodeRef} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, width: '100%', opacity: isDragging ? 0.4 : 1 }}>
+      <Box
+        {...listeners}
+        {...attributes}
+        sx={{
+          display: 'flex', alignItems: 'center', cursor: 'grab', color: 'text.disabled', flexShrink: 0,
+          '&:hover': { color: 'text.secondary' },
+          '&:active': { cursor: 'grabbing' },
+        }}
+        title="ドラッグして並び替え"
+      >
+        <DragIndicatorIcon sx={{ fontSize: '1rem' }} />
+      </Box>
+      {children}
+    </Box>
+  );
+}
+
 export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   const { t } = useTranslation();
   const [tasks, setTasks] = useState([]);
@@ -589,6 +680,11 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   const [statusUpdatingIds, setStatusUpdatingIds] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedSubtaskIds, setExpandedSubtaskIds] = useState(new Set());
+  const [dndActiveTaskId, setDndActiveTaskId] = useState(null);
+  const [kanbanColumnOrder, setKanbanColumnOrder] = useState({});
+  const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const [kanbanGroupBy, setKanbanGroupBy] = useState('status');
+  const [kanbanPanelTask, setKanbanPanelTask] = useState(null);
 
   const handleToggleSubtaskExpand = useCallback((taskId) => {
     if (!taskId) return;
@@ -976,6 +1072,93 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
     }));
   }, [layout, conditionFilteredTasks, sortMode]);
 
+  const kanbanSections = useMemo(() => {
+    if (layout !== 'status') return [];
+    const effectiveSortMode = sortMode === 'statusDeadline' ? 'deadlineAsc' : sortMode;
+    if (kanbanGroupBy === 'status') {
+      return groupTasksByStatus(conditionFilteredTasks).map((s) => ({
+        ...s,
+        columnId: `status:${s.key}`,
+        tasks: sortTasksByMode(s.tasks, effectiveSortMode),
+      }));
+    }
+    if (kanbanGroupBy === 'category') {
+      const map = new Map();
+      conditionFilteredTasks.forEach((task) => {
+        const key = task.category?.trim() || DEFAULT_CATEGORY_LABEL;
+        if (!map.has(key)) map.set(key, []);
+        map.get(key).push(task);
+      });
+      const allKeys = [...new Set([...derivedCategories.map((c) => c || DEFAULT_CATEGORY_LABEL), ...map.keys()])];
+      return allKeys.filter((k) => map.has(k)).map((key) => ({
+        key,
+        columnId: `category:${key}`,
+        label: key,
+        tasks: sortTasksByMode(map.get(key) || [], effectiveSortMode),
+      }));
+    }
+    if (kanbanGroupBy === 'assignee') {
+      const map = new Map();
+      conditionFilteredTasks.forEach((task) => {
+        const key = task.assignees?.[0] || UNASSIGNED_ASSIGNEE_KEY;
+        if (!map.has(key)) map.set(key, []);
+        map.get(key).push(task);
+      });
+      const allKeys = [...new Set([...derivedAssignees, ...map.keys()])];
+      const sections = allKeys.filter((k) => map.has(k)).map((key) => ({
+        key,
+        columnId: `assignee:${key}`,
+        label: key === UNASSIGNED_ASSIGNEE_KEY ? UNASSIGNED_ASSIGNEE_LABEL : key,
+        tasks: sortTasksByMode(map.get(key) || [], effectiveSortMode),
+      }));
+      const unassigned = map.get(UNASSIGNED_ASSIGNEE_KEY);
+      if (unassigned && !sections.find((s) => s.key === UNASSIGNED_ASSIGNEE_KEY)) {
+        sections.push({ key: UNASSIGNED_ASSIGNEE_KEY, columnId: `assignee:${UNASSIGNED_ASSIGNEE_KEY}`, label: UNASSIGNED_ASSIGNEE_LABEL, tasks: sortTasksByMode(unassigned, effectiveSortMode) });
+      }
+      return sections;
+    }
+    if (kanbanGroupBy === 'tag') {
+      const map = new Map();
+      conditionFilteredTasks.forEach((task) => {
+        const tags = Array.isArray(task.tags) && task.tags.length > 0 ? task.tags : [DEFAULT_TAG_LABEL];
+        tags.forEach((tag) => {
+          if (!map.has(tag)) map.set(tag, []);
+          map.get(tag).push(task);
+        });
+      });
+      return [...map.entries()].map(([key, tasks]) => ({
+        key,
+        columnId: `tag:${key}`,
+        label: key,
+        tasks: sortTasksByMode(tasks, effectiveSortMode),
+      }));
+    }
+    return [];
+  }, [layout, kanbanGroupBy, conditionFilteredTasks, sortMode, derivedCategories, derivedAssignees]);
+
+  const orderedKanbanSections = useMemo(() => {
+    const order = kanbanColumnOrder[kanbanGroupBy];
+    if (!order || order.length === 0) return kanbanSections;
+    return [...kanbanSections].sort((a, b) => {
+      const ai = order.indexOf(a.columnId);
+      const bi = order.indexOf(b.columnId);
+      if (ai === -1 && bi === -1) return 0;
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    });
+  }, [kanbanSections, kanbanColumnOrder, kanbanGroupBy]);
+
+  const kanbanCollisionDetection = useCallback((args) => {
+    const activeId = String(args.active.id);
+    if (activeId.startsWith('col:')) {
+      const colDroppables = args.droppableContainers.filter((dc) => String(dc.id).startsWith('colpos:'));
+      return closestCenter({ ...args, droppableContainers: colDroppables });
+    }
+    const taskDroppables = args.droppableContainers.filter((dc) => !String(dc.id).startsWith('colpos:'));
+    return closestCenter({ ...args, droppableContainers: taskDroppables });
+  }, []);
+
   const assigneeColumns = useMemo(() => {
     if (layout !== 'assignee') {
       return [];
@@ -1076,6 +1259,71 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
     });
   };
 
+  const handleDragEnd = useCallback(({ active, over }) => {
+    setDndActiveTaskId(null);
+    if (!over) return;
+    const activeId = String(active.id);
+    const overId = String(over.id);
+
+    // 列の並び替え
+    if (activeId.startsWith('col:') && overId.startsWith('colpos:')) {
+      const draggedColId = activeId.slice(4);
+      const targetColId = overId.slice(7);
+      if (draggedColId === targetColId) return;
+      setKanbanColumnOrder((prev) => {
+        const base = (prev[kanbanGroupBy] && prev[kanbanGroupBy].length > 0)
+          ? prev[kanbanGroupBy]
+          : kanbanSections.map((s) => s.columnId);
+        const fromIdx = base.indexOf(draggedColId);
+        const toIdx = base.indexOf(targetColId);
+        if (fromIdx === -1 || toIdx === -1) return prev;
+        const next = [...base];
+        next.splice(fromIdx, 1);
+        next.splice(toIdx, 0, draggedColId);
+        return { ...prev, [kanbanGroupBy]: next };
+      });
+      return;
+    }
+
+    const taskId = activeId;
+    const task = tasks.find((t) => String(t.id) === taskId);
+    if (!task) return;
+    const colonIdx = overId.indexOf(':');
+    if (colonIdx === -1) return;
+    const groupField = overId.slice(0, colonIdx);
+    const groupValue = overId.slice(colonIdx + 1);
+    let updatedTask;
+    if (groupField === 'status') {
+      if (task.status === groupValue) return;
+      updatedTask = { ...task, status: groupValue };
+    } else if (groupField === 'category') {
+      const newCategory = groupValue === DEFAULT_CATEGORY_LABEL ? null : groupValue;
+      if ((task.category || null) === newCategory) return;
+      updatedTask = { ...task, category: newCategory };
+    } else if (groupField === 'assignee') {
+      if (groupValue === UNASSIGNED_ASSIGNEE_KEY) {
+        if (!task.assignees?.length) return;
+        updatedTask = { ...task, assignees: [], assignee: null };
+      } else {
+        if (task.assignees?.[0] === groupValue) return;
+        const rest = (task.assignees || []).filter((a) => a !== groupValue);
+        updatedTask = { ...task, assignees: [groupValue, ...rest], assignee: groupValue };
+      }
+    } else {
+      return;
+    }
+    setTasks((prev) => prev.map((t) => String(t.id) === taskId ? normalizeTask(updatedTask) : t));
+    axios
+      .put(`${API_URL}/UpdateTask/${taskId}`, updatedTask)
+      .then((res) => {
+        const saved = normalizeTask(res.data);
+        setTasks((prev) => prev.map((t) => String(t.id) === taskId ? saved : t));
+      })
+      .catch(() => {
+        setTasks((prev) => prev.map((t) => String(t.id) === taskId ? task : t));
+      });
+  }, [tasks, kanbanGroupBy, kanbanSections]);
+
   const handleAdvanceTaskStatus = useCallback(
     (task) => {
       if (!task) {
@@ -1130,35 +1378,6 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
     setSelectedTask(normalizeTask(task));
   }, []);
 
-  const handleMoveCategory = useCallback(
-    (category, direction) => {
-      if (!category) {
-        return;
-      }
-      updatePreferences((prev) => {
-        const baseList = prev.selectedCategories.length === 0 ? derivedCategories : prev.selectedCategories;
-        if (!Array.isArray(baseList) || baseList.length === 0) {
-          return prev;
-        }
-        const current = [...baseList];
-        const index = current.indexOf(category);
-        if (index === -1) {
-          return prev;
-        }
-        const targetIndex = index + direction;
-        if (targetIndex < 0 || targetIndex >= current.length) {
-          return prev;
-        }
-        const [moved] = current.splice(index, 1);
-        current.splice(targetIndex, 0, moved);
-        return {
-          ...prev,
-          selectedCategories: current,
-        };
-      });
-    },
-    [derivedCategories, updatePreferences],
-  );
 
   const handleCategorySelectionChange = (event, newValue) => {
     updatePreferences((prev) => ({
@@ -1191,6 +1410,9 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
       includeUnassignedColumn: preferences.includeUnassignedColumn,
       categoryGroupByTag: preferences.categoryGroupByTag,
       categoryTaskOrder: preferences.categoryTaskOrder,
+      kanbanGroupBy,
+      secondaryGroupBy,
+      kanbanColumnOrder: kanbanColumnOrder[kanbanGroupBy] || [],
     };
     try {
       const { data } = await axios.post(`${API_URL}/SaveView`, viewToSave);
@@ -1202,11 +1424,13 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   };
 
   const handleDeleteSavedView = async (viewId) => {
+    setSavedViews((prev) => prev.filter((v) => v.id !== viewId));
     try {
-      const { data } = await axios.delete(`${API_URL}/DeleteSavedView/${viewId}`);
-      setSavedViews(data);
+      await axios.delete(`${API_URL}/DeleteSavedView/${viewId}`);
     } catch (err) {
       console.error('DeleteSavedView failed', err);
+      const { data } = await axios.get(`${API_URL}/GetSavedViews`).catch(() => ({ data: [] }));
+      setSavedViews(data);
     }
   };
 
@@ -1221,6 +1445,15 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
       categoryGroupByTag: typeof view.categoryGroupByTag === 'boolean' ? view.categoryGroupByTag : prev.categoryGroupByTag,
       categoryTaskOrder: view.categoryTaskOrder || prev.categoryTaskOrder,
     }));
+    const groupBy = view.kanbanGroupBy || kanbanGroupBy;
+    if (view.kanbanGroupBy) setKanbanGroupBy(view.kanbanGroupBy);
+    setSecondaryGroupBy(view.secondaryGroupBy || '');
+    if (Array.isArray(view.kanbanColumnOrder) && view.kanbanColumnOrder.length > 0) {
+      setKanbanColumnOrder((prev) => ({ ...prev, [groupBy]: view.kanbanColumnOrder }));
+    }
+    setFilterConditions([]);
+    setListPanelTask(null);
+    setKanbanPanelTask(null);
   };
 
   const handleSortModeChange = (event) => {
@@ -1936,7 +2169,7 @@ const renderListLayout = () => {
           '&:hover': { boxShadow: 2 },
           transition: 'box-shadow 0.15s',
         }}
-        onClick={() => handleEditTask(task)}
+        onClick={() => setKanbanPanelTask((prev) => (prev?.id === task.id ? null : task))}
       >
         <Typography
           variant="body2"
@@ -2128,15 +2361,32 @@ const renderListLayout = () => {
         const imp = task.importance ?? 1;
         key = String(imp);
         label = imp === 2 ? '重要度: 高' : imp === 1 ? '重要度: 中' : '重要度: 低';
+      } else if (groupBy === 'status') {
+        key = task.status || 'Started';
+        label = STATUS_LABEL_JA[key] ?? key;
+      } else if (groupBy === 'assignee') {
+        key = task.assignees?.[0] || UNASSIGNED_ASSIGNEE_KEY;
+        label = key === UNASSIGNED_ASSIGNEE_KEY ? UNASSIGNED_ASSIGNEE_LABEL : key;
+      } else if (groupBy === 'tag') {
+        key = (Array.isArray(task.tags) && task.tags.length > 0) ? task.tags[0] : DEFAULT_TAG_LABEL;
+        label = key === DEFAULT_TAG_LABEL ? 'タグ未設定' : key;
+      } else {
+        return;
       }
       if (!groups.has(key)) groups.set(key, { key, label, tasks: [] });
       groups.get(key).tasks.push(task);
     });
-    return Array.from(groups.values());
+    const result = Array.from(groups.values());
+    if (groupBy === 'status') {
+      result.sort((a, b) => (statusOrderMap[a.key] ?? 999) - (statusOrderMap[b.key] ?? 999));
+    } else {
+      result.sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
+    }
+    return result;
   };
 
   const renderStatusLayout = () => {
-    if (statusSections.length === 0) {
+    if (kanbanSections.length === 0) {
       return (
         <Paper sx={{ p: { xs: 3, md: 4 } }}>
           <Typography color="text.secondary">表示できるタスクがありません。</Typography>
@@ -2144,73 +2394,128 @@ const renderListLayout = () => {
       );
     }
 
+    const activeTask = dndActiveTaskId ? tasks.find((t) => String(t.id) === String(dndActiveTaskId)) : null;
+    const tagDnd = kanbanGroupBy !== 'tag';
+
     return (
-      <Box
-        sx={{
-          display: 'flex',
-          gap: 2,
-          overflowX: 'auto',
-          pb: 2,
-          alignItems: 'flex-start',
-        }}
-      >
-        {statusSections.map((section) => (
-          <Paper
-            key={section.key}
-            variant="outlined"
-            sx={{
-              width: 260,
-              flexShrink: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              maxHeight: 'calc(100vh - 280px)',
-              minHeight: 120,
-            }}
-          >
-            {/* Column header */}
-            <Box
-              sx={{
-                px: 2,
-                py: 1.25,
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                borderBottom: '1px solid',
-                borderColor: 'divider',
-                flexShrink: 0,
-                bgcolor: 'action.hover',
-              }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <CircleIcon sx={{ color: getStatusColor(section.key), fontSize: '0.7rem' }} />
-                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{section.label}</Typography>
-              </Box>
-              <Chip label={section.tasks.length} size="small" sx={{ height: 20, fontSize: '0.7rem' }} />
-            </Box>
-            {/* Scrollable task list */}
-            <Box sx={{ p: 1.25, overflowY: 'auto', flexGrow: 1 }}>
-              {section.tasks.length === 0 ? (
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', py: 2 }}>
-                  タスクはありません
-                </Typography>
-              ) : secondaryGroupBy ? (
-                <Stack spacing={1.5}>
-                  {groupTasksSecondary(section.tasks, secondaryGroupBy).map((group) => (
-                    <Box key={group.key}>
-                      <Typography variant="caption" sx={{ display: 'block', px: 0.25, pb: 0.5, color: 'text.secondary', fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider', mb: 0.75 }}>
-                        {group.label}
+      <>
+        {/* グループ軸セレクター */}
+        <Box sx={{ display: 'flex', gap: 1, mb: 1.5, alignItems: 'center' }}>
+          <Typography variant="caption" color="text.secondary" sx={{ mr: 0.5 }}>グループ:</Typography>
+          {[
+            { value: 'status', label: 'ステータス' },
+            { value: 'category', label: 'カテゴリ' },
+            { value: 'assignee', label: '担当者' },
+            { value: 'tag', label: 'タグ' },
+          ].map((opt) => (
+            <Chip
+              key={opt.value}
+              label={opt.label}
+              size="small"
+              variant={kanbanGroupBy === opt.value ? 'filled' : 'outlined'}
+              color={kanbanGroupBy === opt.value ? 'primary' : 'default'}
+              onClick={() => setKanbanGroupBy(opt.value)}
+              sx={{ cursor: 'pointer' }}
+            />
+          ))}
+        </Box>
+
+        <DndContext
+          sensors={dndSensors}
+          collisionDetection={kanbanCollisionDetection}
+          onDragStart={({ active }) => setDndActiveTaskId(active.id)}
+          onDragEnd={handleDragEnd}
+          onDragCancel={() => setDndActiveTaskId(null)}
+        >
+          <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 2, alignItems: 'flex-start' }}>
+            {orderedKanbanSections.map((section) => (
+              <DroppableColumnSlot key={section.columnId} columnId={section.columnId}>
+                <Paper
+                  variant="outlined"
+                  sx={{ width: 260, flexShrink: 0, display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 320px)', minHeight: 120 }}
+                >
+                  <Box
+                    sx={{
+                      px: 1.5, py: 1.25, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      borderBottom: '1px solid', borderColor: 'divider', flexShrink: 0, bgcolor: 'action.hover',
+                    }}
+                  >
+                    <DraggableColumnHeader columnId={section.columnId}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+                        {kanbanGroupBy === 'status' && (
+                          <CircleIcon sx={{ color: getStatusColor(section.key), fontSize: '0.7rem', flexShrink: 0 }} />
+                        )}
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{section.label}</Typography>
+                      </Box>
+                    </DraggableColumnHeader>
+                    <Chip label={section.tasks.length} size="small" sx={{ height: 20, fontSize: '0.7rem', flexShrink: 0, ml: 0.5 }} />
+                  </Box>
+                  <KanbanDropColumn columnId={tagDnd ? section.columnId : `__nodrop_${section.columnId}`}>
+                    {section.tasks.length === 0 ? (
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', py: 2 }}>
+                        タスクはありません
                       </Typography>
-                      <Stack spacing={1}>{group.tasks.map(renderKanbanCard)}</Stack>
-                    </Box>
-                  ))}
-                </Stack>
-              ) : (
-                <Stack spacing={1}>{section.tasks.map(renderKanbanCard)}</Stack>
-              )}
-            </Box>
-          </Paper>
-        ))}
-      </Box>
+                    ) : secondaryGroupBy ? (
+                      <Stack spacing={1.5}>
+                        {(groupTasksSecondary(section.tasks, secondaryGroupBy) || []).map((group) => (
+                          <Box key={group.key}>
+                            <Typography variant="caption" sx={{ display: 'block', px: 0.25, pb: 0.5, color: 'text.secondary', fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider', mb: 0.75 }}>
+                              {group.label}
+                            </Typography>
+                            <Stack spacing={1}>
+                              {group.tasks.map((task) => (
+                                tagDnd ? (
+                                  <DraggableTaskCard key={task.id} taskId={task.id}>
+                                    {renderKanbanCard(task)}
+                                  </DraggableTaskCard>
+                                ) : (
+                                  <Box key={task.id}>{renderKanbanCard(task)}</Box>
+                                )
+                              ))}
+                            </Stack>
+                          </Box>
+                        ))}
+                      </Stack>
+                    ) : (
+                      <Stack spacing={1}>
+                        {section.tasks.map((task) => (
+                          tagDnd ? (
+                            <DraggableTaskCard key={task.id} taskId={task.id}>
+                              {renderKanbanCard(task)}
+                            </DraggableTaskCard>
+                          ) : (
+                            <Box key={task.id}>{renderKanbanCard(task)}</Box>
+                          )
+                        ))}
+                      </Stack>
+                    )}
+                  </KanbanDropColumn>
+                </Paper>
+              </DroppableColumnSlot>
+            ))}
+          </Box>
+          <DragOverlay dropAnimation={null}>
+            {(() => {
+              const aid = dndActiveTaskId ? String(dndActiveTaskId) : null;
+              if (!aid) return null;
+              if (aid.startsWith('col:')) {
+                const sec = kanbanSections.find((s) => s.columnId === aid.slice(4));
+                return sec ? (
+                  <Paper variant="outlined" sx={{ px: 2, py: 1, opacity: 0.9, boxShadow: 8, bgcolor: 'action.hover', width: 260 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{sec.label}</Typography>
+                  </Paper>
+                ) : null;
+              }
+              const activeTask = tasks.find((t) => String(t.id) === aid);
+              return activeTask ? (
+                <Box sx={{ opacity: 0.9, transform: 'rotate(1.5deg)', boxShadow: 6, borderRadius: 1 }}>
+                  {renderKanbanCard(activeTask)}
+                </Box>
+              ) : null;
+            })()}
+          </DragOverlay>
+        </DndContext>
+      </>
     );
   };
 
@@ -2370,17 +2675,28 @@ const renderListLayout = () => {
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>保存済みビュー</Typography>
               <Stack direction="row" flexWrap="wrap" gap={0.75}>
                 {savedViews.map((view) => (
-                  <Chip
+                  <Box
                     key={view.id}
-                    label={view.name}
-                    icon={<BookmarkIcon sx={{ fontSize: '0.9rem !important' }} />}
-                    size="small"
                     onClick={() => handleApplySavedView(view)}
-                    onDelete={() => handleDeleteSavedView(view.id)}
-                    variant="outlined"
-                    color="primary"
-                    sx={{ cursor: 'pointer' }}
-                  />
+                    sx={{
+                      display: 'inline-flex', alignItems: 'center', gap: 0.5,
+                      border: '1px solid', borderColor: 'primary.main', borderRadius: 4,
+                      px: 1, py: 0.25, cursor: 'pointer',
+                      '&:hover': { bgcolor: 'primary.main', '& *': { color: '#fff' } },
+                      transition: 'background-color 0.15s',
+                    }}
+                  >
+                    <BookmarkIcon sx={{ fontSize: '0.85rem', color: 'primary.main' }} />
+                    <Typography variant="caption" sx={{ color: 'primary.main', lineHeight: 1.5 }}>{view.name}</Typography>
+                    <IconButton
+                      size="small"
+                      sx={{ p: 0.125, ml: 0.25, color: 'primary.main' }}
+                      onClick={(e) => { e.stopPropagation(); handleDeleteSavedView(view.id); }}
+                      aria-label={`${view.name}を削除`}
+                    >
+                      <CloseIcon sx={{ fontSize: '0.75rem' }} />
+                    </IconButton>
+                  </Box>
                 ))}
               </Stack>
             </Box>
@@ -2535,8 +2851,11 @@ const renderListLayout = () => {
                   onChange={(e) => setSecondaryGroupBy(e.target.value)}
                 >
                   <MenuItem value="">なし</MenuItem>
+                  <MenuItem value="status">ステータス</MenuItem>
                   <MenuItem value="category">カテゴリ</MenuItem>
                   <MenuItem value="importance">重要度</MenuItem>
+                  <MenuItem value="assignee">担当者</MenuItem>
+                  <MenuItem value="tag">タグ</MenuItem>
                 </Select>
               </FormControl>
             )}
@@ -2572,41 +2891,6 @@ const renderListLayout = () => {
             )}
           </Box>
 
-          {/* Category order */}
-          <Box sx={{ flex: '1 1 200px', display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <Typography variant="subtitle2">カテゴリ一覧</Typography>
-            <Typography variant="caption" color="text.secondary">矢印ボタンで表示順を変更できます。</Typography>
-            <Stack spacing={1}>
-              {navCategories.length > 0 ? navCategories.map((category, index) => {
-                const displayLabel = getCategoryLabel(category);
-                const taskCount = categoryToTagsMap[category]
-                  ? Object.values(categoryToTagsMap[category]).reduce((count, items) => count + items.length, 0)
-                  : 0;
-                return (
-                  <Box key={`nav-${category}`} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-                    <Stack direction="row" alignItems="center" spacing={1}>
-                      <Chip label={displayLabel} size="small" />
-                      <Typography variant="caption" color="text.secondary">{taskCount} 件</Typography>
-                    </Stack>
-                    <Stack direction="row" spacing={0.5}>
-                      <Tooltip title="カテゴリを上に移動"><span>
-                        <IconButton size="small" onClick={() => handleMoveCategory(category, -1)} disabled={index === 0} aria-label="カテゴリを上に移動">
-                          <KeyboardArrowUpIcon fontSize="inherit" />
-                        </IconButton>
-                      </span></Tooltip>
-                      <Tooltip title="カテゴリを下に移動"><span>
-                        <IconButton size="small" onClick={() => handleMoveCategory(category, 1)} disabled={index === navCategories.length - 1} aria-label="カテゴリを下に移動">
-                          <KeyboardArrowDownIcon fontSize="inherit" />
-                        </IconButton>
-                      </span></Tooltip>
-                    </Stack>
-                  </Box>
-                );
-              }) : (
-                <Typography variant="body2" color="text.secondary">データを読み込むとカテゴリ一覧を表示します。</Typography>
-              )}
-            </Stack>
-          </Box>
         </Paper>
       )}
 
@@ -2626,6 +2910,80 @@ const renderListLayout = () => {
           <TaskTimelineView tasks={conditionFilteredTasks} onEditTask={handleEditTask} />
         )}
       </Box>
+
+      {/* ── KANBAN RIGHT PANEL ── */}
+      <Drawer
+        anchor="right"
+        open={Boolean(kanbanPanelTask)}
+        onClose={() => setKanbanPanelTask(null)}
+        PaperProps={{ sx: { width: { xs: '90vw', sm: 400 }, p: 2.5 } }}
+      >
+        {kanbanPanelTask && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, height: '100%' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, lineHeight: 1.4, flex: 1 }}>
+                {kanbanPanelTask.title || 'タイトル未設定'}
+              </Typography>
+              <IconButton size="small" onClick={() => setKanbanPanelTask(null)} sx={{ mt: -0.25 }}>
+                ✕
+              </IconButton>
+            </Box>
+            <Stack direction="row" flexWrap="wrap" gap={0.75}>
+              <Chip label={getStatusLabel(kanbanPanelTask.status)} size="small" variant="outlined"
+                sx={{ color: getStatusColor(kanbanPanelTask.status), borderColor: getStatusColor(kanbanPanelTask.status) }} />
+              {kanbanPanelTask.deadline && <Chip label={`期限: ${getDeadlineLabel(kanbanPanelTask.deadline)}`} size="small" />}
+              {Array.isArray(kanbanPanelTask.assignees) && kanbanPanelTask.assignees.length > 0 && (
+                <Chip label={`担当: ${kanbanPanelTask.assignees.join(', ')}`} size="small" />
+              )}
+            </Stack>
+            {kanbanPanelTask.category && (
+              <Typography variant="caption" color="text.secondary">
+                カテゴリ: {getCategoryLabel(kanbanPanelTask.category)}
+              </Typography>
+            )}
+            {kanbanPanelTask.description && (
+              <Box
+                sx={{ fontSize: '0.85rem', lineHeight: 1.6, color: 'text.primary', '& h2': { fontSize: '1rem', fontWeight: 700, my: 0.5 }, '& ul, & ol': { pl: 2 }, '& p': { my: 0.25 } }}
+                dangerouslySetInnerHTML={{ __html: kanbanPanelTask.description }}
+              />
+            )}
+            {Array.isArray(kanbanPanelTask.tags) && kanbanPanelTask.tags.length > 0 && (
+              <Stack direction="row" flexWrap="wrap" gap={0.5}>
+                {kanbanPanelTask.tags.map((tag) => (
+                  <Chip key={tag} label={tag} size="small" variant="outlined" />
+                ))}
+              </Stack>
+            )}
+            {Array.isArray(kanbanPanelTask.subtasks) && kanbanPanelTask.subtasks.length > 0 && (
+              <Box>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                  サブタスク ({kanbanPanelTask.subtasks.filter((s) => s.completed).length}/{kanbanPanelTask.subtasks.length})
+                </Typography>
+                <Stack spacing={0.5}>
+                  {kanbanPanelTask.subtasks.map((sub) => (
+                    <Box key={sub.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                      {sub.completed ? <CheckCircleIcon color="success" sx={{ fontSize: '1rem' }} /> : <RadioButtonUncheckedIcon color="disabled" sx={{ fontSize: '1rem' }} />}
+                      <Typography variant="caption" sx={{ textDecoration: sub.completed ? 'line-through' : 'none', color: sub.completed ? 'text.disabled' : 'text.primary' }}>
+                        {sub.title}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              </Box>
+            )}
+            <Box sx={{ flex: 1 }} />
+            <Divider />
+            <Stack direction="row" spacing={1}>
+              <Button size="small" variant="contained" onClick={() => { handleEditTask(kanbanPanelTask); setKanbanPanelTask(null); }} startIcon={<EditIcon />}>
+                編集
+              </Button>
+              <Button size="small" color="error" variant="outlined" onClick={() => { handleDeleteTask(kanbanPanelTask.id); setKanbanPanelTask(null); }} startIcon={<DeleteIcon />}>
+                削除
+              </Button>
+            </Stack>
+          </Box>
+        )}
+      </Drawer>
 
       {/* ── MODALS ── */}
       <EmailImportModal open={emailImportOpen} onClose={() => setEmailImportOpen(false)} onParsed={handleEmailParsed} />

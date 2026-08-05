@@ -8,7 +8,9 @@ const {
 } = require('./userProfileStore');
 
 const ALLOWED_LAYOUTS = new Set(['category', 'status', 'assignee']);
-const ALLOWED_SORT_MODES = new Set(['statusDeadline', 'deadlineAsc', 'deadlineDesc', 'titleAsc']);
+const ALLOWED_KANBAN_GROUP_BY = new Set(['status', 'category', 'assignee', 'tag']);
+const ALLOWED_SORT_MODES = new Set(['statusDeadline', 'deadlineAsc', 'deadlineDesc', 'titleAsc', 'createdAtDesc', 'createdAtAsc']);
+const ALLOWED_SECONDARY_GROUP_BY = new Set(['', 'status', 'category', 'importance', 'assignee', 'tag']);
 const MAX_SAVED_VIEWS = 20;
 
 function sanitizeStringArray(value) {
@@ -41,6 +43,9 @@ app.http('SaveView', {
       includeUnassignedColumn: typeof body.includeUnassignedColumn === 'boolean' ? body.includeUnassignedColumn : true,
       categoryGroupByTag: typeof body.categoryGroupByTag === 'boolean' ? body.categoryGroupByTag : true,
       categoryTaskOrder: body.categoryTaskOrder || 'progress',
+      kanbanGroupBy: ALLOWED_KANBAN_GROUP_BY.has(body.kanbanGroupBy) ? body.kanbanGroupBy : 'status',
+      secondaryGroupBy: ALLOWED_SECONDARY_GROUP_BY.has(body.secondaryGroupBy) ? body.secondaryGroupBy : '',
+      kanbanColumnOrder: sanitizeStringArray(body.kanbanColumnOrder),
       createdAt: new Date().toISOString(),
     };
 
