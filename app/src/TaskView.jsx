@@ -111,6 +111,8 @@ const TASK_SORT_OPTIONS = [
   { value: 'deadlineAsc', label: '期限が早い順' },
   { value: 'deadlineDesc', label: '期限が遅い順' },
   { value: 'titleAsc', label: 'タイトル順' },
+  { value: 'createdAtDesc', label: '作成日が新しい順' },
+  { value: 'createdAtAsc', label: '作成日が古い順' },
 ];
 
 const CATEGORY_TASK_ORDER_OPTIONS = [
@@ -375,6 +377,14 @@ const compareCreatedAtDesc = (a, b) => {
   return compareDeadlineAsc(a, b);
 };
 
+const compareCreatedAtAsc = (a, b) => {
+  const diff = getCreatedAtValue(a) - getCreatedAtValue(b);
+  if (diff !== 0) {
+    return diff;
+  }
+  return compareDeadlineAsc(a, b);
+};
+
 const sortTasksByMode = (tasks, mode) => {
   const sorted = [...tasks];
   const effectiveMode = mode === 'progress' ? 'statusDeadline' : mode;
@@ -395,6 +405,8 @@ const sortTasksByMode = (tasks, mode) => {
       return sorted.sort(compareDeadlineDesc);
     case 'createdAtDesc':
       return sorted.sort(compareCreatedAtDesc);
+    case 'createdAtAsc':
+      return sorted.sort(compareCreatedAtAsc);
     case 'titleAsc':
       return sorted.sort(compareTitleAsc);
     default:
