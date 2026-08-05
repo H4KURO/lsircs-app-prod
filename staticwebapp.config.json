@@ -83,6 +83,7 @@
     },
     {
       "route": "/api/GetTasks",
+      "methods": ["GET", "POST"],
       "allowedRoles": [
         "anonymous"
       ]
@@ -336,11 +337,6 @@
     {
       "route": "/api/DeleteTaskTemplate/{id}",
       "methods": ["DELETE"],
-      "allowedRoles": ["anonymous"]
-    },
-    {
-      "route": "/api/DeadlineReminder",
-      "methods": ["POST"],
       "allowedRoles": ["anonymous"]
     },
     {
