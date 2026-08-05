@@ -1,7 +1,7 @@
 # lsir-cs アプリケーション仕様書
 
 > **メンテナンス注意**: このファイルはアプリ変更のたびに更新すること（CLAUDE.md 参照）。  
-> 最終更新: 2026-08-04（Slack手動メンバーID連携・セカンダリグループby保存・期限リマインダーAPI・SWAナビゲーションフォールバック修正）
+> 最終更新: 2026-08-05（main の Slack手動メンバーID連携・セカンダリグループby保存・期限リマインダーAPI・SWAナビゲーションフォールバック修正 を取り込み。加えて資産管理CRM フェーズ1・2・3（テスト環境・管理者限定、支出記録＋物件別収支ダッシュボード＋Wealth Park風グリッド式収支入力＋社内チャットの土台＋契約書類フォルダ（Box等）リンク保存を追加）を `claude/crm-asset-management-system-0bs8i0` ブランチに追加。資産管理部分は main 未マージ）
 
 ---
 
@@ -43,7 +43,7 @@
 
 | レイヤー | 技術 |
 |---|---|
-| フロントエンド | React 19 + Vite, Material-UI v7, React Big Calendar, Tiptap v3（リッチテキスト）, i18next, Axios |
+| フロントエンド | React 19 + Vite, Material-UI v7, React Big Calendar, Tiptap v3（リッチテキスト）, @mui/x-charts・@mui/x-data-grid（資産管理フェーズ2の収支ダッシュボード・グリッド入力）, i18next, Axios |
 | バックエンド | Azure Functions (Node.js 20) |
 | データベース | Azure Cosmos DB (NoSQL) |
 | ファイルストレージ | Azure Blob Storage |
@@ -157,6 +157,7 @@ lsircs-app-prod/
 | バイヤーリスト | `buyers` | `BuyersListView` | Google Sheets 連携バイヤー管理（プロジェクト切替対応） |
 | 顧客管理 (CRM) | `crm` | `CRMView` | 顧客情報の一元管理 |
 | プロジェクト管理 | `projects` | `ProjectsView` | プロジェクト台帳の管理 |
+| 資産管理（テスト・管理者限定） | `assets` | `AssetManagementView` | Wealth Park / GMO賃貸DX を参考にした独自の資産管理CRM。フェーズ1テスト環境 |
 | スプレッドシート | `spreadsheet` | `SpreadsheetView` | Google Sheets / Box 埋め込み閲覧 |
 | 設定 | `settings` | `SettingsView` | カテゴリ・自動化ルール管理 |
 | プロフィール | `profile` | `ProfileView` | 表示名変更 |
@@ -403,6 +404,53 @@ Google Sheets / Box ドキュメントを iframe で埋め込み閲覧・編集�
 - ユーザー追加（メールアドレス必須、名前任意）
 - 管理者権限の付与/剥奪（トグルスイッチ）
 - ユーザー削除
+
+---
+
+### 5.10 資産管理 (`AssetManagementView`)（管理者のみ・フェーズ1/2/3テスト環境）
+
+**位置づけ**: Wealth Park や GMO の賃貸DXのような「オーナーポータル・資産管理」の機能コンセプトを参考にした独自実装。既存のタスク管理システム（`TaskView`）と並行してアップデートが進んでいるため、使い勝手への影響を避ける目的で以下のように隔離している。
+
+- ブランチ `claude/crm-asset-management-system-0bs8i0` 上でのみ開発し、実用段階になるまで `main` にはマージしない
+- ナビゲーションのアイコンレールには管理者（`accessStatus.isAdmin`）のみに表示（`App.jsx` の `navItems` で条件分岐）
+- 実際の送金・決済は一切行わない。賃料の入出金・支出・オーナーへの送金予定額はあくまで**記録・集計のみ**を扱う
+
+**画面構成**: 7タブ構成（`AssetManagementView.jsx` がタブ切替を管理し、参照データ（オーナー・物件・契約）はマウント時に先読みして各タブ間で共有）
+
+| タブ | コンポーネント | 説明 |
+|---|---|---|
+| 物件 | `AssetPropertiesTab` | 物件台帳（種別・住所・オーナー・戸数） |
+| オーナー | `AssetOwnersTab` | オーナー台帳（連絡先・振込先銀行情報） |
+| 契約 | `AssetContractsTab` | 賃貸契約（物件・入居者・賃料・契約期間・書類フォルダURL） |
+| 賃料入出金 | `AssetRentTransactionsTab` | 月次の入金予定・入金実績・オーナー送金予定額の記録 |
+| 支出 | `AssetExpensesTab`（フェーズ2） | 物件ごとの支出記録（修繕費・管理委託手数料・保険料・固定資産税等） |
+| 収支ダッシュボード | `AssetFinancialDashboardTab`（フェーズ2） | 物件を選択し、直近12ヶ月の月次収入・支出・収支（黒字/赤字）をグラフ＋一覧表で可視化。加えてWealth Park風のグリッド式収支入力（年単位、セル編集可）を提供 |
+| チャット | `AssetChatTab`（フェーズ3） | 社内スタッフ間チャット（スレッド作成・任意で物件と紐づけ可能）。5秒ポーリング方式 |
+
+**データの関連**: オーナー 1—N 物件、物件 1—N 契約、契約 1—N 賃料入出金（月次）、物件 1—N 支出（月次）。各テーブルはドロップダウンで親エンティティを選択する形でリレーションを表現（Cosmos DB はNoSQLのため外部キー制約はアプリ側でバリデーション）。
+
+**収支ダッシュボードの集計方法**（フェーズ2）:
+- 直近12ヶ月分の年月（`YYYY-MM`）を生成し、選択した物件の `AssetRentTransactions.receivedAmount` を年月ごとに合計 → 月次収入
+- 同様に `AssetExpenses.amount` を年月ごとに合計 → 月次支出
+- 収支 = 収入 − 支出。現時点ではクライアント側で集計（データ量が増えたら専用集計APIを検討）
+- グラフは `@mui/x-charts` の `BarChart` を使用。収入/支出は固定の系列色（青/オレンジ）、収支（黒字/赤字）は色覚多様性検証で緑/赤ペアがCVD閾値を下回ったため、色だけに頼らずゼロ基準線からの向き＋バー直接ラベルで冗長化している
+
+**グリッド式収支入力**（フェーズ2、Wealth Park画面を参考に追加）:
+- `@mui/x-data-grid` を使用。行＝収支項目（賃料収入・支出科目別5種・収支）、列＝1月〜12月＋年間合計、年単位（◀年▶で切替）
+- 収支行は自動計算のため編集不可。**賃料収入行・支出科目の行はセル編集可能**（ダブルクリックで編集開始）
+- 支出セル編集時: 対象物件・科目・年月に一致する `AssetExpenses` レコードが0件なら新規作成、1件なら金額を更新。2件以上存在する場合は編集を拒否し「支出」タブでの編集を促す（グリッド側での一意な更新対象が決まらないため）
+- 収入セル編集時: 対象物件・年月に一致する `AssetRentTransactions` が1件なら `receivedAmount` を更新。0件の場合は物件の契約が1件のときのみその契約で新規作成（`expectedAmount`＝`receivedAmount`＝入力値、`status`は入力値>0なら`paid`）。契約が0件・複数件、または記録が2件以上ある場合は編集を拒否し「契約」タブ・「賃料入出金」タブでの対応を促す（更新対象や紐づけ先契約を一意に特定できないため）
+
+**社内チャット**（フェーズ3、オーナー様の要望を受けて追加）:
+- スレッド（`AssetChatThreads`）＋メッセージ（`AssetChatMessages`）の2コレクション構成。スレッドは`type: 'staff'`固定（オーナー/顧客向けは`type`フィールドを流用してフェーズ4で対応予定）
+- スレッド作成時に任意で物件（`relatedPropertyId`）と紐づけ可能
+- リアルタイム更新はAzure SignalR Service等を使わず、**5秒間隔のポーリング**（`GetAssetChatThreads`/`GetAssetChatMessages`を定期的に呼ぶだけ）で実現。追加のAzureリソース・追加費用が発生しない方式を採用（企画部の技術調査結果を踏まえた判断。詳細は`docs/asset-management-proposal.md` 5.2節）
+- 送信者表示名はフロントエンドが`GetUserProfile`で取得した`displayName`を`senderName`としてリクエストに含める（無ければメールアドレスにフォールバック）。メッセージの削除は自分（`senderEmail`が一致する）が投稿したものだけ許可
+- スレッド削除時は所属メッセージも合わせて削除
+
+**契約書類フォルダのリンク保存**（フェーズ4の一部を暫定的に前倒し、オーナー様の要望を受けて追加）:
+- `AssetContracts` に `documentsFolderUrl`（文字列、任意）を追加。Box等で作成した契約書類・重要事項説明書等の共有フォルダのURLを保存し、契約タブの一覧からアイコンクリックで新しいタブで開ける
+- フォルダの作成・顧客への共有（コラボレーター招待や共有リンク発行）はBox側で手動対応する運用（アプリ側はURLの保存・表示のみ）。自動化（契約作成時の自動フォルダ作成・自動招待）はBox Developer ConsoleでのAPPアプリ登録とAzureへの認証情報設定が必要なため、将来のフェーズで別途検討
 
 ---
 
@@ -654,6 +702,37 @@ tags: string[],      // サブタスク固有のタグ
 | POST | `/api/UpdateProject` | プロジェクト更新（id必須。更新可能フィールド: name・developer・spreadsheetId・sheetName・headerRows・status） |
 | POST | `/api/DeleteProject` | プロジェクト削除 |
 
+### 資産管理（管理者のみ・フェーズ1/2テスト環境）
+
+| メソッド | エンドポイント | 説明 |
+|---|---|---|
+| GET | `/api/GetAssetOwners` | オーナー一覧取得（name昇順） |
+| POST | `/api/CreateAssetOwner` | オーナー作成（name必須） |
+| POST | `/api/UpdateAssetOwner` | オーナー更新（id必須） |
+| POST | `/api/DeleteAssetOwner` | オーナー削除 |
+| GET | `/api/GetAssetProperties` | 物件一覧取得（name昇順） |
+| POST | `/api/CreateAssetProperty` | 物件作成（name必須） |
+| POST | `/api/UpdateAssetProperty` | 物件更新（id必須） |
+| POST | `/api/DeleteAssetProperty` | 物件削除 |
+| GET | `/api/GetAssetContracts` | 契約一覧取得（開始日降順） |
+| POST | `/api/CreateAssetContract` | 契約作成（propertyId・tenantName必須） |
+| POST | `/api/UpdateAssetContract` | 契約更新（id必須） |
+| POST | `/api/DeleteAssetContract` | 契約削除 |
+| GET | `/api/GetAssetRentTransactions` | 賃料入出金一覧取得（対象年月降順） |
+| POST | `/api/CreateAssetRentTransaction` | 入出金記録作成（contractId・yearMonth必須） |
+| POST | `/api/UpdateAssetRentTransaction` | 入出金記録更新（id必須） |
+| POST | `/api/DeleteAssetRentTransaction` | 入出金記録削除 |
+| GET | `/api/GetAssetExpenses`（フェーズ2） | 支出一覧取得（対象年月降順） |
+| POST | `/api/CreateAssetExpense`（フェーズ2） | 支出作成（propertyId・yearMonth必須） |
+| POST | `/api/UpdateAssetExpense`（フェーズ2） | 支出更新（id必須） |
+| POST | `/api/DeleteAssetExpense`（フェーズ2） | 支出削除 |
+| GET | `/api/GetAssetChatThreads`（フェーズ3） | チャットスレッド一覧取得（最終更新降順） |
+| POST | `/api/CreateAssetChatThread`（フェーズ3） | スレッド作成（title必須） |
+| POST | `/api/DeleteAssetChatThread`（フェーズ3） | スレッド削除（所属メッセージも削除） |
+| GET | `/api/GetAssetChatMessages`（フェーズ3） | メッセージ一覧取得（`?threadId=xxx`必須、作成日時昇順） |
+| POST | `/api/CreateAssetChatMessage`（フェーズ3） | メッセージ送信（threadId・body必須） |
+| POST | `/api/DeleteAssetChatMessage`（フェーズ3） | メッセージ削除（投稿者本人のみ） |
+
 ### ホワイトリスト（管理者のみ）
 
 | メソッド | エンドポイント | 説明 |
@@ -726,6 +805,141 @@ tags: string[],      // サブタスク固有のタグ
 }
 ```
 
+### 8.5 資産管理: オーナー（`AssetOwners`）
+
+```javascript
+{
+  id: string,
+  name: string,               // オーナー名（必須）
+  kana: string,
+  contactEmail: string,
+  contactPhone: string,
+  address: string,
+  bankName: string,           // 振込先銀行名
+  bankBranch: string,
+  bankAccountType: string,    // 普通 / 当座
+  bankAccountNumber: string,
+  bankAccountHolder: string,
+  notes: string,
+  createdAt: string,
+  updatedAt: string,
+  createdBy: string,
+  updatedBy: string | null,
+}
+```
+
+### 8.6 資産管理: 物件（`AssetProperties`）
+
+```javascript
+{
+  id: string,
+  name: string,                // 物件名（必須）
+  address: string,
+  propertyType: 'apartment' | 'house' | 'building' | 'land' | 'other',
+  ownerId: string | null,      // AssetOwners への参照
+  unitCount: number | null,
+  builtYear: number | null,
+  status: 'active' | 'inactive',
+  notes: string,
+  createdAt: string,
+  updatedAt: string,
+  createdBy: string,
+  updatedBy: string | null,
+}
+```
+
+### 8.7 資産管理: 賃貸契約（`AssetContracts`）
+
+```javascript
+{
+  id: string,
+  propertyId: string,           // AssetProperties への参照（必須）
+  unitNumber: string,
+  tenantName: string,           // 入居者名（必須）
+  tenantContact: string,
+  rentAmount: number,
+  managementFeeAmount: number,
+  depositAmount: number,
+  startDate: string,             // YYYY-MM-DD
+  endDate: string,                // YYYY-MM-DD
+  status: 'active' | 'pending' | 'terminated',
+  notes: string,
+  documentsFolderUrl: string,     // 契約書類・重要事項説明書等を格納したBox等の共有フォルダURL（任意、フェーズ4暫定対応）
+  createdAt: string,
+  updatedAt: string,
+  createdBy: string,
+  updatedBy: string | null,
+}
+```
+
+### 8.8 資産管理: 賃料入出金（`AssetRentTransactions`）
+
+```javascript
+{
+  id: string,
+  contractId: string,           // AssetContracts への参照（必須）
+  propertyId: string | null,    // 作成時に契約から自動セット
+  yearMonth: string,            // YYYY-MM（必須）
+  expectedAmount: number,       // 入金予定額
+  receivedAmount: number,       // 入金実績額
+  receivedDate: string,
+  ownerPayoutAmount: number,    // オーナー送金予定額（記録のみ、実送金は行わない）
+  ownerPayoutDate: string,
+  status: 'unpaid' | 'partial' | 'paid',
+  notes: string,
+  createdAt: string,
+  updatedAt: string,
+  createdBy: string,
+  updatedBy: string | null,
+}
+```
+
+### 8.9 資産管理: 支出（`AssetExpenses`）（フェーズ2）
+
+```javascript
+{
+  id: string,
+  propertyId: string,            // AssetProperties への参照（必須）
+  category: 'repair' | 'management_fee' | 'insurance' | 'tax' | 'other',
+  yearMonth: string,              // YYYY-MM（必須）
+  amount: number,                 // 支出額
+  paidDate: string,               // YYYY-MM-DD
+  vendor: string,                 // 支払先
+  notes: string,
+  createdAt: string,
+  updatedAt: string,
+  createdBy: string,
+  updatedBy: string | null,
+}
+```
+
+### 8.10 資産管理: チャットスレッド（`AssetChatThreads`）（フェーズ3）
+
+```javascript
+{
+  id: string,
+  type: 'staff',                  // 'staff'固定（フェーズ4で'owner'/'customer'を追加予定）
+  title: string,                  // スレッド名（必須）
+  relatedPropertyId: string | null, // AssetProperties への参照（任意）
+  createdAt: string,
+  updatedAt: string,               // 最新メッセージ送信時に更新（一覧の並び替えに使用）
+  createdBy: string,
+}
+```
+
+### 8.11 資産管理: チャットメッセージ（`AssetChatMessages`）（フェーズ3）
+
+```javascript
+{
+  id: string,
+  threadId: string,          // AssetChatThreads への参照（必須）
+  senderEmail: string,       // 投稿者のメールアドレス（削除権限の判定に使用）
+  senderName: string,        // 表示名（displayName、無ければメールアドレス）
+  body: string,              // メッセージ本文（必須）
+  createdAt: string,
+}
+```
+
 ---
 
 ## 9. Cosmos DB コレクション
@@ -741,6 +955,13 @@ tags: string[],      // サブタスク固有のタグ
 | Customers | `/id` | CRM顧客データ（env: `COSMOS_CUSTOMERS_CONTAINER`） |
 | Projects | `/id` | プロジェクト台帳（env: `COSMOS_PROJECTS_CONTAINER`） |
 | TaskTemplates | `/id` | タスクテンプレート（Phase 2） |
+| AssetOwners | `/id` | 資産管理: オーナー台帳（env: `COSMOS_ASSET_OWNERS_CONTAINER`、フェーズ1テスト環境） |
+| AssetProperties | `/id` | 資産管理: 物件台帳（env: `COSMOS_ASSET_PROPERTIES_CONTAINER`、フェーズ1テスト環境） |
+| AssetContracts | `/id` | 資産管理: 賃貸契約（env: `COSMOS_ASSET_CONTRACTS_CONTAINER`、フェーズ1テスト環境） |
+| AssetRentTransactions | `/id` | 資産管理: 賃料入出金記録（env: `COSMOS_ASSET_RENT_TRANSACTIONS_CONTAINER`、フェーズ1テスト環境） |
+| AssetExpenses | `/id` | 資産管理: 支出記録（env: `COSMOS_ASSET_EXPENSES_CONTAINER`、フェーズ2テスト環境） |
+| AssetChatThreads | `/id` | 資産管理: 社内チャットスレッド（env: `COSMOS_ASSET_CHAT_THREADS_CONTAINER`、フェーズ3テスト環境） |
+| AssetChatMessages | `/id` | 資産管理: 社内チャットメッセージ（env: `COSMOS_ASSET_CHAT_MESSAGES_CONTAINER`、フェーズ3テスト環境） |
 
 ---
 
@@ -849,3 +1070,10 @@ git push origin main
 | タイムライン表示 | 完了 | ガントチャート形式でタスクをカテゴリ別に表示。期限・開始日に基づくバー表示。今日ライン・期限超過ハイライト・クリックで編集。ビュー選択から「タイムライン（ガント）」を選択。`TaskTimelineView.jsx` |
 | タスク依存関係 | 完了 | タスク詳細モーダルで「依存関係」セクションを追加。`blockedBy: string[]` フィールドでブロッカータスクを指定。タスクカードに「ブロック中 (N)」バッジを表示。 |
 | ダッシュボード拡張 | 完了 | 期限超過タスク数ウィジェット・チーム完了率プログレスバー・担当者別タスク分布ウィジェット。`DashboardView.jsx` + `StatCard.jsx` |
+
+### PHASE 3 - 資産管理CRM（テスト環境・別ブランチ）
+
+| 機能 | ステータス | 概要 |
+|---|---|---|
+| 資産管理 フェーズ1（物件・オーナー・契約・賃料入出金） | 実装中（テスト環境） | Wealth Park / GMO賃貸DXを参考にした独自CRM。既存タスク管理システムのアップデートと並行作業のため `claude/crm-asset-management-system-0bs8i0` ブランチで開発し、管理者限定ナビ配下でテスト。実用段階でmainへ反映予定 |
+| 実際の送金・決済連携 | 未着手・スコープ外 | フェーズ1では入出金の記録・集計のみ。実際の送金実行は行わない方針 |
