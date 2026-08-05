@@ -44,6 +44,7 @@ app.http('GetAllUsers', {
         userId: user.userId || user.id,
         displayName: user.displayName || user.userDetails || 'Unknown User',
         email: user.userDetails || '',
+        slackMemberId: user.slackMemberId || null,
       }));
 
       // ホワイトリストが取得できた場合はフィルタリング
@@ -60,7 +61,7 @@ app.http('GetAllUsers', {
 
       return {
         status: 200,
-        jsonBody: userList.map(u => ({ userId: u.userId, displayName: u.displayName })),
+        jsonBody: userList.map(u => ({ userId: u.userId, displayName: u.displayName, slackMemberId: u.slackMemberId || null })),
       };
     } catch (error) {
       const message = error.message || 'Error loading users.';
