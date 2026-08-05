@@ -1,6 +1,6 @@
 const PREFERENCES_SCHEMA_VERSION = 2;
 const ALLOWED_LAYOUTS = new Set(['category', 'status', 'list', 'calendar', 'assignee', 'timeline', 'gallery']);
-const ALLOWED_SORT_MODES = new Set(['statusDeadline', 'deadlineAsc', 'deadlineDesc', 'titleAsc']);
+const ALLOWED_SORT_MODES = new Set(['statusDeadline', 'deadlineAsc', 'deadlineDesc', 'titleAsc', 'createdAtDesc', 'createdAtAsc']);
 const ALLOWED_CATEGORY_TASK_ORDERS = new Set(['progress', 'createdAtDesc', 'deadlineAsc']);
 const MAX_LIST_LENGTH = 100;
 
