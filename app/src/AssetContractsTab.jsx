@@ -29,6 +29,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 
 const API_URL = '/api';
 
@@ -50,6 +51,7 @@ const EMPTY_FORM = {
   endDate: '',
   status: 'active',
   notes: '',
+  documentsFolderUrl: '',
 };
 
 function statusMeta(value) {
@@ -112,6 +114,7 @@ export function AssetContractsTab({ properties, onContractsChange }) {
       endDate: contract.endDate ?? '',
       status: contract.status ?? 'active',
       notes: contract.notes ?? '',
+      documentsFolderUrl: contract.documentsFolderUrl ?? '',
     });
     setSaveError('');
     setDialogOpen(true);
@@ -209,13 +212,14 @@ export function AssetContractsTab({ properties, onContractsChange }) {
                   <TableCell sx={{ fontWeight: 700 }}>管理費</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>契約期間</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>ステータス</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>書類</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>操作</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {contracts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} align="center" sx={{ color: 'text.secondary', py: 4 }}>
+                    <TableCell colSpan={9} align="center" sx={{ color: 'text.secondary', py: 4 }}>
                       契約が登録されていません
                     </TableCell>
                   </TableRow>
@@ -232,6 +236,22 @@ export function AssetContractsTab({ properties, onContractsChange }) {
                       </TableCell>
                       <TableCell>
                         <Chip label={statusMeta(contract.status).label} color={statusMeta(contract.status).color} size="small" />
+                      </TableCell>
+                      <TableCell>
+                        {contract.documentsFolderUrl ? (
+                          <IconButton
+                            size="small"
+                            component="a"
+                            href={contract.documentsFolderUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label="書類フォルダを開く"
+                          >
+                            <FolderOpenIcon fontSize="small" color="primary" />
+                          </IconButton>
+                        ) : (
+                          <Typography variant="caption" color="text.secondary">未設定</Typography>
+                        )}
                       </TableCell>
                       <TableCell>
                         <IconButton size="small" onClick={() => handleOpenEdit(contract)} aria-label="編集">
@@ -279,6 +299,15 @@ export function AssetContractsTab({ properties, onContractsChange }) {
                 ))}
               </Select>
             </FormControl>
+            <TextField
+              label="書類フォルダURL（Box等）"
+              value={form.documentsFolderUrl}
+              onChange={handleFormChange('documentsFolderUrl')}
+              fullWidth
+              size="small"
+              placeholder="https://app.box.com/s/..."
+              helperText="契約書類・重要事項説明書等を格納したBox等の共有フォルダのURL（フォルダ作成・顧客への共有はBox側で行い、そのリンクをここに貼り付ける）"
+            />
             <TextField label="備考" value={form.notes} onChange={handleFormChange('notes')} fullWidth size="small" multiline minRows={2} />
           </Box>
         </DialogContent>

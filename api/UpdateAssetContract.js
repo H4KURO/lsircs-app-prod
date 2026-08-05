@@ -17,7 +17,7 @@ function parseClientPrincipal(request) {
 const ALLOWED_UPDATE_FIELDS = [
   'propertyId', 'unitNumber', 'tenantName', 'tenantContact',
   'rentAmount', 'managementFeeAmount', 'depositAmount',
-  'startDate', 'endDate', 'status', 'notes',
+  'startDate', 'endDate', 'status', 'notes', 'documentsFolderUrl',
 ];
 
 app.http('UpdateAssetContract', {

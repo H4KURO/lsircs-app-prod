@@ -53,6 +53,8 @@ app.http('CreateAssetContract', {
         endDate: payload.endDate ?? '',
         status: payload.status ?? 'active',
         notes: payload.notes ?? '',
+        // 契約書類・重要事項説明書等を格納するBox等の共有フォルダURL（任意）
+        documentsFolderUrl: payload.documentsFolderUrl ?? '',
         createdAt: now,
         updatedAt: now,
         createdBy: clientPrincipal.userDetails,

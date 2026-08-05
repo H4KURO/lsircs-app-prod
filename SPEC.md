@@ -1,7 +1,7 @@
 # lsir-cs アプリケーション仕様書
 
 > **メンテナンス注意**: このファイルはアプリ変更のたびに更新すること（CLAUDE.md 参照）。  
-> 最終更新: 2026-07-31（main の Phase 4: リッチテキストエディター・ギャラリービュー・コメントスレッド返信 を取り込み。加えて資産管理CRM フェーズ1・2・3（テスト環境・管理者限定、支出記録＋物件別収支ダッシュボード＋Wealth Park風グリッド式収支入力＋社内チャットの土台を追加）を `claude/crm-asset-management-system-0bs8i0` ブランチに追加。資産管理部分は main 未マージ）
+> 最終更新: 2026-07-31（main の Phase 4: リッチテキストエディター・ギャラリービュー・コメントスレッド返信 を取り込み。加えて資産管理CRM フェーズ1・2・3（テスト環境・管理者限定、支出記録＋物件別収支ダッシュボード＋Wealth Park風グリッド式収支入力＋社内チャットの土台＋契約書類フォルダ（Box等）リンク保存を追加）を `claude/crm-asset-management-system-0bs8i0` ブランチに追加。資産管理部分は main 未マージ）
 
 ---
 
@@ -422,7 +422,7 @@ Google Sheets / Box ドキュメントを iframe で埋め込み閲覧・編集�
 |---|---|---|
 | 物件 | `AssetPropertiesTab` | 物件台帳（種別・住所・オーナー・戸数） |
 | オーナー | `AssetOwnersTab` | オーナー台帳（連絡先・振込先銀行情報） |
-| 契約 | `AssetContractsTab` | 賃貸契約（物件・入居者・賃料・契約期間） |
+| 契約 | `AssetContractsTab` | 賃貸契約（物件・入居者・賃料・契約期間・書類フォルダURL） |
 | 賃料入出金 | `AssetRentTransactionsTab` | 月次の入金予定・入金実績・オーナー送金予定額の記録 |
 | 支出 | `AssetExpensesTab`（フェーズ2） | 物件ごとの支出記録（修繕費・管理委託手数料・保険料・固定資産税等） |
 | 収支ダッシュボード | `AssetFinancialDashboardTab`（フェーズ2） | 物件を選択し、直近12ヶ月の月次収入・支出・収支（黒字/赤字）をグラフ＋一覧表で可視化。加えてWealth Park風のグリッド式収支入力（年単位、セル編集可）を提供 |
@@ -448,7 +448,10 @@ Google Sheets / Box ドキュメントを iframe で埋め込み閲覧・編集�
 - リアルタイム更新はAzure SignalR Service等を使わず、**5秒間隔のポーリング**（`GetAssetChatThreads`/`GetAssetChatMessages`を定期的に呼ぶだけ）で実現。追加のAzureリソース・追加費用が発生しない方式を採用（企画部の技術調査結果を踏まえた判断。詳細は`docs/asset-management-proposal.md` 5.2節）
 - 送信者表示名はフロントエンドが`GetUserProfile`で取得した`displayName`を`senderName`としてリクエストに含める（無ければメールアドレスにフォールバック）。メッセージの削除は自分（`senderEmail`が一致する）が投稿したものだけ許可
 - スレッド削除時は所属メッセージも合わせて削除
-- 編集成功後は収入・支出データを再取得し、上部のグラフ・一覧表にも即座に反映される
+
+**契約書類フォルダのリンク保存**（フェーズ4の一部を暫定的に前倒し、オーナー様の要望を受けて追加）:
+- `AssetContracts` に `documentsFolderUrl`（文字列、任意）を追加。Box等で作成した契約書類・重要事項説明書等の共有フォルダのURLを保存し、契約タブの一覧からアイコンクリックで新しいタブで開ける
+- フォルダの作成・顧客への共有（コラボレーター招待や共有リンク発行）はBox側で手動対応する運用（アプリ側はURLの保存・表示のみ）。自動化（契約作成時の自動フォルダ作成・自動招待）はBox Developer ConsoleでのAPPアプリ登録とAzureへの認証情報設定が必要なため、将来のフェーズで別途検討
 
 ---
 
@@ -857,6 +860,7 @@ tags: string[],      // サブタスク固有のタグ
   endDate: string,                // YYYY-MM-DD
   status: 'active' | 'pending' | 'terminated',
   notes: string,
+  documentsFolderUrl: string,     // 契約書類・重要事項説明書等を格納したBox等の共有フォルダURL（任意、フェーズ4暫定対応）
   createdAt: string,
   updatedAt: string,
   createdBy: string,
