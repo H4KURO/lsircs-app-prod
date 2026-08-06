@@ -69,6 +69,7 @@ import {
 
 const API_URL = '/api';
 const statusColorMap = {
+  Memo: 'default',
   Started: 'info.main',
   WaitingEstimate: 'info.main',
   Inprogress: 'warning.main',
@@ -79,6 +80,7 @@ const statusColorMap = {
 };
 
 const STATUS_LABEL_JA = {
+  Memo: 'メモ',
   Started: '着手前',
   WaitingEstimate: '見積もり待ち',
   Inprogress: '進行中',

@@ -5,6 +5,7 @@ import CircleIcon from '@mui/icons-material/Circle';
 import { ALL_TASK_STATUS_DEFINITIONS } from './taskUtils';
 
 const STATUS_COLORS = {
+  Memo: '#b0bec5',
   Started: '#64b5f6',
   WaitingEstimate: '#64b5f6',
   Inprogress: '#ffb74d',
@@ -14,6 +15,7 @@ const STATUS_COLORS = {
 };
 
 const STATUS_LABEL_JA = {
+  Memo: 'メモ',
   Started: '着手前',
   WaitingEstimate: '見積もり待ち',
   Inprogress: '進行中',

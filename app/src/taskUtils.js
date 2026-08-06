@@ -4,12 +4,14 @@ export const DEFAULT_TAG_LABEL = '未設定タグ';
 export const PM_CATEGORY = 'PM';
 
 export const TASK_STATUS_DEFINITIONS = Object.freeze([
+  { value: 'Memo', translationKey: 'taskView.statuses.memo' },
   { value: 'Started', translationKey: 'taskView.statuses.started' },
   { value: 'Inprogress', translationKey: 'taskView.statuses.inProgress' },
   { value: 'Done', translationKey: 'taskView.statuses.done' },
 ]);
 
 export const PM_TASK_STATUS_DEFINITIONS = Object.freeze([
+  { value: 'Memo', translationKey: 'taskView.statuses.memo' },
   { value: 'WaitingEstimate', translationKey: 'taskView.statuses.waitingEstimate' },
   { value: 'WaitingOwnerApproval', translationKey: 'taskView.statuses.waitingOwnerApproval' },
   { value: 'WaitingCompletionReport', translationKey: 'taskView.statuses.waitingCompletionReport' },
@@ -18,6 +20,7 @@ export const PM_TASK_STATUS_DEFINITIONS = Object.freeze([
 ]);
 
 export const ALL_TASK_STATUS_DEFINITIONS = Object.freeze([
+  { value: 'Memo', translationKey: 'taskView.statuses.memo' },
   { value: 'Started', translationKey: 'taskView.statuses.started' },
   { value: 'WaitingEstimate', translationKey: 'taskView.statuses.waitingEstimate' },
   { value: 'Inprogress', translationKey: 'taskView.statuses.inProgress' },
