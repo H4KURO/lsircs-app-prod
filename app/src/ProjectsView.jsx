@@ -25,10 +25,12 @@ import {
   FormControl,
   InputLabel,
   IconButton,
+  Tooltip,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 
 const API_URL = '/api';
 
@@ -55,6 +57,7 @@ export function ProjectsView() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const fetchProjects = useCallback(async () => {
     setLoading(true);
@@ -158,6 +161,15 @@ export function ProjectsView() {
         <Typography variant="h5" fontWeight={700}>
           プロジェクト管理
         </Typography>
+        <Tooltip title="BL登録マニュアルを見る" placement="right">
+          <IconButton
+            size="small"
+            onClick={() => setHelpOpen(true)}
+            sx={{ color: 'text.secondary', ml: 0.5 }}
+          >
+            <HelpOutlineIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
         <Box sx={{ flexGrow: 1 }} />
         <Button
           variant="contained"
@@ -340,6 +352,31 @@ export function ProjectsView() {
             {saving ? <CircularProgress size={20} /> : '保存'}
           </Button>
         </DialogActions>
+      </Dialog>
+
+      {/* ヘルプマニュアルダイアログ */}
+      <Dialog
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{ sx: { height: '85vh' } }}
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <HelpOutlineIcon fontSize="small" color="primary" />
+            <Typography fontWeight={600}>新規プロジェクト BL 登録マニュアル</Typography>
+          </Box>
+          <IconButton size="small" onClick={() => setHelpOpen(false)}>✕</IconButton>
+        </DialogTitle>
+        <DialogContent dividers sx={{ p: 0, overflow: 'hidden' }}>
+          <Box
+            component="iframe"
+            src="/manual/bl-registration.html"
+            sx={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+            title="BL登録マニュアル"
+          />
+        </DialogContent>
       </Dialog>
     </Box>
   );
