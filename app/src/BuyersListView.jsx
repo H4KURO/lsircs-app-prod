@@ -42,7 +42,8 @@ import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 
 const API_URL = '/api';
-const SHEETS_URL = 'https://docs.google.com/spreadsheets/d/1-gTbb5a1oA9ecY159KQMWA5gGr0gDvoa_UO8tlv4whs/edit';
+const sheetsUrl = (spreadsheetId) =>
+  spreadsheetId ? `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit` : null;
 
 // ── ヘッダー行（3段）から列ラベルを生成 ──────────────────────
 function buildColumnLabels(headers) {
@@ -432,9 +433,10 @@ export function BuyersListView() {
             size="small"
             variant="outlined"
             startIcon={<OpenInNewIcon />}
-            href={SHEETS_URL}
+            href={sheetsUrl(selectedProject?.spreadsheetId)}
             target="_blank"
             rel="noopener noreferrer"
+            disabled={!selectedProject?.spreadsheetId}
           >
             Google Sheetsで開く
           </Button>
