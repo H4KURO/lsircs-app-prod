@@ -407,7 +407,7 @@ export function BuyersListView() {
       updateEndpoint: 'UpdateXldBuyer',
       headerRowCount: 3,
       summaryColCount: 8,
-      useProject: false,
+      useProject: true,
     },
     {
       label: 'Commission & Referral',
@@ -415,7 +415,7 @@ export function BuyersListView() {
       updateEndpoint: 'UpdateCommission',
       headerRowCount: 1,
       summaryColCount: 13,
-      useProject: false,
+      useProject: true,
     },
   ];
 

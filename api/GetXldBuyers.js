@@ -1,7 +1,12 @@
 const { app } = require('@azure/functions');
-const { getSheetValues } = require('./sheetsClient');
+const { getSheetValues, getSheetValuesById } = require('./sheetsClient');
+const { getNamedContainer } = require('./cosmosClient');
 
 const XLD_SHEET = 'Xld';
+const HEADER_ROWS = 3;
+
+const projectsContainer = () =>
+  getNamedContainer('Projects', ['COSMOS_PROJECTS_CONTAINER']);
 
 function parseClientPrincipal(request) {
   const header = request.headers.get('x-ms-client-principal');
@@ -13,32 +18,49 @@ function parseClientPrincipal(request) {
   }
 }
 
-// GET /api/GetXldBuyers
-// Returns all rows from "Xld" sheet (cancelled/rescinded buyers)
+// GET /api/GetXldBuyers[?projectId=xxx]
 app.http('GetXldBuyers', {
   methods: ['GET'],
   authLevel: 'anonymous',
   handler: async (request, context) => {
     const clientPrincipal = parseClientPrincipal(request);
-    if (!clientPrincipal) {
-      return { status: 401, body: 'Unauthorized access. Please log in.' };
-    }
+    if (!clientPrincipal) return { status: 401, body: 'Unauthorized' };
 
     try {
-      const allValues = await getSheetValues(`'${XLD_SHEET}'`);
-      if (!allValues || allValues.length === 0) {
-        return { status: 200, jsonBody: { headers: [], rows: [] } };
+      const url = new URL(request.url);
+      const projectId = url.searchParams.get('projectId');
+
+      let spreadsheetId = null;
+
+      if (projectId) {
+        const container = projectsContainer();
+        let project;
+        try {
+          const { resource } = await container.item(projectId, projectId).read();
+          project = resource;
+        } catch (e) {
+          if (e.code === 404 || (e.message || '').includes('NotFound')) return { status: 404, body: 'Project not found' };
+          throw e;
+        }
+        if (!project) return { status: 404, body: 'Project not found' };
+        spreadsheetId = project.spreadsheetId;
       }
 
-      const headers = allValues.slice(0, 3);
-      const rows = allValues.slice(3);
+      const range = `'${XLD_SHEET}'`;
+      const allValues = spreadsheetId
+        ? await getSheetValuesById(spreadsheetId, range)
+        : await getSheetValues(range);
+
+      if (!allValues || allValues.length === 0) {
+        return { status: 200, jsonBody: { headers: [], rows: [], totalRows: 0, sheetName: XLD_SHEET } };
+      }
 
       return {
         status: 200,
         jsonBody: {
-          headers,
-          rows,
-          totalRows: rows.length,
+          headers: allValues.slice(0, HEADER_ROWS),
+          rows: allValues.slice(HEADER_ROWS),
+          totalRows: allValues.length - HEADER_ROWS,
           sheetName: XLD_SHEET,
         },
       };
