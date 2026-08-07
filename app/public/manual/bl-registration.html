@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>新規プロジェクト BL 登録マニュアル — lsir-cs</title>
+<style>
+:root {
+  --navy:#001731;--blue:#2563EB;--blue-lt:#EFF6FF;--blue-bd:#BFDBFE;
+  --bg:#F8FAFC;--surface:#FFFFFF;--surface2:#F1F5F9;--border:#CBD5E1;
+  --text:#0F172A;--soft:#475569;--muted:#94A3B8;
+  --amber:#D97706;--amber-lt:#FFFBEB;--amber-bd:#FDE68A;
+  --mark-bg:#FDE68A;--mark-text:#78350F;
+  --green:#15803D;--green-lt:#F0FDF4;
+}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --navy:#0A1929;--blue:#60A5FA;--blue-lt:#1E3A5F;--blue-bd:#2563EB;
+  --bg:#0D1117;--surface:#161B22;--surface2:#1C2430;--border:#2D3748;
+  --text:#E2E8F0;--soft:#94A3B8;--muted:#64748B;
+  --amber:#F59E0B;--amber-lt:#1C1500;--amber-bd:#92400E;
+  --mark-bg:#92400E;--mark-text:#FDE68A;
+  --green:#4ADE80;--green-lt:#052E16;
+}}
+:root[data-theme="dark"]{
+  --navy:#0A1929;--blue:#60A5FA;--blue-lt:#1E3A5F;--blue-bd:#2563EB;
+  --bg:#0D1117;--surface:#161B22;--surface2:#1C2430;--border:#2D3748;
+  --text:#E2E8F0;--soft:#94A3B8;--muted:#64748B;
+  --amber:#F59E0B;--amber-lt:#1C1500;--amber-bd:#92400E;
+  --mark-bg:#92400E;--mark-text:#FDE68A;
+  --green:#4ADE80;--green-lt:#052E16;
+}
+:root[data-theme="light"]{
+  --navy:#001731;--blue:#2563EB;--blue-lt:#EFF6FF;--blue-bd:#BFDBFE;
+  --bg:#F8FAFC;--surface:#FFFFFF;--surface2:#F1F5F9;--border:#CBD5E1;
+  --text:#0F172A;--soft:#475569;--muted:#94A3B8;
+  --amber:#D97706;--amber-lt:#FFFBEB;--amber-bd:#FDE68A;
+  --mark-bg:#FDE68A;--mark-text:#78350F;
+  --green:#15803D;--green-lt:#F0FDF4;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,'Hiragino Sans','Yu Gothic UI',sans-serif;font-size:15px;line-height:1.75;color:var(--text);background:var(--bg);padding:32px 16px 80px}
+.wrap{max-width:720px;margin:0 auto}
+
+.tag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--blue);background:var(--blue-lt);border:1px solid var(--blue-bd);padding:3px 9px;border-radius:4px;margin-bottom:14px}
+h1{font-size:clamp(22px,4vw,28px);font-weight:700;line-height:1.3;margin-bottom:10px}
+.subtitle{color:var(--soft);max-width:560px;margin-bottom:16px}
+.chips{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:40px}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--muted);background:var(--surface);border:1px solid var(--border);padding:4px 12px;border-radius:20px}
+
+.phase{margin-bottom:32px}
+.phase-head{display:flex;align-items:center;gap:12px;background:var(--navy);padding:12px 20px;border-radius:8px 8px 0 0}
+.phase-ey{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.4);white-space:nowrap}
+.phase-nm{font-size:15px;font-weight:600;color:#fff}
+.steps-wrap{background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px}
+
+.step{padding:22px 24px;border-bottom:1px solid var(--border)}
+.step:last-child{border-bottom:none}
+.step-hd{display:flex;align-items:flex-start;gap:13px;margin-bottom:10px}
+.sn{flex-shrink:0;width:26px;height:26px;border-radius:50%;background:var(--blue);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:3px}
+.step h3{font-size:15.5px;font-weight:600;line-height:1.4}
+.sb{margin-left:39px}
+.sb p{color:var(--soft);margin-bottom:8px}
+.sb p:last-child{margin-bottom:0}
+strong{color:var(--text)}
+code{font-family:'Courier New',monospace;font-size:12.5px;background:var(--surface2);border:1px solid var(--border);padding:1px 5px;border-radius:3px}
+
+.callout{display:flex;gap:10px;padding:10px 14px;border-radius:6px;font-size:13.5px;line-height:1.6;margin-top:12px}
+.ci{background:var(--blue-lt);border-left:3px solid var(--blue);color:var(--soft)}
+.cw{background:var(--amber-lt);border-left:3px solid var(--amber);color:var(--soft)}
+.callout-icon{flex-shrink:0}
+
+.illus{margin:14px 0}
+.illus-lbl{font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}
+
+.url-wrap{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px}
+.url-bar{display:flex;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:6px 10px;gap:4px;font-family:'Courier New',monospace;font-size:11px;overflow-x:auto;white-space:nowrap}
+.ud{color:var(--muted)}
+.um{background:var(--mark-bg);color:var(--mark-text);padding:1px 4px;border-radius:3px;font-weight:700}
+.url-tip{margin-top:8px;font-size:12px;color:var(--amber);display:flex;align-items:center;gap:5px}
+
+.tabs-wrap{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px 8px}
+.tabs-row{display:flex;gap:2px;align-items:flex-end;border-bottom:2px solid var(--border)}
+.tab{padding:5px 14px;font-size:12.5px;color:var(--muted);border:1px solid var(--border);border-bottom:none;border-radius:4px 4px 0 0;background:var(--surface)}
+.tab.act{color:#1A3A6B;background:var(--blue-lt);border-color:var(--blue-bd);font-weight:600}
+.tab-tip{font-size:12px;color:var(--blue);margin-top:8px}
+.hdr-hint{background:var(--surface2);border:1px solid var(--border);border-radius:6px;margin-top:8px;overflow:hidden}
+.hdr-row{display:flex;border-bottom:1px solid var(--border);font-size:11.5px}
+.hdr-row:last-child{border-bottom:none}
+.hdr-cell{padding:5px 10px;flex:1;font-family:'Courier New',monospace}
+.hdr-hl{background:#FFFBEB;color:#92400E;font-weight:600}
+.hdr-note{font-size:11.5px;color:var(--amber);margin-top:6px}
+
+.sidebar-illus{display:flex;align-items:center;gap:14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 16px}
+.sidebar-caption{font-size:13px;color:var(--soft)}
+
+.form-mock{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.fr{display:grid;grid-template-columns:190px 1fr;gap:10px;align-items:center;font-size:13px}
+.fl{color:var(--muted);display:flex;align-items:center;gap:6px;font-size:12.5px}
+.req{font-size:10px;font-weight:700;color:#DC2626;background:#FEF2F2;border:1px solid #FECACA;padding:1px 5px;border-radius:3px}
+.fv{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--text)}
+.fv.mono{font-family:'Courier New',monospace;font-size:11.5px;word-break:break-all}
+.fv.narrow{max-width:60px}
+.fv.ph{color:var(--muted)}
+.fv.hl{background:var(--blue-lt);border-color:var(--blue-bd);color:var(--blue);font-weight:600}
+
+.map-mock{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.mr{display:grid;grid-template-columns:170px 24px 1fr;align-items:center;padding:8px 14px;gap:8px;border-bottom:1px solid var(--border);font-size:12.5px}
+.mr:last-child{border-bottom:none}
+.mf{color:var(--soft)}
+.ma{color:var(--muted);text-align:center}
+.mc{font-family:'Courier New',monospace;font-size:12px;color:var(--blue);background:var(--blue-lt);border:1px solid var(--blue-bd);padding:2px 7px;border-radius:4px}
+
+.cl-section{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:24px;margin-top:8px}
+.cl-title{font-size:16px;font-weight:600;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.cl{display:flex;flex-direction:column;gap:10px}
+.ci-item{display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:14px;color:var(--soft);line-height:1.5}
+.ci-item input{width:16px;height:16px;flex-shrink:0;margin-top:2px;accent-color:var(--blue);cursor:pointer}
+.ci-item:has(input:checked) span{text-decoration:line-through;color:var(--muted)}
+
+@media(max-width:500px){
+  .fr{grid-template-columns:1fr;gap:4px}
+  .mr{grid-template-columns:1fr;gap:2px}
+  .ma{display:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="tag">lsir-cs 操作マニュアル</div>
+  <h1>新規プロジェクト BL 登録手順</h1>
+  <p class="subtitle">新しい物件（プロジェクト）のバイヤーリストをシステムに登録し、送金案内Excelを生成できるようにするまでの手順です。</p>
+  <div class="chips">
+    <span class="chip">⏱ 所要時間：約10〜15分</span>
+    <span class="chip">📋 全10ステップ</span>
+    <span class="chip">👤 事前準備：BLのGoogle SheetsへのアクセスURL</span>
+  </div>
+</header>
+
+<section class="phase">
+  <div class="phase-head">
+    <span class="phase-ey">Phase 1</span>
+    <span class="phase-nm">Google Sheets の確認</span>
+  </div>
+  <div class="steps-wrap">
+
+    <div class="step">
+      <div class="step-hd"><span class="sn">1</span><h3>BL のスプレッドシートを開く</h3></div>
+      <div class="sb">
+        <p>登録したいプロジェクトのバイヤーリスト（Google スプレッドシート）をブラウザで開きます。</p>
+        <div class="callout ci">
+          <span class="callout-icon">ℹ️</span>
+          <span>担当者からシートのURLを共有してもらうか、Google Drive で検索して開いてください。閲覧権限があればOKです。</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-hd"><span class="sn">2</span><h3>スプレッドシートIDをコピーする</h3></div>
+      <div class="sb">
+        <p>ブラウザのアドレスバーを確認します。URLの <code>/d/</code> と <code>/edit</code> の間にある長い英数字の文字列が <strong>スプレッドシートID</strong> です。</p>
+        <div class="illus">
+          <div class="illus-lbl">画面イメージ — ブラウザのアドレスバー</div>
+          <div class="url-wrap">
+            <div class="url-bar">
+              <span class="ud">🔒 docs.google.com/spreadsheets/d/</span><span class="um">1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms</span><span class="ud">/edit#gid=0</span>
+            </div>
+            <div class="url-tip">
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v9M3 7l3.5 4 3.5-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              ここ（黄色の部分）をドラッグして選択し Ctrl+C（Mac: ⌘C）でコピー
+            </div>
+          </div>
+        </div>
+        <div class="callout cw">
+          <span class="callout-icon">⚠️</span>
+          <span><code>/d/</code> と <code>/edit</code> の<strong>間の部分だけ</strong>コピーしてください。スラッシュは含めません。</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-hd"><span class="sn">3</span><h3>シート名とヘッダー行数を確認する</h3></div>
+      <div class="sb">
+        <p>スプレッドシート下部の<strong>タブ名</strong>（BLが入っているシートのタブ）を確認します。これが「シート名」になります。また、列見出しが何行あるか数えておきます。</p>
+        <div class="illus">
+          <div class="illus-lbl">画面イメージ — シートのタブ</div>
+          <div class="tabs-wrap">
+            <div class="tabs-row">
+              <div class="tab">概要</div>
+              <div class="tab act">Buyers list</div>
+              <div class="tab">設定</div>
+            </div>
+            <div class="tab-tip">↑ このタブ名を正確にメモする（スペース・大文字小文字も含め）</div>
+          </div>
+          <div style="margin-top:10px">
+            <div class="illus-lbl">ヘッダー行の見分け方</div>
+            <div class="hdr-hint">
+              <div class="hdr-row"><div class="hdr-cell hdr-hl">行1 → 大分類</div><div class="hdr-cell hdr-hl">行1 → 大分類</div><div class="hdr-cell hdr-hl">行1 → 大分類</div></div>
+              <div class="hdr-row"><div class="hdr-cell hdr-hl">行2 → 中分類</div><div class="hdr-cell hdr-hl">行2 → 中分類</div><div class="hdr-cell hdr-hl">行2 → 中分類</div></div>
+              <div class="hdr-row"><div class="hdr-cell hdr-hl">行3 → 詳細名</div><div class="hdr-cell hdr-hl">行3 → 詳細名</div><div class="hdr-cell hdr-hl">行3 → 詳細名</div></div>
+              <div class="hdr-row"><div class="hdr-cell">データ行（ここから実データ）</div><div class="hdr-cell">…</div><div class="hdr-cell">…</div></div>
+            </div>
+            <div class="hdr-note">↑ 黄色の行（ヘッダー）が3行なら「ヘッダー行数 = 3」</div>
+          </div>
+        </div>
+        <div class="callout ci">
+          <span class="callout-icon">ℹ️</span>
+          <span>Mahana の場合はヘッダー行3行、シート名 <code>Buyers list</code>（スペースあり）です。他プロジェクトは実際のBLを確認してください。</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<section class="phase">
+  <div class="phase-head">
+    <span class="phase-ey">Phase 2</span>
+    <span class="phase-nm">プロジェクト登録</span>
+  </div>
+  <div class="steps-wrap">
+
+    <div class="step">
+      <div class="step-hd"><span class="sn">4</span><h3>「プロジェクト管理」を開く</h3></div>
+      <div class="sb">
+        <p>lsir-cs にログイン後、左サイドバーの<strong>フォルダアイコン</strong>をクリックします。</p>
+        <div class="illus">
+          <div class="illus-lbl">画面イメージ — 左サイドバー</div>
+          <div class="sidebar-illus">
+            <svg width="56" height="220" viewBox="0 0 56 220" style="border-radius:6px;flex-shrink:0">
+              <rect width="56" height="220" fill="#001731"/>
+              <rect x="11" y="10" width="34" height="34" rx="9" fill="#002349"/>
+              <text x="28" y="32" text-anchor="middle" font-size="14" fill="#ffffff">■</text>
+              <rect x="8" y="58" width="40" height="36" rx="7" fill="none"/>
+              <text x="28" y="81" text-anchor="middle" font-size="16" fill="rgba(255,255,255,0.35)">⊞</text>
+              <rect x="8" y="98" width="40" height="36" rx="7" fill="none"/>
+              <text x="28" y="121" text-anchor="middle" font-size="16" fill="rgba(255,255,255,0.35)">✓</text>
+              <rect x="8" y="138" width="40" height="36" rx="7" fill="rgba(255,255,255,0.15)"/>
+              <rect x="0" y="148" width="3" height="16" rx="1.5" fill="rgba(255,255,255,0.8)"/>
+              <text x="28" y="161" text-anchor="middle" font-size="16" fill="#ffffff">📁</text>
+              <rect x="8" y="178" width="40" height="36" rx="7" fill="none"/>
+              <text x="28" y="201" text-anchor="middle" font-size="16" fill="rgba(255,255,255,0.35)">👥</text>
+            </svg>
+            <div class="sidebar-caption">
+              <strong style="color:#2563EB">📁 プロジェクト管理</strong>をクリック<br>
+              <span style="font-size:12.5px;color:#94A3B8">（アイコンにカーソルを当てるとラベルが表示されます）</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-hd"><span class="sn">5</span><h3>新規プロジェクトを追加する</h3></div>
+      <div class="sb">
+        <p>右上の <strong>「＋ プロジェクト追加」</strong> ボタンをクリックします。ダイアログが開いたら下記の通り入力して「保存」をクリックします。</p>
+        <div class="illus">
+          <div class="illus-lbl">入力フォーム — 入力例</div>
+          <div class="form-mock">
+            <div class="fr"><div class="fl">プロジェクト名 <span class="req">必須</span></div><div class="fv">Ward Village Phase 2（任意の名前でOK）</div></div>
+            <div class="fr"><div class="fl">開発業者</div><div class="fv ph">The Howard Hughes Corporation</div></div>
+            <div class="fr"><div class="fl">スプレッドシートID <span class="req">必須</span></div><div class="fv mono hl">1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms</div></div>
+            <div class="fr"><div class="fl">シート名 <span class="req">必須</span></div><div class="fv mono">Buyers list</div></div>
+            <div class="fr"><div class="fl">ヘッダー行数</div><div class="fv narrow">3</div></div>
+          </div>
+        </div>
+        <div class="callout cw">
+          <span class="callout-icon">⚠️</span>
+          <span>スプレッドシートIDとシート名は<strong>コピー貼り付け</strong>推奨。タイポがあると列の取得に失敗します。</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<section class="phase">
+  <div class="phase-head">
+    <span class="phase-ey">Phase 3</span>
+    <span class="phase-nm">文書生成の設定（送金案内）</span>
+  </div>
+  <div class="steps-wrap">
+
+    <div class="step">
+      <div class="step-hd"><span class="sn">6</span><h3>「文書生成」を開いてプロジェクトを選択する</h3></div>
+      <div class="sb">
+        <p>サイドバーの <strong>📄 文書生成</strong>（記事アイコン）をクリックします。ページ上部のドロップダウンから、いま登録したプロジェクトを選択します。</p>
+        <div class="callout ci">
+          <span class="callout-icon">ℹ️</span>
+          <span>プロジェクトが表示されない場合はページをリロードしてください。</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-hd"><span class="sn">7</span><h3>「プロジェクト設定」タブを開く</h3></div>
+      <div class="sb">
+        <p>画面上部の <strong>「プロジェクト設定」</strong> タブをクリックします（「書類生成」タブの隣）。</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-hd"><span class="sn">8</span><h3>BL 列マッピングを設定する</h3></div>
+      <div class="sb">
+        <p>「BL列マッピング」アコーディオンを開き、各フィールドに対応するBLの列をドロップダウンで選択します。ドロップダウンにはBLの全列名が表示されます。</p>
+        <div class="illus">
+          <div class="illus-lbl">列マッピング — 設定例（Mahana）</div>
+          <div class="map-mock">
+            <div class="mr"><div class="mf">契約者氏名（ローマ字）</div><div class="ma">→</div><div><span class="mc">E</span> <span style="color:var(--soft);font-size:12px">契約者氏名ローマ字 (Name)</span></div></div>
+            <div class="mr"><div class="mf">登記名義（Title）</div><div class="ma">→</div><div><span class="mc">G</span> <span style="color:var(--soft);font-size:12px">登記名義 (Title)</span></div></div>
+            <div class="mr"><div class="mf">Escrow #</div><div class="ma">→</div><div><span class="mc">H</span> <span style="color:var(--soft);font-size:12px">Escrow #</span></div></div>
+            <div class="mr"><div class="mf">Unit #</div><div class="ma">→</div><div><span class="mc">D</span> <span style="color:var(--soft);font-size:12px">ユニット (Unit #)</span></div></div>
+            <div class="mr"><div class="mf">購入価格</div><div class="ma">→</div><div><span class="mc">Q</span> <span style="color:var(--soft);font-size:12px">購入価格</span></div></div>
+            <div class="mr"><div class="mf">第1回デポジット 期日</div><div class="ma">→</div><div><span class="mc">AB</span> <span style="color:var(--soft);font-size:12px">購入価格 / 期日（日本時間）①</span></div></div>
+            <div class="mr"><div class="mf">第2回デポジット 期日</div><div class="ma">→</div><div><span class="mc">AC</span> <span style="color:var(--soft);font-size:12px">購入価格 / 期日（日本時間）②</span></div></div>
+            <div class="mr"><div class="mf">第3回デポジット 期日</div><div class="ma">→</div><div><span class="mc">AD</span> <span style="color:var(--soft);font-size:12px">購入価格 / 期日（日本時間）③</span></div></div>
+          </div>
+        </div>
+        <div class="callout cw">
+          <span class="callout-icon">⚠️</span>
+          <span>デポジット期日の3列はドロップダウン表示名がほぼ同じです。BLを横に開いて、第1回・第2回・第3回の期日が入っている列番号（A・B・C…）を確認してから設定してください。</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-hd"><span class="sn">9</span><h3>物件・口座情報を入力する</h3></div>
+      <div class="sb">
+        <p>「物件・口座情報」アコーディオンを開き、送金案内に掲載する固定情報を入力します。一度設定すれば全バイヤー共通で使われます。</p>
+        <div class="illus">
+          <div class="illus-lbl">入力例（Mahana の場合）</div>
+          <div class="form-mock">
+            <div class="fr"><div class="fl">物件名</div><div class="fv">Mahana</div></div>
+            <div class="fr"><div class="fl">物件住所</div><div class="fv">423 Ward Ave, Honolulu, HI 96814</div></div>
+            <div class="fr"><div class="fl">備考サフィックス</div><div class="fv mono">-JN (MAHANA WV)</div></div>
+            <div class="fr"><div class="fl">受取人名</div><div class="fv ph">（受取人の名前）</div></div>
+            <div class="fr"><div class="fl">受取銀行名</div><div class="fv ph">（銀行名）</div></div>
+            <div class="fr"><div class="fl">USA ABA</div><div class="fv mono ph">（ABAルーティング番号）</div></div>
+            <div class="fr"><div class="fl">口座番号</div><div class="fv mono ph">（口座番号）</div></div>
+            <div class="fr"><div class="fl">Swift Code</div><div class="fv mono ph">（SWIFTコード）</div></div>
+            <div class="fr"><div class="fl">送金通貨</div><div class="fv">USドル</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-hd"><span class="sn">10</span><h3>設定を保存して動作確認する</h3></div>
+      <div class="sb">
+        <p>ページ下部の <strong>「設定を保存」</strong> ボタンをクリックします。「✅ 設定を保存しました。」と表示されたら完了です。</p>
+        <div class="callout ci">
+          <span class="callout-icon">ℹ️</span>
+          <span>保存後は「書類生成」タブに切り替え、送金回数を選んで <strong>「Excelを生成してダウンロード」</strong> を押して動作確認してください。ファイルが生成されれば登録完了です。</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<section class="cl-section">
+  <div class="cl-title">✅ 完了チェックリスト</div>
+  <div class="cl">
+    <label class="ci-item"><input type="checkbox"><span>BLのスプレッドシートを開いた</span></label>
+    <label class="ci-item"><input type="checkbox"><span>スプレッドシートIDをコピーした（<code>/d/〜/edit</code> の間）</span></label>
+    <label class="ci-item"><input type="checkbox"><span>シート名（タブ名）を正確に確認した</span></label>
+    <label class="ci-item"><input type="checkbox"><span>ヘッダー行数を数えた</span></label>
+    <label class="ci-item"><input type="checkbox"><span>プロジェクト管理でプロジェクトを追加・保存した</span></label>
+    <label class="ci-item"><input type="checkbox"><span>文書生成 → プロジェクト設定でBL列マッピングを設定した</span></label>
+    <label class="ci-item"><input type="checkbox"><span>物件・口座情報を入力した</span></label>
+    <label class="ci-item"><input type="checkbox"><span>「設定を保存」し「設定を保存しました」と表示された</span></label>
+    <label class="ci-item"><input type="checkbox"><span>試し生成でExcelファイルが正常にダウンロードできた</span></label>
+  </div>
+</section>
+
+</div>
+</body>
+</html>
