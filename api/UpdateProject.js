@@ -15,7 +15,7 @@ function parseClientPrincipal(request) {
 }
 
 const ALLOWED_UPDATE_FIELDS = [
-  'name', 'developer', 'spreadsheetId', 'sheetName', 'headerRows', 'status',
+  'name', 'developer', 'spreadsheetId', 'sheetName', 'headerRows', 'status', 'documentSettings',
 ];
 
 app.http('UpdateProject', {

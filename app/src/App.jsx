@@ -25,6 +25,7 @@ import { BuyersListView } from "./BuyersListView";
 import { CRMView } from "./CRMView";
 import { ProjectsView } from "./ProjectsView";
 import { GlobalSearch } from "./GlobalSearch";
+import { DocumentGenerationView } from "./DocumentGenerationView";
 
 // MUI icons
 import DashboardIcon from "@mui/icons-material/Dashboard";
@@ -34,6 +35,7 @@ import PeopleIcon from "@mui/icons-material/People";
 import ContactsIcon from "@mui/icons-material/Contacts";
 import TableViewIcon from "@mui/icons-material/TableView";
 import SecurityIcon from "@mui/icons-material/Security";
+import ArticleIcon from "@mui/icons-material/Article";
 import SettingsIcon from "@mui/icons-material/Settings";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import SearchIcon from "@mui/icons-material/Search";
@@ -54,6 +56,7 @@ const ALLOWED_VIEWS = new Set([
   "buyers",
   "crm",
   "projects",
+  "documents",
 ]);
 
 const parseInitialLocation = () => {
@@ -225,6 +228,7 @@ function App() {
     { view: "buyers",    label: "バイヤーリスト",     icon: <PeopleIcon sx={{ fontSize: 20 }} /> },
     { view: "crm",       label: "顧客管理 (CRM)",    icon: <ContactsIcon sx={{ fontSize: 20 }} /> },
     { view: "spreadsheet", label: "スプレッドシート", icon: <TableViewIcon sx={{ fontSize: 20 }} /> },
+    { view: "documents", label: "文書生成",           icon: <ArticleIcon sx={{ fontSize: 20 }} /> },
   ], [t]);
 
   const renderView = () => {
@@ -272,6 +276,7 @@ function App() {
       case "projects":   return <ProjectsView />;
       case "spreadsheet": return <SpreadsheetView />;
       case "whitelist":  return accessStatus.isAdmin ? <WhitelistView currentUser={user} /> : <AccessDeniedView userEmail={user.userDetails} />;
+      case "documents":  return <DocumentGenerationView />;
       default:           return <DashboardView user={user} />;
     }
   };

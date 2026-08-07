@@ -340,6 +340,11 @@
       "allowedRoles": ["anonymous"]
     },
     {
+      "route": "/api/GenerateRemittanceExcel",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
       "route": "/api/AppendSheetRow",
       "methods": [
         "POST"
