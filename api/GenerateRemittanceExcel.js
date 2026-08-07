@@ -12,163 +12,302 @@ function parseClientPrincipal(request) {
 }
 
 const ROUNDS = {
-  1: { kanji: '第一次', ordinal: '第一回目', ratio: 0.05, depositLabel: '第１デポジット(5%)' },
-  2: { kanji: '第二次', ordinal: '第二回目', ratio: 0.05, depositLabel: '第２デポジット(5%)' },
-  3: { kanji: '第三次', ordinal: '第三回目', ratio: 0.10, depositLabel: '第３デポジット(10%)' },
+  1: { kanji: '第一次', ordinal: '第一回目', ratio: 0.05 },
+  2: { kanji: '第二次', ordinal: '第二回目', ratio: 0.05 },
+  3: { kanji: '第三次', ordinal: '第三回目', ratio: 0.10 },
 };
 
-function fmtUSD(n) {
-  if (n == null || isNaN(n) || n === '' || n === 0) return '$0';
-  return '$' + Number(n).toLocaleString('en-US');
+// ── スタイル定数 ──────────────────────────────────────────────────
+const NAVY       = 'FF1A3A6B';   // セクションヘッダー背景
+const LABEL_BG   = 'FFF2F2F2';  // ラベルセル背景
+const PRICE_BG   = 'FFEAF0F8';  // 購入価格テーブル背景
+const FONT_NAME  = 'ＭＳ ゴシック';
+
+const thin  = (color = 'FF999999') => ({ style: 'thin',   color: { argb: color } });
+const med   = (color = 'FF555555') => ({ style: 'medium', color: { argb: color } });
+const allThin = () => ({ top: thin(), left: thin(), bottom: thin(), right: thin() });
+const allMed  = () => ({ top: med(), left: med(), bottom: med(), right: med() });
+
+function fill(argb) {
+  return { type: 'pattern', pattern: 'solid', fgColor: { argb } };
 }
 
-function borderStyle() {
-  const thin = { style: 'thin', color: { argb: 'FF999999' } };
-  return { top: thin, left: thin, bottom: thin, right: thin };
+function baseFont(size = 10, bold = false, color = 'FF000000') {
+  return { name: FONT_NAME, size, bold, color: { argb: color } };
 }
 
+function applyCell(cell, value, opts = {}) {
+  cell.value = value;
+  cell.font  = baseFont(opts.size || 10, opts.bold || false, opts.color || 'FF000000');
+  if (opts.fill)     cell.fill      = fill(opts.fill);
+  if (opts.border)   cell.border    = opts.border;
+  if (opts.align)    cell.alignment = opts.align;
+}
+
+// ── buildSheet ────────────────────────────────────────────────────
 function buildSheet(ws, buyer, round, settings) {
-  const title = `${settings.propertyName || ''} ${round.kanji}手付金送金のご案内`;
-  const price = parseFloat(buyer.purchasePrice) || 0;
-  const d1 = Math.round(price * 0.05);
-  const d2 = Math.round(price * 0.05);
-  const d3 = Math.round(price * 0.10);
-  const depositAmt = Math.round(price * round.ratio);
-  const escrowNo = String(buyer.escrowNo || '').trim();
-  const suffix = settings.escrowRemarkSuffix || '';
-  const remark = escrowNo ? `${escrowNo}   ${suffix}`.trim() : suffix;
+  const pName  = settings.propertyName || '';
+  const price  = parseFloat(buyer.purchasePrice) || 0;
+  const d1     = Math.round(price * 0.05);
+  const d2     = Math.round(price * 0.05);
+  const d3     = Math.round(price * 0.10);
+  const dAmt   = Math.round(price * round.ratio);
+  const escrow = String(buyer.escrowNo || '').trim();
+  const remark = escrow
+    ? `${escrow}   ${settings.escrowRemarkSuffix || ''}`.trimEnd()
+    : (settings.escrowRemarkSuffix || '');
 
-  // Column widths
-  ws.getColumn(1).width = 28;
-  ws.getColumn(2).width = 26;
-  ws.getColumn(3).width = 42;
-  ws.getColumn(4).width = 14;
-  ws.getColumn(5).width = 22;
-  ws.getColumn(6).width = 16;
+  const fmt = (n) => n > 0 ? '$' + n.toLocaleString('en-US') : '';
 
-  const setCell = (row, col, value, opts = {}) => {
-    const cell = ws.getRow(row).getCell(col);
-    cell.value = value;
-    if (opts.bold) cell.font = { ...(cell.font || {}), bold: true, size: opts.size || 10 };
-    if (opts.size) cell.font = { ...(cell.font || {}), size: opts.size };
-    if (opts.border) cell.border = borderStyle();
-    if (opts.fill) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: opts.fill } };
-    if (opts.wrapText) cell.alignment = { wrapText: true, vertical: 'top' };
-    if (opts.vMid) cell.alignment = { vertical: 'middle', ...cell.alignment };
-  };
+  // 列幅
+  ws.getColumn(1).width = 32;  // A: ラベル/長文
+  ws.getColumn(2).width = 18;  // B: サブラベル or 値
+  ws.getColumn(3).width = 38;  // C: 値 (連絡事項)
+  ws.getColumn(4).width = 12;  // D: unit値
+  ws.getColumn(5).width = 24;  // E: 右テーブル ラベル
+  ws.getColumn(6).width = 16;  // F: 右テーブル 値
+  ws.getColumn(7).width = 2;   // G: マージン
 
-  // R1: Title
-  setCell(1, 1, title, { bold: true, size: 12 });
+  const r = (n) => ws.getRow(n);
+  const c = (row, col) => ws.getRow(row).getCell(col);
+
+  // ── R1: タイトル ──────────────────────────────────────────
+  ws.getRow(1).height = 28;
+  applyCell(c(1,1), `${pName}　${round.kanji}手付金送金のご案内`, {
+    size: 14, bold: true,
+    align: { horizontal: 'left', vertical: 'middle' },
+  });
   ws.mergeCells('A1:F1');
 
-  // R2: Owner name + 様
-  setCell(2, 1, buyer.ownerNameEn || '');
-  ws.getRow(2).getCell(1).font = { size: 11 };
-  setCell(2, 2, '様');
-  ws.mergeCells('B2:F2');
+  // ── R2: 空白行 ──────────────────────────────────────────────
+  ws.getRow(2).height = 6;
 
-  // R3: Property / Unit / Price header row
-  setCell(3, 1, settings.propertyName || '', { border: true, fill: 'FFEEF2FF' });
-  setCell(3, 3, 'Unit #', { border: true, fill: 'FFEEF2FF' });
-  setCell(3, 4, buyer.unitNo || '', { border: true });
-  setCell(3, 5, '購入価格', { border: true, fill: 'FFEEF2FF' });
-  setCell(3, 6, fmtUSD(price), { border: true });
+  // ── R3: 宛名 ────────────────────────────────────────────────
+  ws.getRow(3).height = 22;
+  applyCell(c(3,1), buyer.ownerNameEn || '', {
+    size: 13, bold: true,
+    align: { horizontal: 'left', vertical: 'middle' },
+  });
+  applyCell(c(3,3), '様', {
+    size: 12,
+    align: { horizontal: 'left', vertical: 'middle' },
+  });
 
-  // R4-6: Deposit schedule
-  setCell(4, 5, '第１デポジット(5%)', { border: true, fill: 'FFEEF2FF' });
-  setCell(4, 6, fmtUSD(d1), { border: true });
-  setCell(5, 5, '第２デポジット(5%)', { border: true, fill: 'FFEEF2FF' });
-  setCell(5, 6, fmtUSD(d2), { border: true });
-  setCell(6, 1, '※決済時には残金に加え購入価格の約2%の購入諸経費が必要です。');
-  ws.getRow(6).getCell(1).font = { size: 9, color: { argb: 'FF666666' } };
-  setCell(6, 5, '第３デポジット(10%)', { border: true, fill: 'FFEEF2FF' });
-  setCell(6, 6, fmtUSD(d3), { border: true });
+  // ── R4: 空白行 ──────────────────────────────────────────────
+  ws.getRow(4).height = 6;
 
-  // R7: Instruction sentence
-  const sentence = `${round.ordinal}の手付金として物件購入金額の${Math.round(round.ratio * 100)}%の金額を、以下のエスクロー口座にご送金いただきます。`;
-  setCell(7, 1, sentence);
-  ws.mergeCells('A7:F7');
+  // ── R5-8: 購入価格テーブル (左: 物件/Unit、右: 各デポジット) ──
+  // Row 5 header
+  ws.getRow(5).height = 18;
+  applyCell(c(5,1), pName, {
+    fill: PRICE_BG, border: allThin(), bold: true,
+    align: { horizontal: 'center', vertical: 'middle' },
+  });
+  ws.mergeCells('A5:B5');
+  applyCell(c(5,3), 'Unit #', {
+    fill: LABEL_BG, border: allThin(),
+    align: { horizontal: 'center', vertical: 'middle' },
+  });
+  applyCell(c(5,4), buyer.unitNo || '', {
+    border: allThin(),
+    align: { horizontal: 'center', vertical: 'middle' },
+  });
+  applyCell(c(5,5), '購入価格', {
+    fill: LABEL_BG, border: allThin(),
+    align: { horizontal: 'center', vertical: 'middle' },
+  });
+  applyCell(c(5,6), fmt(price), {
+    border: allThin(),
+    align: { horizontal: 'right', vertical: 'middle' },
+  });
 
-  // R8: 送金依頼書 header
-  setCell(8, 1, '送金依頼書への記入情報', { bold: true, fill: 'FFE8EAF6' });
-  ws.mergeCells('A8:F8');
-  ws.getRow(8).height = 18;
+  const depositRows = [
+    { r: 6, label: '第１デポジット(5%)', val: fmt(d1) },
+    { r: 7, label: '第２デポジット(5%)', val: fmt(d2) },
+    { r: 8, label: '第３デポジット(10%)', val: fmt(d3) },
+  ];
+  depositRows.forEach(({ r: rowN, label, val }) => {
+    ws.getRow(rowN).height = 17;
+    // A-D: 空白 (マージ)
+    applyCell(c(rowN, 1), '', { border: { right: thin() } });
+    ws.mergeCells(`A${rowN}:D${rowN}`);
+    applyCell(c(rowN, 5), label, {
+      fill: LABEL_BG, border: allThin(),
+      align: { horizontal: 'left', vertical: 'middle' },
+    });
+    applyCell(c(rowN, 6), val, {
+      border: allThin(),
+      align: { horizontal: 'right', vertical: 'middle' },
+    });
+  });
 
-  // R9: 期日
-  setCell(9, 1, '期日', { border: true, fill: 'FFEEF2FF' });
-  setCell(9, 2, buyer.depositDate || '', { border: true });
-  ws.mergeCells('B9:F9');
+  // ── R9: 備考（購入諸経費） ──────────────────────────────────
+  ws.getRow(9).height = 14;
+  applyCell(c(9,1), '※決済時には残金に加え購入価格の約2%の購入諸経費が必要です。', {
+    size: 9, color: 'FF666666',
+    align: { horizontal: 'left', vertical: 'middle' },
+  });
+  ws.mergeCells('A9:F9');
 
-  // R10: 送金額
-  setCell(10, 1, '送金額', { border: true, fill: 'FFEEF2FF' });
-  setCell(10, 2, fmtUSD(depositAmt), { border: true });
-  ws.mergeCells('B10:F10');
+  // ── R10: 空白 ─────────────────────────────────────────────────
+  ws.getRow(10).height = 6;
 
-  // R11: 受取人ご連絡事項 header
-  setCell(11, 1, '受取人へのご連絡事項', { bold: true, fill: 'FFE8EAF6' });
+  // ── R11: 案内文 ────────────────────────────────────────────────
+  ws.getRow(11).height = 16;
+  const sentence = `${round.ordinal}の手付金として物件購入金額の${Math.round(round.ratio*100)}%の金額を、以下のエスクロー口座にご送金いただきます。`;
+  applyCell(c(11,1), sentence, {
+    align: { horizontal: 'left', vertical: 'middle' },
+  });
   ws.mergeCells('A11:F11');
-  ws.getRow(11).height = 18;
 
-  // R12-16: Contact info for recipient
+  // ── R12: セクションヘッダー「送金依頼書への記入情報」 ─────────
+  ws.getRow(12).height = 20;
+  applyCell(c(12,1), '送金依頼書への記入情報', {
+    bold: true, size: 10, fill: NAVY, color: 'FFFFFFFF',
+    border: allMed(),
+    align: { horizontal: 'left', vertical: 'middle' },
+  });
+  ws.mergeCells('A12:F12');
+
+  // R13: 期日
+  ws.getRow(13).height = 18;
+  applyCell(c(13,1), '期日', {
+    fill: LABEL_BG, border: allThin(),
+    align: { horizontal: 'center', vertical: 'middle' },
+  });
+  applyCell(c(13,2), buyer.depositDate || '', {
+    border: allThin(),
+    align: { horizontal: 'left', vertical: 'middle' },
+  });
+  ws.mergeCells('B13:F13');
+
+  // R14: 送金額
+  ws.getRow(14).height = 18;
+  applyCell(c(14,1), '送金額', {
+    fill: LABEL_BG, border: allThin(),
+    align: { horizontal: 'center', vertical: 'middle' },
+  });
+  applyCell(c(14,2), fmt(dAmt), {
+    border: allThin(), bold: true,
+    align: { horizontal: 'left', vertical: 'middle' },
+  });
+  ws.mergeCells('B14:F14');
+
+  // ── R15: 空白 ─────────────────────────────────────────────────
+  ws.getRow(15).height = 6;
+
+  // ── R16: セクションヘッダー「受取人へのご連絡事項」 ──────────
+  ws.getRow(16).height = 20;
+  applyCell(c(16,1), '受取人へのご連絡事項', {
+    bold: true, size: 10, fill: NAVY, color: 'FFFFFFFF',
+    border: allMed(),
+    align: { horizontal: 'left', vertical: 'middle' },
+  });
+  ws.mergeCells('A16:F16');
+
+  // R17-21: 連絡事項テーブル
   const contactRows = [
-    ['物件名', settings.propertyName || ''],
-    ['ユニット番号', buyer.unitNo || ''],
-    ['物件住所', settings.propertyAddress || ''],
-    ['名義人名', buyer.titleName || ''],
-    ['備考', remark],
+    ['物件名',     pName                     ],
+    ['ユニット番号', buyer.unitNo || ''         ],
+    ['物件住所',    settings.propertyAddress || ''],
+    ['名義人名',    buyer.titleName || ''       ],
+    ['備考',       remark                     ],
   ];
   contactRows.forEach(([label, val], i) => {
-    const r = 12 + i;
-    setCell(r, 2, label, { border: true, fill: 'FFEEF2FF' });
-    setCell(r, 3, val, { border: true });
-    ws.mergeCells(`C${r}:F${r}`);
+    const rowN = 17 + i;
+    ws.getRow(rowN).height = 17;
+    applyCell(c(rowN, 1), label, {
+      fill: LABEL_BG, border: allThin(),
+      align: { horizontal: 'center', vertical: 'middle' },
+    });
+    applyCell(c(rowN, 2), val, {
+      border: allThin(),
+      align: { horizontal: 'left', vertical: 'middle' },
+    });
+    ws.mergeCells(`B${rowN}:F${rowN}`);
   });
-  setCell(17, 2, '※上記情報を英語表記にてご記入願います');
-  ws.getRow(17).getCell(2).font = { size: 9, color: { argb: 'FF666666' } };
-  ws.mergeCells('B17:F17');
 
-  // R18: 送金先情報 header
-  setCell(18, 1, '送金先情報', { bold: true, fill: 'FFE8EAF6' });
-  ws.mergeCells('A18:F18');
-  ws.getRow(18).height = 18;
+  // R22: 英語表記注記
+  ws.getRow(22).height = 14;
+  applyCell(c(22,1), '※上記情報を英語表記にてご記入願います', {
+    size: 9, color: 'FF666666',
+    align: { horizontal: 'left', vertical: 'middle' },
+  });
+  ws.mergeCells('A22:F22');
 
-  // R19-30: Bank info
+  // ── R23: 空白 ────────────────────────────────────────────────
+  ws.getRow(23).height = 6;
+
+  // ── R24: セクションヘッダー「送金先情報」 ────────────────────
+  ws.getRow(24).height = 20;
+  applyCell(c(24,1), '送金先情報', {
+    bold: true, size: 10, fill: NAVY, color: 'FFFFFFFF',
+    border: allMed(),
+    align: { horizontal: 'left', vertical: 'middle' },
+  });
+  ws.mergeCells('A24:F24');
+
+  // R25-36: 送金先テーブル
   const bankRows = [
-    ['受取人名', settings.recipientName || ''],
-    ['受取人住所', settings.recipientAddress || ''],
-    ['電話番号', settings.recipientPhone || ''],
-    ['受取銀行', settings.bankName || ''],
-    ['支店', settings.bankBranch || ''],
-    ['支店住所', settings.bankBranchAddress || ''],
-    ['口座種類', settings.accountType || ''],
-    ['口座番号', settings.accountNo || ''],
-    ['USA  ABA', settings.abaNo || ''],
-    ['Swift Code', settings.swiftCode || ''],
+    ['受取人名',                    settings.recipientName         || ''],
+    ['受取人住所',                  settings.recipientAddress       || ''],
+    ['電話番号',                    settings.recipientPhone         || ''],
+    ['受取銀行',                    settings.bankName               || ''],
+    ['支店',                       settings.bankBranch             || ''],
+    ['支店住所',                    settings.bankBranchAddress      || ''],
+    ['口座種類',                    settings.accountType            || ''],
+    ['口座番号',                    settings.accountNo              || ''],
+    ['USA  ABA',                   settings.abaNo                  || ''],
+    ['Swift Code',                  settings.swiftCode              || ''],
     ['銀行に登録されている\n当該口座の住所', settings.bankRegisteredAddress || ''],
-    ['送金通貨', settings.currency || 'USドル'],
+    ['送金通貨',                    settings.currency               || 'USドル'],
   ];
   bankRows.forEach(([label, val], i) => {
-    const r = 19 + i;
-    setCell(r, 1, label, { border: true, fill: 'FFEEF2FF', wrapText: label.includes('\n') });
-    setCell(r, 2, val, { border: true });
-    ws.mergeCells(`B${r}:F${r}`);
-    if (label.includes('\n')) ws.getRow(r).height = 28;
+    const rowN = 25 + i;
+    const isWrap = label.includes('\n');
+    ws.getRow(rowN).height = isWrap ? 30 : 17;
+    applyCell(c(rowN, 1), label, {
+      fill: LABEL_BG, border: allThin(),
+      align: { horizontal: 'center', vertical: 'middle', wrapText: isWrap },
+    });
+    applyCell(c(rowN, 2), val, {
+      border: allThin(),
+      align: { horizontal: 'left', vertical: 'middle' },
+    });
+    ws.mergeCells(`B${rowN}:F${rowN}`);
   });
 
-  // Notes
+  // ── R38: 空白 ─────────────────────────────────────────────────
+  ws.getRow(38).height = 10;
+
+  // ── R39-41: 注記 ─────────────────────────────────────────────
   const notes = [
     '※送金目的を証明するために銀行より売買契約書の提示を求められる場合がございます。',
     '※着金確認の為、送金依頼書の控えのコピーをEメールまたはファックス（03-6457-9495）で担当者までお送りいただけますようお願い申し上げます。',
     '※経由銀行手数料を送金者様負担でお願い申し上げます。',
   ];
   notes.forEach((note, i) => {
-    const r = 32 + i;
-    setCell(r, 1, `　　　　${note}`);
-    ws.getRow(r).getCell(1).font = { size: 9, color: { argb: 'FF555555' } };
-    ws.mergeCells(`A${r}:F${r}`);
+    const rowN = 39 + i;
+    ws.getRow(rowN).height = 14;
+    applyCell(c(rowN, 1), `　　${note}`, {
+      size: 9, color: 'FF555555',
+      align: { horizontal: 'left', vertical: 'middle' },
+    });
+    ws.mergeCells(`A${rowN}:F${rowN}`);
   });
+
+  // シートの印刷設定
+  ws.pageSetup = {
+    paperSize: 9,        // A4
+    orientation: 'portrait',
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    margins: { left: 0.7, right: 0.7, top: 0.9, bottom: 0.9, header: 0.3, footer: 0.3 },
+  };
 }
 
+// ── Handler ───────────────────────────────────────────────────────
 app.http('GenerateRemittanceExcel', {
   methods: ['POST'],
   authLevel: 'anonymous',
@@ -196,9 +335,9 @@ app.http('GenerateRemittanceExcel', {
       const settings = project.documentSettings || {};
       const cm = settings.columnMapping || {};
 
-      const sheetName = project.sheetName || 'Buyers list';
+      const sheetName  = project.sheetName || 'Buyers list';
       const headerRows = project.headerRows ?? 3;
-      const allValues = project.spreadsheetId
+      const allValues  = project.spreadsheetId
         ? await getSheetValuesById(project.spreadsheetId, `'${sheetName}'`)
         : await getSheetValues(`'${sheetName}'`);
 
@@ -210,24 +349,19 @@ app.http('GenerateRemittanceExcel', {
       const escrowIdx = colIdx(cm.escrowNo);
       const unitIdx   = colIdx(cm.unitNo);
       const priceIdx  = colIdx(cm.purchasePrice);
-      const dateIdxMap = {
-        1: colIdx(cm.deposit1Date),
-        2: colIdx(cm.deposit2Date),
-        3: colIdx(cm.deposit3Date),
-      };
-      const dateIdx = dateIdxMap[round];
+      const dateIdx   = colIdx([cm.deposit1Date, cm.deposit2Date, cm.deposit3Date][round - 1]);
 
-      const get = (row, idx) => (idx >= 0 && row ? (row[idx] ?? '') : '');
+      const get = (row, idx) => (idx >= 0 && row ? String(row[idx] ?? '') : '');
 
       const buyers = dataRows
         .filter(row => row && row.some(v => v != null && v !== ''))
         .map(row => ({
-          ownerNameEn:  get(row, nameIdx),
-          titleName:    get(row, titleIdx),
-          escrowNo:     get(row, escrowIdx),
-          unitNo:       get(row, unitIdx),
+          ownerNameEn:   get(row, nameIdx),
+          titleName:     get(row, titleIdx),
+          escrowNo:      get(row, escrowIdx),
+          unitNo:        get(row, unitIdx),
           purchasePrice: parseFloat(get(row, priceIdx)) || 0,
-          depositDate:  get(row, dateIdx),
+          depositDate:   get(row, dateIdx),
         }))
         .filter(b => b.ownerNameEn);
 
@@ -236,16 +370,15 @@ app.http('GenerateRemittanceExcel', {
       }
 
       const roundInfo = ROUNDS[round];
-      const workbook = new ExcelJS.Workbook();
+      const workbook  = new ExcelJS.Workbook();
       workbook.creator = 'lsir-cs';
 
       for (const buyer of buyers) {
-        const safeName = (buyer.ownerNameEn || 'Owner').replace(/[\\/*?[\]]/g, '').substring(0, 31);
-        const ws = workbook.addWorksheet(safeName);
-        buildSheet(ws, buyer, roundInfo, settings);
+        const safeName = (buyer.ownerNameEn || 'Owner').replace(/[\\/*?[\]:]/g, '').substring(0, 31);
+        buildSheet(workbook.addWorksheet(safeName), buyer, roundInfo, settings);
       }
 
-      const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+      const buffer   = Buffer.from(await workbook.xlsx.writeBuffer());
       const propName = settings.propertyName || 'Property';
       const filename = `${propName}_${roundInfo.kanji}手付金送金案内.xlsx`;
 
