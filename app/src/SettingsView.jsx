@@ -719,9 +719,9 @@ export function SettingsView() {
   ];
 
   // ── レンダー ─────────────────────────────────────────────────
-  if (currentSection === 'categories') return <CategorySection />;
-  if (currentSection === 'automation') return <AutomationSection />;
-  if (currentSection === 'templates') return <TemplateSection />;
+  if (currentSection === 'categories') return CategorySection();
+  if (currentSection === 'automation') return AutomationSection();
+  if (currentSection === 'templates') return TemplateSection();
 
   return (
     <Box>
