@@ -11,6 +11,8 @@ import SaveIcon from '@mui/icons-material/Save';
 import SettingsIcon from '@mui/icons-material/Settings';
 import ArticleIcon from '@mui/icons-material/Article';
 import EmailIcon from '@mui/icons-material/Email';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
 
 const API = '/api';
 
@@ -54,6 +56,7 @@ const BANK_FIELDS = [
 function emptySettings() {
   return {
     columnMapping: {},
+    pdfFieldMapping: {},
     propertyName: '',
     propertyAddress: '',
     escrowRemarkSuffix: '',
@@ -79,6 +82,9 @@ export function DocumentGenerationView() {
   const [depositRound, setDepositRound] = useState(1);
   const [generatingExcel, setGeneratingExcel] = useState(false);
   const [generatingEmail, setGeneratingEmail] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
+  const [uploadPdfMsg, setUploadPdfMsg] = useState('');
   const [settings, setSettings] = useState(emptySettings());
   const [saving, setSaving] = useState(false);
   const [saveOk, setSaveOk] = useState(false);
@@ -192,6 +198,58 @@ export function DocumentGenerationView() {
       columnMapping: { ...prev.columnMapping, [key]: letter },
     }));
   }, []);
+
+  const setPdfFieldMap = useCallback((fieldName, letter) => {
+    setSettings(prev => ({
+      ...prev,
+      pdfFieldMapping: { ...prev.pdfFieldMapping, [fieldName]: letter },
+    }));
+  }, []);
+
+  const handlePdfUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedProjectId) return;
+    setUploadingPdf(true);
+    setUploadPdfMsg('');
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+      const r = await axios.post(`${API}/UploadPdfTemplate`, { projectId: selectedProjectId, pdfBase64 });
+      const { fieldNames } = r.data;
+      setUploadPdfMsg(`アップロード完了。フォームフィールド ${fieldNames.length} 件を検出しました。`);
+      // プロジェクト一覧を更新してフィールド名を反映
+      const res = await axios.get(`${API}/GetProjects`);
+      const active = (res.data || []).filter(p => p.status !== 'inactive');
+      setProjects(active);
+    } catch (err) {
+      setUploadPdfMsg(`エラー: ${err.response?.data || err.message}`);
+    } finally {
+      setUploadingPdf(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleGeneratePdf = async () => {
+    setGenerateError('');
+    setGeneratingPdf(true);
+    try {
+      const r = await axios.post(
+        `${API}/GenerateRemittancePdf`,
+        { projectId: selectedProjectId, depositRound },
+        { responseType: 'blob' },
+      );
+      const propName = selectedProject?.documentSettings?.propertyName || selectedProject?.name || 'Property';
+      const roundLabel = ['', '第一次', '第二次', '第三次'][depositRound];
+      downloadBlob(new Blob([r.data], { type: 'application/zip' }), `${propName}_${roundLabel}手付金送金案内_PDF.zip`);
+    } catch (err) {
+      const msg = err.response?.data
+        ? (typeof err.response.data === 'string' ? err.response.data : await err.response.data.text?.())
+        : err.message;
+      setGenerateError(String(msg || 'PDF生成に失敗しました。'));
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
 
   const setField = useCallback((key, value) => {
     setSettings(prev => ({ ...prev, [key]: value }));
@@ -310,7 +368,7 @@ export function DocumentGenerationView() {
                     size="large"
                     startIcon={generatingEmail ? <CircularProgress size={18} color="inherit" /> : <EmailIcon />}
                     onClick={handleGenerateEmail}
-                    disabled={generatingExcel || generatingEmail}
+                    disabled={generatingExcel || generatingEmail || generatingPdf}
                   >
                     {generatingEmail ? '生成中...' : 'メール（.eml）を一括生成してダウンロード'}
                   </Button>
@@ -318,6 +376,27 @@ export function DocumentGenerationView() {
                     バイヤー1人につき1つの .eml ファイルをZIPでまとめてダウンロードします。Outlookで開けます。
                   </Typography>
                 </Box>
+
+                {selectedProject?.documentSettings?.pdfTemplateBlobName && (
+                  <>
+                    <Divider />
+                    <Box>
+                      <Button
+                        variant="outlined"
+                        size="large"
+                        color="error"
+                        startIcon={generatingPdf ? <CircularProgress size={18} color="inherit" /> : <PictureAsPdfIcon />}
+                        onClick={handleGeneratePdf}
+                        disabled={generatingExcel || generatingEmail || generatingPdf}
+                      >
+                        {generatingPdf ? '生成中...' : 'PDF を一括生成してダウンロード'}
+                      </Button>
+                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                        アップロード済みテンプレートにバイヤー情報を差し込んだPDFをZIPでダウンロードします。
+                      </Typography>
+                    </Box>
+                  </>
+                )}
               </Stack>
             </Stack>
           )}
@@ -381,6 +460,76 @@ export function DocumentGenerationView() {
                     fullWidth
                   />
                 ))}
+              </Stack>
+            </AccordionDetails>
+          </Accordion>
+
+          {/* PDF template */}
+          <Accordion>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+              <Typography fontWeight={600}>PDFテンプレート</Typography>
+              <Chip
+                label={selectedProject?.documentSettings?.pdfTemplateBlobName ? 'アップロード済み' : '未設定'}
+                size="small"
+                color={selectedProject?.documentSettings?.pdfTemplateBlobName ? 'success' : 'default'}
+                sx={{ ml: 1.5 }}
+              />
+            </AccordionSummary>
+            <AccordionDetails>
+              <Stack spacing={2}>
+                <Typography variant="body2" color="text.secondary">
+                  AcroFormフィールドを含むPDFをアップロードしてください。フィールド名とBL列を対応づけることで差し込み印刷が可能になります。
+                </Typography>
+
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Button
+                    component="label"
+                    variant="outlined"
+                    startIcon={uploadingPdf ? <CircularProgress size={16} /> : <UploadFileIcon />}
+                    disabled={uploadingPdf || !selectedProjectId}
+                    size="small"
+                  >
+                    {uploadingPdf ? 'アップロード中...' : 'PDFを選択してアップロード'}
+                    <input type="file" accept="application/pdf" hidden onChange={handlePdfUpload} />
+                  </Button>
+                  {selectedProject?.documentSettings?.pdfTemplateBlobName && (
+                    <Chip label="テンプレート設定済み" color="success" size="small" />
+                  )}
+                </Box>
+
+                {uploadPdfMsg && (
+                  <Alert severity={uploadPdfMsg.startsWith('エラー') ? 'error' : 'success'} sx={{ py: 0.5 }}>
+                    {uploadPdfMsg}
+                  </Alert>
+                )}
+
+                {/* フィールドマッピング */}
+                {(selectedProject?.documentSettings?.pdfFieldNames || []).length > 0 && (
+                  <>
+                    <Typography variant="body2" fontWeight={600} sx={{ mt: 1 }}>
+                      フィールドとBL列の対応
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      PDFの各フォームフィールドに差し込むBL列を選択してください。
+                    </Typography>
+                    <Stack spacing={1.5}>
+                      {(selectedProject.documentSettings.pdfFieldNames).map(fieldName => (
+                        <Autocomplete
+                          key={fieldName}
+                          size="small"
+                          options={columnOptions}
+                          value={columnOptions.find(o => o.letter === (settings.pdfFieldMapping || {})[fieldName]) || null}
+                          onChange={(_, v) => setPdfFieldMap(fieldName, v?.letter || '')}
+                          getOptionLabel={o => o.label}
+                          isOptionEqualToValue={(o, v) => o.letter === v.letter}
+                          renderInput={params => <TextField {...params} label={`PDF: ${fieldName}`} />}
+                          loading={columnsLoading}
+                          noOptionsText="列が見つかりません"
+                        />
+                      ))}
+                    </Stack>
+                  </>
+                )}
               </Stack>
             </AccordionDetails>
           </Accordion>
