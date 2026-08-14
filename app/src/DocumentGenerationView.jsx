@@ -37,6 +37,11 @@ const COLUMN_FIELDS = [
   { key: 'deposit3Date',  label: '第3回デポジット 期日' },
   { key: 'buyerEmail',    label: 'バイヤーメールアドレス（To）' },
   { key: 'agentEmail',    label: '担当者メールアドレス（From）' },
+  { key: 'bedrooms',      label: '部屋数（Bedrooms）' },
+  { key: 'sqft',          label: '面積（sqft）' },
+  { key: 'usage',         label: '利用目的（Usage/Purpose）' },
+  { key: 'floor',         label: '階数（Floor）' },
+  { key: 'stack',         label: 'スタック（Stack）' },
 ];
 
 const BANK_FIELDS = [
@@ -88,6 +93,185 @@ function emptySettings() {
     accountType: 'Checking Account', accountNo: '', abaNo: '',
     swiftCode: '', bankRegisteredAddress: '', currency: 'USドル',
   };
+}
+
+// ── 保険・インスペクション業者カード ───────────────────────────
+const EMPTY_RATE_ROW = () => ({
+  bedrooms: '', usage: '', sqftMin: '', sqftMax: '',
+  floorMin: '', floorMax: '', stack: '', fee: '', feeLabel: '年間', notes: '',
+});
+
+const RATE_COLUMNS = [
+  { key: 'bedrooms', label: '部屋数', width: 90, placeholder: '1BR' },
+  { key: 'usage',    label: '利用目的', width: 110, placeholder: 'Primary' },
+  { key: 'sqftMin',  label: 'sqft 以上', width: 90, type: 'number' },
+  { key: 'sqftMax',  label: 'sqft 以下', width: 90, type: 'number' },
+  { key: 'floorMin', label: '階 以上', width: 80, type: 'number' },
+  { key: 'floorMax', label: '階 以下', width: 80, type: 'number' },
+  { key: 'stack',    label: 'スタック', width: 90, placeholder: 'A' },
+  { key: 'fee',      label: '金額 ($)', width: 110, type: 'number' },
+  { key: 'feeLabel', label: '単位', width: 80, placeholder: '年間' },
+  { key: 'notes',    label: '備考', width: 140 },
+];
+
+function ServiceProviderCard({ provider, onSaved, onDeleted }) {
+  const [expanded, setExpanded]   = useState(false);
+  const [name, setName]           = useState(provider.name || '');
+  const [type, setType]           = useState(provider.type || 'insurance');
+  const [emailSubject, setEmailSubject] = useState(provider.emailSubject || '');
+  const [emailBody, setEmailBody] = useState(provider.emailBody || '');
+  const [rateTable, setRateTable] = useState(
+    Array.isArray(provider.rateTable) && provider.rateTable.length > 0
+      ? provider.rateTable
+      : [EMPTY_RATE_ROW()]
+  );
+  const [saving, setSaving]   = useState(false);
+  const [saveMsg, setSaveMsg] = useState('');
+  const [deleting, setDeleting] = useState(false);
+
+  const updateRow = (idx, key, val) =>
+    setRateTable(prev => prev.map((r, i) => i === idx ? { ...r, [key]: val } : r));
+  const addRow    = () => setRateTable(prev => [...prev, EMPTY_RATE_ROW()]);
+  const removeRow = (idx) => setRateTable(prev => prev.filter((_, i) => i !== idx));
+
+  const handleSave = async () => {
+    setSaving(true); setSaveMsg('');
+    try {
+      const updated = { ...provider, name, type, emailSubject, emailBody, rateTable };
+      await onSaved(updated);
+      setSaveMsg('保存しました ✓');
+      setTimeout(() => setSaveMsg(''), 3000);
+    } catch (err) {
+      setSaveMsg(`エラー: ${err.message}`);
+    } finally { setSaving(false); }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm(`「${name}」を削除しますか？`)) return;
+    setDeleting(true);
+    try { await onDeleted(provider.id); } catch { setDeleting(false); }
+  };
+
+  const typeLabel = type === 'insurance' ? '保険' : 'インスペクション';
+  const templateHint = `利用可能な変数:\n{{ownerNameEn}} {{unitNo}} {{bedrooms}} {{sqft}} {{usage}} {{floor}} {{stack}}\n{{fee}} {{feeLabel}} {{feeNote}} {{providerName}} {{propertyName}} {{buyerEmail}} {{agentEmail}}`;
+
+  return (
+    <Paper variant="outlined" sx={{ overflow: 'hidden' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', px: 2, py: 1.5, gap: 1, cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
+        onClick={() => setExpanded(e => !e)}>
+        <Typography fontWeight={600} sx={{ flexGrow: 1 }}>{name || '（名前未設定）'}</Typography>
+        <Chip label={typeLabel} size="small" color={type === 'insurance' ? 'primary' : 'secondary'} variant="outlined" />
+        <Chip label={`${rateTable.length} 行`} size="small" variant="outlined" />
+        <Tooltip title="削除">
+          <IconButton size="small" color="error" onClick={e => { e.stopPropagation(); handleDelete(); }} disabled={deleting}>
+            {deleting ? <CircularProgress size={16} /> : <DeleteIcon fontSize="small" />}
+          </IconButton>
+        </Tooltip>
+        {expanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+      </Box>
+
+      <Collapse in={expanded}>
+        <Divider />
+        <Box sx={{ p: 2 }}>
+          <Stack spacing={2}>
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <TextField label="業者名" value={name} onChange={e => setName(e.target.value)} size="small" sx={{ flexGrow: 1 }} />
+              <FormControl size="small" sx={{ minWidth: 160 }}>
+                <InputLabel>種別</InputLabel>
+                <Select value={type} label="種別" onChange={e => setType(e.target.value)}>
+                  <MenuItem value="insurance">保険</MenuItem>
+                  <MenuItem value="inspection">インスペクション</MenuItem>
+                </Select>
+              </FormControl>
+            </Box>
+
+            <Box>
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                料金テーブル
+                <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                  空欄 = 条件なし（any）。上から順に評価し最初に一致した行の料金を使用します。
+                </Typography>
+              </Typography>
+              <Box sx={{ overflowX: 'auto' }}>
+                <Box component="table" sx={{ borderCollapse: 'collapse', minWidth: 900 }}>
+                  <Box component="thead">
+                    <Box component="tr">
+                      {RATE_COLUMNS.map(col => (
+                        <Box component="th" key={col.key}
+                          sx={{ px: 1, py: 0.5, fontSize: '0.72rem', fontWeight: 600, textAlign: 'left',
+                            whiteSpace: 'nowrap', borderBottom: '1px solid', borderColor: 'divider', minWidth: col.width }}>
+                          {col.label}
+                        </Box>
+                      ))}
+                      <Box component="th" sx={{ px: 1, width: 40 }} />
+                    </Box>
+                  </Box>
+                  <Box component="tbody">
+                    {rateTable.map((row, idx) => (
+                      <Box component="tr" key={idx}>
+                        {RATE_COLUMNS.map(col => (
+                          <Box component="td" key={col.key} sx={{ px: 0.5, py: 0.5 }}>
+                            <TextField
+                              value={row[col.key] ?? ''}
+                              onChange={e => updateRow(idx, col.key, e.target.value)}
+                              size="small"
+                              type={col.type || 'text'}
+                              placeholder={col.placeholder || ''}
+                              inputProps={{ style: { fontSize: '0.78rem', padding: '4px 6px' } }}
+                              sx={{ width: col.width }}
+                            />
+                          </Box>
+                        ))}
+                        <Box component="td" sx={{ px: 0.5 }}>
+                          <IconButton size="small" color="error" onClick={() => removeRow(idx)}>
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Box>
+                      </Box>
+                    ))}
+                  </Box>
+                </Box>
+              </Box>
+              <Button size="small" startIcon={<AddIcon />} onClick={addRow} sx={{ mt: 1 }}>行を追加</Button>
+            </Box>
+
+            <TextField
+              label="メール件名"
+              value={emailSubject}
+              onChange={e => setEmailSubject(e.target.value)}
+              size="small"
+              fullWidth
+              placeholder="{{propertyName}} {{providerType}}見積もりのご案内"
+            />
+            <TextField
+              label="メール本文"
+              value={emailBody}
+              onChange={e => setEmailBody(e.target.value)}
+              size="small"
+              fullWidth
+              multiline
+              rows={10}
+              placeholder={templateHint}
+              helperText={templateHint.replace(/\n/g, '　')}
+            />
+
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Button size="small" variant="contained"
+                startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <SaveIcon />}
+                onClick={handleSave} disabled={saving}>
+                {saving ? '保存中...' : '保存'}
+              </Button>
+              {saveMsg && (
+                <Typography variant="caption" color={saveMsg.startsWith('エラー') ? 'error' : 'success.main'}>
+                  {saveMsg}
+                </Typography>
+              )}
+            </Box>
+          </Stack>
+        </Box>
+      </Collapse>
+    </Paper>
+  );
 }
 
 // ── PDFテンプレート個別カード ──────────────────────────────────
@@ -251,6 +435,10 @@ export function DocumentGenerationView() {
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [settings, setSettings] = useState(emptySettings());
   const [pdfTemplates, setPdfTemplates] = useState([]);
+  const [serviceProviders, setServiceProviders] = useState([]);
+  const [selectedProviderId, setSelectedProviderId] = useState('');
+  const [generatingService, setGeneratingService] = useState(false);
+  const [serviceNoMatch, setServiceNoMatch] = useState([]);
   const [saving, setSaving] = useState(false);
   const [saveOk, setSaveOk] = useState(false);
   const [columns, setColumns] = useState([]);
@@ -287,6 +475,11 @@ export function DocumentGenerationView() {
     setPdfTemplates(templates);
     if (templates.length > 0 && !templates.find(t => t.id === selectedTemplateId)) {
       setSelectedTemplateId(templates[0].id);
+    }
+    const providers = Array.isArray(ds?.serviceProviders) ? ds.serviceProviders : [];
+    setServiceProviders(providers);
+    if (providers.length > 0 && !providers.find(p => p.id === selectedProviderId)) {
+      setSelectedProviderId(providers[0].id);
     }
 
     setColumnsLoading(true);
@@ -438,6 +631,67 @@ export function DocumentGenerationView() {
     if (proj) setPdfTemplates(proj.documentSettings?.pdfTemplates || []);
   };
 
+  const saveServiceProviders = async (updatedProviders) => {
+    const project = projects.find(p => p.id === selectedProjectId);
+    if (!project) return;
+    const ds = project.documentSettings || {};
+    await axios.post(`${API}/UpdateProject`, {
+      id: selectedProjectId,
+      documentSettings: { ...ds, serviceProviders: updatedProviders },
+    });
+    setServiceProviders(updatedProviders);
+    await refreshProjects();
+  };
+
+  const handleProviderSaved = async (updatedProvider) => {
+    const next = serviceProviders.some(p => p.id === updatedProvider.id)
+      ? serviceProviders.map(p => p.id === updatedProvider.id ? updatedProvider : p)
+      : [...serviceProviders, updatedProvider];
+    await saveServiceProviders(next);
+  };
+
+  const handleProviderDeleted = async (providerId) => {
+    const next = serviceProviders.filter(p => p.id !== providerId);
+    await saveServiceProviders(next);
+    if (selectedProviderId === providerId) setSelectedProviderId(next[0]?.id || '');
+  };
+
+  const handleAddProvider = async () => {
+    const newProvider = {
+      id: crypto.randomUUID(),
+      name: '新規業者',
+      type: 'insurance',
+      emailSubject: '{{propertyName}} {{providerType}}見積もりのご案内',
+      emailBody: '{{ownerNameEn}} 様\n\n{{providerName}}より{{providerType}}の見積もりをご案内いたします。\n\n■お見積り\n{{fee}} / {{feeLabel}}\n\nご不明点がございましたらお気軽にお問い合わせください。\n',
+      rateTable: [],
+    };
+    const next = [...serviceProviders, newProvider];
+    await saveServiceProviders(next);
+    setSelectedProviderId(newProvider.id);
+  };
+
+  const handleGenerateServiceEmail = async () => {
+    if (!selectedProviderId) return;
+    setGenerateError(''); setServiceNoMatch([]); setGeneratingService(true);
+    try {
+      const r = await axios.post(`${API}/GenerateServiceEmail`,
+        { projectId: selectedProjectId, providerId: selectedProviderId },
+        { responseType: 'blob' });
+      const provider = serviceProviders.find(p => p.id === selectedProviderId);
+      const propName = selectedProject?.documentSettings?.propertyName || selectedProject?.name || 'Property';
+      const typeLabel = provider?.type === 'insurance' ? '保険' : 'インスペクション';
+      downloadBlob(new Blob([r.data], { type: 'application/zip' }),
+        `${propName}_${provider?.name || ''}_${typeLabel}見積もり案内.zip`);
+      const noMatch = r.headers['x-no-match-buyers'];
+      if (noMatch) setServiceNoMatch(noMatch.split(',').filter(Boolean));
+    } catch (err) {
+      const msg = err.response?.data
+        ? (typeof err.response.data === 'string' ? err.response.data : await err.response.data.text?.())
+        : err.message;
+      setGenerateError(String(msg || 'メール生成に失敗しました。'));
+    } finally { setGeneratingService(false); }
+  };
+
   const setColMap = useCallback((key, letter) => {
     setSettings(prev => ({ ...prev, columnMapping: { ...prev.columnMapping, [key]: letter } }));
   }, []);
@@ -446,7 +700,7 @@ export function DocumentGenerationView() {
     setSettings(prev => ({ ...prev, [key]: value }));
   }, []);
 
-  const anyGenerating = generatingExcel || generatingEmail || generatingPdf;
+  const anyGenerating = generatingExcel || generatingEmail || generatingPdf || generatingService;
 
   return (
     <Box>
@@ -522,6 +776,44 @@ export function DocumentGenerationView() {
                   バイヤー1人につき1つの .eml ファイルをZIPでまとめてダウンロードします。Outlookで開けます。
                 </Typography>
               </Box>
+
+              {/* 保険・インスペクション */}
+              {serviceProviders.length > 0 && (
+                <>
+                  <Divider />
+                  <Stack spacing={1.5}>
+                    <FormControl size="small" sx={{ maxWidth: 380 }}>
+                      <InputLabel>業者</InputLabel>
+                      <Select value={selectedProviderId} label="業者"
+                        onChange={e => setSelectedProviderId(e.target.value)}>
+                        {serviceProviders.map(p => (
+                          <MenuItem key={p.id} value={p.id}>
+                            {p.name}
+                            <Chip label={p.type === 'insurance' ? '保険' : 'インスペクション'} size="small"
+                              color={p.type === 'insurance' ? 'primary' : 'secondary'} variant="outlined" sx={{ ml: 1 }} />
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                    <Box>
+                      <Button variant="outlined" size="large" color="secondary"
+                        disabled={anyGenerating || !selectedProviderId}
+                        startIcon={generatingService ? <CircularProgress size={18} color="inherit" /> : <EmailIcon />}
+                        onClick={handleGenerateServiceEmail}>
+                        {generatingService ? '生成中...' : '保険・インスペクション見積もりメールを生成'}
+                      </Button>
+                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                        料金テーブルでマッチングし、各バイヤーへの見積もり案内メールをZIPでダウンロードします。
+                      </Typography>
+                    </Box>
+                    {serviceNoMatch.length > 0 && (
+                      <Alert severity="warning">
+                        以下のバイヤーは料金テーブルに一致する条件がありませんでした：{serviceNoMatch.join('、')}
+                      </Alert>
+                    )}
+                  </Stack>
+                </>
+              )}
 
               {/* PDF */}
               {pdfTemplates.length > 0 && (
@@ -672,6 +964,33 @@ export function DocumentGenerationView() {
                     テンプレートを追加
                   </Button>
                 )}
+              </Stack>
+            </AccordionDetails>
+          </Accordion>
+
+          {/* Service providers */}
+          <Accordion>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+              <Typography fontWeight={600}>保険・インスペクション会社管理</Typography>
+              <Chip label={`${serviceProviders.length} 件`} size="small" variant="outlined" sx={{ ml: 1.5 }} />
+            </AccordionSummary>
+            <AccordionDetails>
+              <Stack spacing={2}>
+                <Typography variant="body2" color="text.secondary">
+                  会社ごとに料金テーブルとメールテンプレートを設定します。BLの部屋数・面積・利用目的・階数・スタック列と照合して各バイヤーの料金を自動算出します。
+                </Typography>
+                {serviceProviders.map(provider => (
+                  <ServiceProviderCard
+                    key={provider.id}
+                    provider={provider}
+                    onSaved={handleProviderSaved}
+                    onDeleted={handleProviderDeleted}
+                  />
+                ))}
+                <Button variant="outlined" startIcon={<AddIcon />} size="small"
+                  onClick={handleAddProvider} disabled={!selectedProjectId}>
+                  業者を追加
+                </Button>
               </Stack>
             </AccordionDetails>
           </Accordion>
