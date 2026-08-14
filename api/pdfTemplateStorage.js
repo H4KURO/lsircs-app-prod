@@ -29,21 +29,21 @@ async function getContainerClient() {
   return cachedContainerPromise;
 }
 
-function blobName(projectId) {
-  return `${projectId}/template.pdf`;
+function blobName(projectId, templateId) {
+  return `${projectId}/${templateId}.pdf`;
 }
 
-async function uploadPdfTemplate(projectId, buffer) {
+async function uploadPdfTemplate(projectId, templateId, buffer) {
   const container = await getContainerClient();
-  const name = blobName(projectId);
+  const name = blobName(projectId, templateId);
   const blob = container.getBlockBlobClient(name);
   await blob.uploadData(buffer, { blobHTTPHeaders: { blobContentType: 'application/pdf' } });
   return name;
 }
 
-async function downloadPdfTemplate(projectId) {
+async function downloadPdfTemplate(blobNamePath) {
   const container = await getContainerClient();
-  const blob = container.getBlobClient(blobName(projectId));
+  const blob = container.getBlobClient(blobNamePath);
   const download = await blob.download(0);
   const chunks = [];
   for await (const chunk of download.readableStreamBody) {
@@ -52,9 +52,9 @@ async function downloadPdfTemplate(projectId) {
   return Buffer.concat(chunks);
 }
 
-async function deletePdfTemplate(projectId) {
+async function deletePdfTemplateBlob(blobNamePath) {
   const container = await getContainerClient();
-  await container.getBlobClient(blobName(projectId)).deleteIfExists();
+  await container.getBlobClient(blobNamePath).deleteIfExists();
 }
 
-module.exports = { uploadPdfTemplate, downloadPdfTemplate, deletePdfTemplate };
+module.exports = { uploadPdfTemplate, downloadPdfTemplate, deletePdfTemplateBlob };

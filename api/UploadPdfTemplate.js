@@ -1,5 +1,6 @@
 const { app } = require('@azure/functions');
 const { PDFDocument } = require('pdf-lib');
+const { v4: uuidv4 } = require('uuid');
 const { uploadPdfTemplate } = require('./pdfTemplateStorage');
 const { getNamedContainer } = require('./cosmosClient');
 
@@ -12,7 +13,8 @@ function parseClientPrincipal(request) {
 }
 
 // POST /api/UploadPdfTemplate
-// Body JSON: { projectId, pdfBase64 }
+// Body JSON: { projectId, templateName, pdfBase64, templateId? }
+// templateId が指定された場合は既存テンプレートを上書き
 app.http('UploadPdfTemplate', {
   methods: ['POST'],
   authLevel: 'anonymous',
@@ -21,26 +23,22 @@ app.http('UploadPdfTemplate', {
     if (!clientPrincipal) return { status: 401, body: 'Unauthorized' };
 
     try {
-      const { projectId, pdfBase64 } = await request.json();
-      if (!projectId) return { status: 400, body: 'projectId is required' };
-      if (!pdfBase64) return { status: 400, body: 'pdfBase64 is required' };
+      const { projectId, templateName, pdfBase64, templateId: existingId } = await request.json();
+      if (!projectId)    return { status: 400, body: 'projectId is required' };
+      if (!pdfBase64)    return { status: 400, body: 'pdfBase64 is required' };
+      if (!templateName) return { status: 400, body: 'templateName is required' };
 
       const buffer = Buffer.from(pdfBase64, 'base64');
 
-      // フィールド名を取得
+      // AcroFormフィールド名を検出
       let fieldNames = [];
       try {
         const pdfDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
-        const form = pdfDoc.getForm();
-        fieldNames = form.getFields().map(f => f.getName());
+        fieldNames = pdfDoc.getForm().getFields().map(f => f.getName());
       } catch (e) {
         context.log('PDF field detection failed:', e.message);
       }
 
-      // Blob Storageに保存
-      const blobName = await uploadPdfTemplate(projectId, buffer);
-
-      // Cosmos DBのプロジェクトに blobName を記録
       const container = projectsContainer();
       let project;
       try {
@@ -53,19 +51,33 @@ app.http('UploadPdfTemplate', {
       }
       if (!project) return { status: 404, body: 'Project not found' };
 
-      const updated = {
-        ...project,
-        documentSettings: {
-          ...(project.documentSettings || {}),
-          pdfTemplateBlobName: blobName,
-          pdfFieldNames: fieldNames,
-        },
+      const ds = project.documentSettings || {};
+      const templates = Array.isArray(ds.pdfTemplates) ? [...ds.pdfTemplates] : [];
+
+      const templateId = existingId || uuidv4();
+      const blobName = await uploadPdfTemplate(projectId, templateId, buffer);
+
+      const idx = templates.findIndex(t => t.id === templateId);
+      const entry = {
+        id: templateId,
+        name: templateName,
+        blobName,
+        fieldNames,
+        fieldMapping: idx >= 0 ? (templates[idx].fieldMapping || {}) : {},
       };
+
+      if (idx >= 0) {
+        templates[idx] = entry;
+      } else {
+        templates.push(entry);
+      }
+
+      const updated = { ...project, documentSettings: { ...ds, pdfTemplates: templates } };
       await container.items.upsert(updated);
 
       return {
         status: 200,
-        jsonBody: { fieldNames, blobName },
+        jsonBody: { templateId, fieldNames, blobName },
       };
     } catch (error) {
       context.log('UploadPdfTemplate failed', error);

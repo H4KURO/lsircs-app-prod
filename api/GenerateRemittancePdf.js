@@ -23,45 +23,8 @@ function fmt(n) {
   return n > 0 ? '$' + n.toLocaleString('en-US') : '';
 }
 
-// BLデータから差し込み値マップを生成
-function buildValueMap(buyer, round, settings) {
-  const price = parseFloat(buyer.purchasePrice) || 0;
-  const dAmt  = Math.round(price * round.ratio);
-  const escrow = String(buyer.escrowNo || '').trim();
-  const remark = escrow
-    ? `${escrow}   ${settings.escrowRemarkSuffix || ''}`.trimEnd()
-    : (settings.escrowRemarkSuffix || '');
-
-  return {
-    __ownerNameEn:   buyer.ownerNameEn   || '',
-    __titleName:     buyer.titleName     || '',
-    __escrowNo:      buyer.escrowNo      || '',
-    __unitNo:        buyer.unitNo        || '',
-    __purchasePrice: fmt(price),
-    __depositDate:   buyer.depositDate   || '',
-    __depositAmount: fmt(dAmt),
-    __buyerEmail:    buyer.buyerEmail    || '',
-    __agentEmail:    buyer.agentEmail    || '',
-    __remark:        remark,
-    __propertyName:  settings.propertyName       || '',
-    __propertyAddress: settings.propertyAddress  || '',
-    __recipientName: settings.recipientName      || '',
-    __recipientAddress: settings.recipientAddress || '',
-    __recipientPhone: settings.recipientPhone    || '',
-    __bankName:      settings.bankName           || '',
-    __bankBranch:    settings.bankBranch         || '',
-    __bankBranchAddress: settings.bankBranchAddress || '',
-    __accountType:   settings.accountType        || '',
-    __accountNo:     settings.accountNo          || '',
-    __abaNo:         settings.abaNo              || '',
-    __swiftCode:     settings.swiftCode          || '',
-    __bankRegisteredAddress: settings.bankRegisteredAddress || '',
-    __currency:      settings.currency           || 'USドル',
-    __depositRound:  round.kanji,
-  };
-}
-
 // POST /api/GenerateRemittancePdf
+// Body JSON: { projectId, depositRound, templateId }
 app.http('GenerateRemittancePdf', {
   methods: ['POST'],
   authLevel: 'anonymous',
@@ -70,8 +33,9 @@ app.http('GenerateRemittancePdf', {
     if (!clientPrincipal) return { status: 401, body: 'Unauthorized' };
 
     try {
-      const { projectId, depositRound } = await request.json();
-      if (!projectId) return { status: 400, body: 'projectId is required' };
+      const { projectId, depositRound, templateId } = await request.json();
+      if (!projectId)  return { status: 400, body: 'projectId is required' };
+      if (!templateId) return { status: 400, body: 'templateId is required' };
       const round = parseInt(depositRound, 10);
       if (![1, 2, 3].includes(round)) return { status: 400, body: 'depositRound must be 1, 2, or 3' };
 
@@ -87,13 +51,13 @@ app.http('GenerateRemittancePdf', {
       }
       if (!project) return { status: 404, body: 'Project not found' };
 
-      const settings = project.documentSettings || {};
-      const cm = settings.columnMapping || {};
-      const pdfFieldMapping = settings.pdfFieldMapping || {};  // { fieldName: columnLetter }
+      const ds = project.documentSettings || {};
+      const cm = ds.columnMapping || {};
+      const templates = Array.isArray(ds.pdfTemplates) ? ds.pdfTemplates : [];
+      const template = templates.find(t => t.id === templateId);
 
-      if (!settings.pdfTemplateBlobName) {
-        return { status: 400, body: 'PDFテンプレートがアップロードされていません。設定からアップロードしてください。' };
-      }
+      if (!template) return { status: 404, body: 'PDFテンプレートが見つかりません。' };
+      const pdfFieldMapping = template.fieldMapping || {};
 
       // BLデータ取得
       const sheetName  = project.sheetName || 'Buyers list';
@@ -105,57 +69,69 @@ app.http('GenerateRemittancePdf', {
       const dataRows = allValues.slice(headerRows);
 
       const colIdx = (letter) => (letter ? columnLetterToIndex(String(letter)) : -1);
+      const get = (row, idx) => (idx >= 0 && row ? String(row[idx] ?? '') : '');
+
       const nameIdx   = colIdx(cm.ownerNameEn);
-      const titleIdx  = colIdx(cm.titleName);
-      const escrowIdx = colIdx(cm.escrowNo);
-      const unitIdx   = colIdx(cm.unitNo);
       const priceIdx  = colIdx(cm.purchasePrice);
       const dateIdx   = colIdx([cm.deposit1Date, cm.deposit2Date, cm.deposit3Date][round - 1]);
-      const buyerEmailIdx = colIdx(cm.buyerEmail);
-      const agentEmailIdx = colIdx(cm.agentEmail);
-
-      const get = (row, idx) => (idx >= 0 && row ? String(row[idx] ?? '') : '');
 
       const buyers = dataRows
         .filter(row => row && row.some(v => v != null && v !== ''))
-        .map(row => ({
-          _row:          row,  // 全列データを保持
-          ownerNameEn:   get(row, nameIdx),
-          titleName:     get(row, titleIdx),
-          escrowNo:      get(row, escrowIdx),
-          unitNo:        get(row, unitIdx),
-          purchasePrice: parseFloat(get(row, priceIdx)) || 0,
-          depositDate:   get(row, dateIdx),
-          buyerEmail:    get(row, buyerEmailIdx),
-          agentEmail:    get(row, agentEmailIdx),
-        }))
+        .map(row => ({ _row: row, ownerNameEn: get(row, nameIdx) }))
         .filter(b => b.ownerNameEn);
 
       if (buyers.length === 0) {
         return { status: 400, body: '対象バイヤーが見つかりませんでした。列マッピングを確認してください。' };
       }
 
-      // PDFテンプレートをBlobからダウンロード
-      const templateBuffer = await downloadPdfTemplate(projectId);
       const roundInfo = ROUNDS[round];
+      const templateBuffer = await downloadPdfTemplate(template.blobName);
       const zip = new JSZip();
 
       for (const buyer of buyers) {
-        const valueMap = buildValueMap(buyer, roundInfo, settings);
+        const row = buyer._row;
+        const price = parseFloat(get(row, priceIdx)) || 0;
+        const dAmt  = Math.round(price * roundInfo.ratio);
+
+        // 固定キーから値を解決する辞書（フィールド名が __xxx 形式の予約キーも使えるようにする）
+        const builtins = {
+          __ownerNameEn:   get(row, colIdx(cm.ownerNameEn)),
+          __titleName:     get(row, colIdx(cm.titleName)),
+          __escrowNo:      get(row, colIdx(cm.escrowNo)),
+          __unitNo:        get(row, colIdx(cm.unitNo)),
+          __purchasePrice: fmt(price),
+          __depositDate:   get(row, dateIdx),
+          __depositAmount: fmt(dAmt),
+          __buyerEmail:    get(row, colIdx(cm.buyerEmail)),
+          __agentEmail:    get(row, colIdx(cm.agentEmail)),
+          __depositRound:  roundInfo.kanji,
+          __propertyName:  ds.propertyName       || '',
+          __propertyAddress: ds.propertyAddress  || '',
+          __recipientName: ds.recipientName      || '',
+          __recipientAddress: ds.recipientAddress || '',
+          __recipientPhone: ds.recipientPhone    || '',
+          __bankName:      ds.bankName           || '',
+          __bankBranch:    ds.bankBranch         || '',
+          __accountNo:     ds.accountNo          || '',
+          __abaNo:         ds.abaNo              || '',
+          __swiftCode:     ds.swiftCode          || '',
+          __currency:      ds.currency           || 'USドル',
+        };
+
         const pdfDoc = await PDFDocument.load(templateBuffer, { ignoreEncryption: true });
         const form = pdfDoc.getForm();
 
-        // pdfFieldMappingに従ってフィールドを埋める
-        // { fieldName: columnLetter } → フィールドに値をセット
-        for (const [fieldName, colLetter] of Object.entries(pdfFieldMapping)) {
-          const value = get(buyer._row, colIdx(colLetter));
+        for (const [fieldName, colLetterOrKey] of Object.entries(pdfFieldMapping)) {
+          // colLetterOrKey が __xxx ならビルトイン辞書から、それ以外は列インデックスで取得
+          const value = builtins[colLetterOrKey] !== undefined
+            ? builtins[colLetterOrKey]
+            : get(row, colIdx(colLetterOrKey));
           try {
             const field = form.getField(fieldName);
-            const type = field.constructor.name;
-            if (type === 'PDFTextField') {
+            if (field.constructor.name === 'PDFTextField') {
               field.setText(value);
-            } else if (type === 'PDFCheckBox') {
-              if (value === 'true' || value === '1' || value === 'yes') field.check();
+            } else if (field.constructor.name === 'PDFCheckBox') {
+              if (['true', '1', 'yes'].includes(value.toLowerCase())) field.check();
               else field.uncheck();
             }
           } catch {
@@ -163,17 +139,16 @@ app.http('GenerateRemittancePdf', {
           }
         }
 
-        // フォームをフラット化（編集不可にする）
         form.flatten();
 
         const pdfBytes = await pdfDoc.save();
-        const safe = (buyer.ownerNameEn || 'Owner').replace(/[\\/*?<>|:"\r\n]/g, '_').substring(0, 60);
+        const safe = buyer.ownerNameEn.replace(/[\\/*?<>|:"\r\n]/g, '_').substring(0, 60);
         zip.file(`${safe}.pdf`, pdfBytes);
       }
 
       const zipBuffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
-      const propName  = settings.propertyName || 'Property';
-      const filename  = `${propName}_${roundInfo.kanji}手付金送金案内_PDF.zip`;
+      const propName  = ds.propertyName || 'Property';
+      const filename  = `${propName}_${roundInfo.kanji}手付金_${template.name}.zip`;
 
       return {
         status: 200,
