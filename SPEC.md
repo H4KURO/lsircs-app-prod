@@ -1,7 +1,7 @@
 # lsir-cs アプリケーション仕様書
 
 > **メンテナンス注意**: このファイルはアプリ変更のたびに更新すること（CLAUDE.md 参照）。  
-> 最終更新: 2026-08-04（Slack手動メンバーID連携・セカンダリグループby保存・期限リマインダーAPI・SWAナビゲーションフォールバック修正）
+> 最終更新: 2026-08-14（Phase B/C/D/E: 文書生成機能追加 — 送金案内Excel/メール、ロゴ埋め込み、PDFテンプレート差し込み印刷、保険・インスペクション見積もりメール一括生成）
 
 ---
 
@@ -660,6 +660,54 @@ tags: string[],      // サブタスク固有のタグ
 |---|---|---|
 | GET | `/api/GetWhitelistUsers` | ユーザー一覧 |
 | POST/PUT/DELETE | `/api/UpdateWhitelistUser` | ユーザー追加・更新・削除 |
+
+### 文書生成（DocumentGenerationView）
+
+バイヤーリストの情報を差し込んで送金案内書類を一括生成する機能。
+
+| メソッド | エンドポイント | 説明 |
+|---|---|---|
+| POST | `/api/GenerateRemittanceExcel` | 手付金送金案内 Excel 一括生成（バイヤー別シート）。List Sotheby's ロゴ付き。`{ projectId, depositRound }` |
+| POST | `/api/GenerateRemittanceEmail` | 手付金送金案内メール（.eml）一括生成 → ZIP ダウンロード。`{ projectId, depositRound }` |
+| POST | `/api/GenerateRemittancePdf` | PDFテンプレートへのAcroFormフィールド差し込み印刷 → ZIP。`{ projectId, depositRound, templateId }` |
+| POST | `/api/UploadPdfTemplate` | PDFテンプレートをBlobStorageへアップロード。AcroFormフィールド名を返す。`{ projectId, templateName, pdfBase64, templateId? }` |
+| POST | `/api/UpdatePdfTemplateMapping` | PDFフィールドとBL列のマッピングを保存。`{ projectId, templateId, fieldMapping }` |
+| POST | `/api/DeletePdfTemplate` | PDFテンプレートを削除（Blob + Cosmos）。`{ projectId, templateId }` |
+| POST | `/api/GenerateServiceEmail` | 保険・インスペクション見積もりメール（.eml）一括生成 → ZIP。料金テーブルでマッチング。`{ projectId, providerId }` |
+
+**documentSettings 構造（Projects コレクション）:**
+```javascript
+documentSettings: {
+  columnMapping: {
+    ownerNameEn, titleName, escrowNo, unitNo, purchasePrice,
+    deposit1Date, deposit2Date, deposit3Date,
+    buyerEmail, agentEmail,
+    bedrooms, sqft, usage, floor, stack,  // 保険・インスペクション用
+  },
+  propertyName, propertyAddress, escrowRemarkSuffix,
+  recipientName, recipientAddress, recipientPhone,
+  bankName, bankBranch, bankBranchAddress, accountType,
+  accountNo, abaNo, swiftCode, bankRegisteredAddress, currency,
+  pdfTemplates: [{        // PDFテンプレート（複数可）
+    id, name, blobName, fieldNames: string[],
+    fieldMapping: { pdfFieldName: columnLetterOrBuiltinKey },
+  }],
+  serviceProviders: [{    // 保険・インスペクション業者（複数可）
+    id, name,
+    type: 'insurance' | 'inspection',
+    emailSubject,         // {{変数}} テンプレート
+    emailBody,
+    rateTable: [{
+      bedrooms, usage, sqftMin, sqftMax, floorMin, floorMax, stack,
+      fee, feeLabel, notes,
+    }],
+  }],
+}
+```
+
+**料金テーブルマッチング:** 空欄 = any。上から順に評価し最初に一致した行を使用。不一致バイヤーは `X-No-Match-Buyers` レスポンスヘッダーに列挙。
+
+**PDFビルトインキー（fieldMapping で使用可）:** `__ownerNameEn`, `__depositAmount`, `__depositDate`, `__depositRound`, `__purchasePrice`, `__propertyName`, `__propertyAddress`, `__recipientName`, `__bankName`, `__accountNo`, `__abaNo`, `__swiftCode`, `__currency` など。
 
 ### ユーティリティ・外部連携
 
