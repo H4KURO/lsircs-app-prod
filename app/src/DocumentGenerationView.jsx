@@ -10,6 +10,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import SaveIcon from '@mui/icons-material/Save';
 import SettingsIcon from '@mui/icons-material/Settings';
 import ArticleIcon from '@mui/icons-material/Article';
+import EmailIcon from '@mui/icons-material/Email';
 
 const API = '/api';
 
@@ -28,6 +29,8 @@ const COLUMN_FIELDS = [
   { key: 'deposit1Date',  label: '第1回デポジット 期日' },
   { key: 'deposit2Date',  label: '第2回デポジット 期日' },
   { key: 'deposit3Date',  label: '第3回デポジット 期日' },
+  { key: 'buyerEmail',    label: 'バイヤーメールアドレス（To）' },
+  { key: 'agentEmail',    label: '担当者メールアドレス（From）' },
 ];
 
 const BANK_FIELDS = [
@@ -74,7 +77,8 @@ export function DocumentGenerationView() {
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [tab, setTab] = useState('generate'); // 'generate' | 'settings'
   const [depositRound, setDepositRound] = useState(1);
-  const [generating, setGenerating] = useState(false);
+  const [generatingExcel, setGeneratingExcel] = useState(false);
+  const [generatingEmail, setGeneratingEmail] = useState(false);
   const [settings, setSettings] = useState(emptySettings());
   const [saving, setSaving] = useState(false);
   const [saveOk, setSaveOk] = useState(false);
@@ -129,9 +133,18 @@ export function DocumentGenerationView() {
     }
   };
 
-  const handleGenerate = async () => {
+  const downloadBlob = (blob, filename) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleGenerateExcel = async () => {
     setGenerateError('');
-    setGenerating(true);
+    setGeneratingExcel(true);
     try {
       const r = await axios.post(
         `${API}/GenerateRemittanceExcel`,
@@ -140,20 +153,36 @@ export function DocumentGenerationView() {
       );
       const propName = selectedProject?.documentSettings?.propertyName || selectedProject?.name || 'Property';
       const roundLabel = ['', '第一次', '第二次', '第三次'][depositRound];
-      const filename = `${propName}_${roundLabel}手付金送金案内.xlsx`;
-      const url = URL.createObjectURL(new Blob([r.data]));
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadBlob(new Blob([r.data]), `${propName}_${roundLabel}手付金送金案内.xlsx`);
     } catch (err) {
       const msg = err.response?.data
         ? (typeof err.response.data === 'string' ? err.response.data : await err.response.data.text?.())
         : err.message;
       setGenerateError(String(msg || '生成に失敗しました。'));
     } finally {
-      setGenerating(false);
+      setGeneratingExcel(false);
+    }
+  };
+
+  const handleGenerateEmail = async () => {
+    setGenerateError('');
+    setGeneratingEmail(true);
+    try {
+      const r = await axios.post(
+        `${API}/GenerateRemittanceEmail`,
+        { projectId: selectedProjectId, depositRound },
+        { responseType: 'blob' },
+      );
+      const propName = selectedProject?.documentSettings?.propertyName || selectedProject?.name || 'Property';
+      const roundLabel = ['', '第一次', '第二次', '第三次'][depositRound];
+      downloadBlob(new Blob([r.data], { type: 'application/zip' }), `${propName}_${roundLabel}手付金送金案内_メール.zip`);
+    } catch (err) {
+      const msg = err.response?.data
+        ? (typeof err.response.data === 'string' ? err.response.data : await err.response.data.text?.())
+        : err.message;
+      setGenerateError(String(msg || 'メール生成に失敗しました。'));
+    } finally {
+      setGeneratingEmail(false);
     }
   };
 
@@ -257,20 +286,39 @@ export function DocumentGenerationView() {
                 <Alert severity="error">{generateError}</Alert>
               )}
 
-              <Box>
-                <Button
-                  variant="contained"
-                  size="large"
-                  startIcon={generating ? <CircularProgress size={18} color="inherit" /> : <DownloadIcon />}
-                  onClick={handleGenerate}
-                  disabled={generating}
-                >
-                  {generating ? '生成中...' : 'Excelを生成してダウンロード'}
-                </Button>
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
-                  バイヤーリスト全員分を1ファイル（オーナー別シート）で出力します
-                </Typography>
-              </Box>
+              <Stack spacing={2}>
+                <Box>
+                  <Button
+                    variant="contained"
+                    size="large"
+                    startIcon={generatingExcel ? <CircularProgress size={18} color="inherit" /> : <DownloadIcon />}
+                    onClick={handleGenerateExcel}
+                    disabled={generatingExcel || generatingEmail}
+                  >
+                    {generatingExcel ? '生成中...' : 'Excel を生成してダウンロード'}
+                  </Button>
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                    バイヤーリスト全員分を1ファイル（オーナー別シート）で出力します
+                  </Typography>
+                </Box>
+
+                <Divider />
+
+                <Box>
+                  <Button
+                    variant="outlined"
+                    size="large"
+                    startIcon={generatingEmail ? <CircularProgress size={18} color="inherit" /> : <EmailIcon />}
+                    onClick={handleGenerateEmail}
+                    disabled={generatingExcel || generatingEmail}
+                  >
+                    {generatingEmail ? '生成中...' : 'メール（.eml）を一括生成してダウンロード'}
+                  </Button>
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                    バイヤー1人につき1つの .eml ファイルをZIPでまとめてダウンロードします。Outlookで開けます。
+                  </Typography>
+                </Box>
+              </Stack>
             </Stack>
           )}
         </Paper>
