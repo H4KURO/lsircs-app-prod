@@ -258,27 +258,32 @@ app.http('StagnantTaskReminder', {
         byCreator.get(name).push(item);
       }
 
-      // ホワイトリストからメールアドレスを取得
+      // ホワイトリストからメールアドレスと表示名を取得
+      // createdByName は clientPrincipal.userDetails = メールアドレス
       const allowedContainer = await ensureNamedContainer('AllowedUsers', { partitionKey: '/id' });
       const { resources: allowedUsers } = await allowedContainer.items.readAll().fetchAll();
 
-      // name / email マップ（displayName または name で突き合わせ）
-      const emailByName = new Map();
+      // email(小文字) → { email, displayName } マップ
+      const infoByEmail = new Map();
       for (const u of allowedUsers) {
         if (u.email) {
-          if (u.name)        emailByName.set(u.name, u.email);
-          if (u.displayName) emailByName.set(u.displayName, u.email);
+          infoByEmail.set(u.email.toLowerCase(), {
+            email: u.email,
+            displayName: u.name || u.email,
+          });
         }
       }
 
       // レスポンス組み立て
       const recipients = [];
-      for (const [creatorName, items] of byCreator) {
-        const email = emailByName.get(creatorName) || null;
+      for (const [creatorEmail, items] of byCreator) {
+        const info = infoByEmail.get(creatorEmail.toLowerCase());
+        const email = info?.email || null;
+        const creatorName = info?.displayName || creatorEmail;
         const html = buildHtmlEmail(creatorName, items, reportDate);
         recipients.push({
           name: creatorName,
-          email,
+          email: email || creatorEmail,
           taskCount: items.length,
           html,
           tasks: items.map(({ task, days, lastChangedAt }) => ({
