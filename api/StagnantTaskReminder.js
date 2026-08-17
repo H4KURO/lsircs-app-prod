@@ -1,5 +1,6 @@
 const { app } = require('@azure/functions');
 const { getNamedContainer, ensureNamedContainer } = require('./cosmosClient');
+const { usersContainer } = require('./userProfileStore');
 
 const n8nSecretKey = process.env.N8N_SECRET_KEY;
 const STAGNANT_DAYS = 7;
@@ -216,6 +217,7 @@ function escapeHtml(str) {
 
 // POST /api/StagnantTaskReminder
 // Header: x-n8n-secret-key
+// Body (optional): { defaultEmail: "admin@example.com" }
 // Response: { recipients: [{ name, email, taskCount, html, tasks: [...] }] }
 app.http('StagnantTaskReminder', {
   methods: ['POST'],
@@ -225,6 +227,12 @@ app.http('StagnantTaskReminder', {
     if (!n8nSecretKey || secret !== n8nSecretKey) {
       return { status: 401, body: 'Unauthorized' };
     }
+
+    let defaultEmail = null;
+    try {
+      const body = await request.json();
+      if (body?.defaultEmail) defaultEmail = body.defaultEmail;
+    } catch { /* body省略可 */ }
 
     try {
       // タスク全件取得
@@ -250,20 +258,9 @@ app.http('StagnantTaskReminder', {
         return { status: 200, jsonBody: { recipients: [], stagnantCount: 0 } };
       }
 
-      // タスク作成者ごとにグループ化
-      const byCreator = new Map();
-      for (const item of stagnant) {
-        const name = item.task.createdByName || '（不明）';
-        if (!byCreator.has(name)) byCreator.set(name, []);
-        byCreator.get(name).push(item);
-      }
-
-      // ホワイトリストからメールアドレスと表示名を取得
-      // createdByName は clientPrincipal.userDetails = メールアドレス
+      // ホワイトリスト: email(小文字) → { email, displayName }
       const allowedContainer = await ensureNamedContainer('AllowedUsers', { partitionKey: '/id' });
       const { resources: allowedUsers } = await allowedContainer.items.readAll().fetchAll();
-
-      // email(小文字) → { email, displayName } マップ
       const infoByEmail = new Map();
       for (const u of allowedUsers) {
         if (u.email) {
@@ -274,16 +271,65 @@ app.http('StagnantTaskReminder', {
         }
       }
 
+      // Users コンテナ: userId → { email, displayName }
+      let infoByUserId = new Map();
+      try {
+        const uContainer = await usersContainer();
+        const { resources: userProfiles } = await uContainer.items.readAll().fetchAll();
+        for (const u of userProfiles) {
+          const uid = u.userId || u.id;
+          const email = u.userDetails || '';
+          if (uid) {
+            infoByUserId.set(uid, {
+              email,
+              displayName: u.displayName || email,
+            });
+          }
+        }
+      } catch (e) {
+        context.log('Users container lookup failed (non-fatal)', e.message);
+      }
+
+      // タスクごとに送信先メールを解決してグループ化
+      // createdByName = userDetails = メールアドレス（新しいタスク）
+      // createdById  = userId（createdByName が空の古いタスク用フォールバック）
+      const byEmail = new Map();
+      for (const item of stagnant) {
+        let resolvedEmail = null;
+        let resolvedName = null;
+
+        const byName = item.task.createdByName;
+        if (byName) {
+          const info = infoByEmail.get(byName.toLowerCase());
+          resolvedEmail = info?.email || byName;
+          resolvedName  = info?.displayName || byName;
+        } else if (item.task.createdById) {
+          const info = infoByUserId.get(item.task.createdById);
+          if (info?.email) {
+            const wlInfo = infoByEmail.get(info.email.toLowerCase());
+            resolvedEmail = wlInfo?.email || info.email;
+            resolvedName  = wlInfo?.displayName || info.displayName || info.email;
+          }
+        }
+
+        // どちらも取れない場合は defaultEmail に集約
+        const key = resolvedEmail || defaultEmail || '__unknown__';
+        if (!byEmail.has(key)) {
+          byEmail.set(key, { email: resolvedEmail, name: resolvedName, items: [] });
+        }
+        byEmail.get(key).items.push(item);
+      }
+
       // レスポンス組み立て
       const recipients = [];
-      for (const [creatorEmail, items] of byCreator) {
-        const info = infoByEmail.get(creatorEmail.toLowerCase());
-        const email = info?.email || null;
-        const creatorName = info?.displayName || creatorEmail;
-        const html = buildHtmlEmail(creatorName, items, reportDate);
+      for (const [key, { email, name, items }] of byEmail) {
+        // defaultEmail に集約されたもの、または email 不明のものを処理
+        const finalEmail = email || (key !== '__unknown__' ? key : null) || defaultEmail;
+        const finalName  = name || finalEmail || '（不明）';
+        const html = buildHtmlEmail(finalName, items, reportDate);
         recipients.push({
-          name: creatorName,
-          email: email || creatorEmail,
+          name: finalName,
+          email: finalEmail,
           taskCount: items.length,
           html,
           tasks: items.map(({ task, days, lastChangedAt }) => ({
