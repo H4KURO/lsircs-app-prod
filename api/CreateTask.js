@@ -74,7 +74,7 @@ app.http('CreateTask', {
         emailNotes: [],
         createdAt: now,
         createdById: clientPrincipal.userId,
-        createdByName: clientPrincipal.userDetails,
+        createdByName: clientPrincipal.userDetails?.trim() || clientPrincipal.userId || '',
       };
 
       if (newAttachments.length > 0) {

@@ -177,7 +177,7 @@ app.http('UpdateTask', {
             recurringConfig: savedTask.recurringConfig,
             createdAt: now,
             createdById: clientPrincipal.userId,
-            createdByName: clientPrincipal.userDetails,
+            createdByName: clientPrincipal.userDetails?.trim() || clientPrincipal.userId || '',
             emailNotes: [],
           };
           await container.items.create(nextTask);
