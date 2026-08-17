@@ -1,7 +1,7 @@
 # lsir-cs アプリケーション仕様書
 
 > **メンテナンス注意**: このファイルはアプリ変更のたびに更新すること（CLAUDE.md 参照）。  
-> 最終更新: 2026-08-14（Phase B/C/D/E: 文書生成機能追加 — 送金案内Excel/メール、ロゴ埋め込み、PDFテンプレート差し込み印刷、保険・インスペクション見積もりメール一括生成）
+> 最終更新: 2026-08-17（StagnantTaskReminder: 停滞タスク週次メールリマインド機能追加）
 
 ---
 
@@ -716,6 +716,15 @@ documentSettings: {
 | GET | `/api/HealthCheck` | 死活監視 |
 | POST | `/api/SlackCommand` | Slack スラッシュコマンド受信 |
 | POST | `/api/ParseEmailToTask` | メール本文から AI タスク生成 |
+| POST | `/api/StagnantTaskReminder` | 停滞タスク週次リマインドレポート（n8n呼び出し用、`x-n8n-secret-key` 認証） |
+
+**StagnantTaskReminder 仕様:**
+- 対象: `status !== 'Done'` かつ `statusHistory` の最終 `changedAt`（なければ `createdAt`）から7日以上経過したタスク
+- グループ化: タスク作成者（`createdByName`）ごとにまとめる
+- メールアドレス: AllowedUsers コレクションの `name` と突き合わせて取得
+- レスポンス: `{ reportDate, stagnantCount, recipients: [{ name, email, taskCount, html, tasks }] }`
+  - `html` フィールドに送信用HTMLメール本文が含まれる（n8n の Email ノードにそのまま渡せる）
+- 実行タイミング: n8n から毎週月曜朝に呼び出す
 
 ---
 
