@@ -229,9 +229,11 @@ app.http('StagnantTaskReminder', {
     }
 
     let defaultEmail = null;
+    let groupBy = 'creator';
     try {
       const body = await request.json();
       if (body?.defaultEmail) defaultEmail = body.defaultEmail;
+      if (body?.groupBy === 'assignee') groupBy = 'assignee';
     } catch { /* body省略可 */ }
 
     try {
@@ -291,33 +293,53 @@ app.http('StagnantTaskReminder', {
       }
 
       // タスクごとに送信先メールを解決してグループ化
-      // createdByName = userDetails = メールアドレス（新しいタスク）
-      // createdById  = userId（createdByName が空の古いタスク用フォールバック）
       const byEmail = new Map();
-      for (const item of stagnant) {
-        let resolvedEmail = null;
-        let resolvedName = null;
 
-        const byName = item.task.createdByName;
-        if (byName) {
-          const info = infoByEmail.get(byName.toLowerCase());
-          resolvedEmail = info?.email || byName;
-          resolvedName  = info?.displayName || byName;
-        } else if (item.task.createdById) {
-          const info = infoByUserId.get(item.task.createdById);
-          if (info?.email) {
-            const wlInfo = infoByEmail.get(info.email.toLowerCase());
-            resolvedEmail = wlInfo?.email || info.email;
-            resolvedName  = wlInfo?.displayName || info.displayName || info.email;
-          }
-        }
-
-        // どちらも取れない場合は defaultEmail に集約
-        const key = resolvedEmail || defaultEmail || '__unknown__';
+      function addToGroup(emailKey, resolvedEmail, resolvedName, item) {
+        const key = emailKey || defaultEmail || '__unknown__';
         if (!byEmail.has(key)) {
           byEmail.set(key, { email: resolvedEmail, name: resolvedName, items: [] });
         }
         byEmail.get(key).items.push(item);
+      }
+
+      for (const item of stagnant) {
+        if (groupBy === 'assignee') {
+          // 担当者（assignees）ごとにグループ化
+          const assignees = Array.isArray(item.task.assignees) ? item.task.assignees : [];
+          if (assignees.length === 0) {
+            addToGroup(null, null, null, item);
+          } else {
+            for (const assigneeEmail of assignees) {
+              if (!assigneeEmail) continue;
+              const info = infoByEmail.get(assigneeEmail.toLowerCase());
+              const resolvedEmail = info?.email || assigneeEmail;
+              const resolvedName  = info?.displayName || assigneeEmail;
+              addToGroup(resolvedEmail, resolvedEmail, resolvedName, item);
+            }
+          }
+        } else {
+          // createdByName = userDetails = メールアドレス（新しいタスク）
+          // createdById  = userId（createdByName が空の古いタスク用フォールバック）
+          let resolvedEmail = null;
+          let resolvedName = null;
+
+          const byName = item.task.createdByName;
+          if (byName) {
+            const info = infoByEmail.get(byName.toLowerCase());
+            resolvedEmail = info?.email || byName;
+            resolvedName  = info?.displayName || byName;
+          } else if (item.task.createdById) {
+            const info = infoByUserId.get(item.task.createdById);
+            if (info?.email) {
+              const wlInfo = infoByEmail.get(info.email.toLowerCase());
+              resolvedEmail = wlInfo?.email || info.email;
+              resolvedName  = wlInfo?.displayName || info.displayName || info.email;
+            }
+          }
+
+          addToGroup(resolvedEmail, resolvedEmail, resolvedName, item);
+        }
       }
 
       // レスポンス組み立て
