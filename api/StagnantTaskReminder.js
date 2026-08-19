@@ -22,7 +22,7 @@ function daysSince(isoString) {
 
 function formatDate(isoString) {
   if (!isoString) return '';
-  return new Date(isoString).toLocaleDateString('ja-JP', {
+  return new Date(isoString).toLocaleDateString('en-US', {
     year: 'numeric', month: 'long', day: 'numeric',
   });
 }
@@ -45,7 +45,7 @@ function buildHtmlEmail(creatorName, tasks, reportDate) {
     return `
     <div class="task-row">
       <div class="task-top">
-        <div class="task-title">${escapeHtml(task.title || '（タイトルなし）')}</div>
+        <div class="task-title">${escapeHtml(task.title || '(No title)')}</div>
         <span class="days-badge">${days} days</span>
       </div>
       ${recentUpdateHtml}
@@ -191,15 +191,15 @@ function buildHtmlEmail(creatorName, tasks, reportDate) {
     <div class="header-meta">${reportDate} &nbsp;·&nbsp; ${tasks.length} tasks</div>
   </div>
   <div class="intro">
-    以下のタスクは <strong>7日以上ステータスに変更がありません</strong>。内容を確認し、必要に応じてステータスを更新してください。
+    The following tasks have <strong>had no status change for 7 or more days</strong>. Please review each task and update its status as needed.
   </div>
   <div class="task-list">
     ${taskRows}
   </div>
   <div class="email-footer">
     <div class="footer-text">
-      このレポートは lsir-cs により毎週月曜日に自動送信されます。<br>
-      ステータスが更新されたタスクは次回以降のレポートから除外されます。
+      This report is automatically sent every Monday by lsir-cs.<br>
+      Tasks whose status has been updated will be excluded from future reports.
     </div>
   </div>
 </div>
@@ -241,7 +241,7 @@ app.http('StagnantTaskReminder', {
       const container = tasksContainer();
       const { resources: allTasks } = await container.items.readAll().fetchAll();
 
-      const reportDate = new Date().toLocaleDateString('ja-JP', {
+      const reportDate = new Date().toLocaleDateString('en-US', {
         year: 'numeric', month: 'long', day: 'numeric', weekday: 'short',
       });
 
@@ -347,7 +347,7 @@ app.http('StagnantTaskReminder', {
       for (const [key, { email, name, items }] of byEmail) {
         // defaultEmail に集約されたもの、または email 不明のものを処理
         const finalEmail = email || (key !== '__unknown__' ? key : null) || defaultEmail;
-        const finalName  = name || finalEmail || '（不明）';
+        const finalName  = name || finalEmail || '(Unknown)';
         const html = buildHtmlEmail(finalName, items, reportDate);
         recipients.push({
           name: finalName,
