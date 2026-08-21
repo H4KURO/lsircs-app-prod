@@ -157,7 +157,7 @@ function BuyerEditDialog({ open, onClose, columnLabels, rowValues, rowIndex, api
 }
 
 // ── データテーブル（一覧） ───────────────────────────────────
-function BuyerDataTable({ columnLabels, rows, onEditRow, onSyncCRM, summaryColCount = 8 }) {
+function BuyerDataTable({ columnLabels, rows, onEditRow, onSyncCRM, crmLinkedRows, summaryColCount = 8 }) {
   const [searchText, setSearchText] = useState('');
   const [syncStatus, setSyncStatus] = useState({});
 
@@ -253,6 +253,18 @@ function BuyerDataTable({ columnLabels, rows, onEditRow, onSyncCRM, summaryColCo
                         </IconButton>
                       </Tooltip>
                       {onSyncCRM && (() => {
+                        // サーバー側で既に登録済みの行
+                        if (crmLinkedRows?.has(originalIdx)) {
+                          return (
+                            <Chip
+                              label="CRM済"
+                              size="small"
+                              color="success"
+                              variant="outlined"
+                              sx={{ ml: 0.5, fontSize: '0.65rem', height: 18 }}
+                            />
+                          );
+                        }
                         const st = syncStatus[originalIdx];
                         if (st === 'syncing') {
                           return <CircularProgress size={16} sx={{ ml: 0.5, verticalAlign: 'middle' }} />;
@@ -316,6 +328,8 @@ function SheetPanel({ fetchEndpoint, updateEndpoint, headerRowCount = 3, summary
   const [editRowIndex, setEditRowIndex] = useState(null);
   const [editRowValues, setEditRowValues] = useState([]);
   const [snackMsg, setSnackMsg] = useState('');
+  // rowIndex → true のセット（CRM登録済み行）
+  const [crmLinkedRows, setCrmLinkedRows] = useState(new Set());
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -337,9 +351,31 @@ function SheetPanel({ fetchEndpoint, updateEndpoint, headerRowCount = 3, summary
     }
   }, [fetchEndpoint, headerRowCount, projectId]);
 
+  // CRM登録済みの行インデックスをCustomersから取得
+  const fetchCrmLinked = useCallback(async () => {
+    if (!enableCrmSync) return;
+    try {
+      const res = await axios.get(`${API_URL}/GetCustomers`);
+      const customers = res.data || [];
+      const linked = new Set();
+      for (const c of customers) {
+        if (c.buyerLink && c.buyerLink.projectId === projectId && c.buyerLink.rowIndex != null) {
+          linked.add(c.buyerLink.rowIndex);
+        }
+      }
+      setCrmLinkedRows(linked);
+    } catch {
+      // 取得失敗は非致命的
+    }
+  }, [enableCrmSync, projectId]);
+
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    fetchCrmLinked();
+  }, [fetchCrmLinked]);
 
   const handleEditRow = (rowIndex, rowValues) => {
     setEditRowIndex(rowIndex);
@@ -361,6 +397,8 @@ function SheetPanel({ fetchEndpoint, updateEndpoint, headerRowCount = 3, summary
       values: rowValues,
       columnLabels,
     });
+    // 成功したらローカルのセットにも追加
+    setCrmLinkedRows((prev) => new Set([...prev, rowIndex]));
     return res.data;
   }, [projectId, projectName, sheetName, columnLabels]);
 
@@ -404,6 +442,7 @@ function SheetPanel({ fetchEndpoint, updateEndpoint, headerRowCount = 3, summary
         rows={rows}
         onEditRow={handleEditRow}
         onSyncCRM={enableCrmSync ? handleSyncCRM : undefined}
+        crmLinkedRows={enableCrmSync ? crmLinkedRows : undefined}
         summaryColCount={summaryColCount}
       />
 
