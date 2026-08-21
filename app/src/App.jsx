@@ -140,6 +140,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [accessStatus, setAccessStatus] = useState(null);
   const [deepLinkTaskId, setDeepLinkTaskId] = useState(initialLocation.taskId);
+  const [buyerDeepLink, setBuyerDeepLink] = useState(null);
   const { t, i18n } = useTranslation();
   const [language, setLanguage] = useState(() => (i18n.language || "ja").split("-")[0]);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -213,6 +214,11 @@ function App() {
     if (nextTaskId && currentView !== "tasks") setCurrentView("tasks");
   };
 
+  const handleNavigateToBuyer = ({ projectId, rowIndex }) => {
+    setBuyerDeepLink({ projectId, rowIndex });
+    setCurrentView("buyers");
+  };
+
   const handleLanguageChange = (e) => {
     const nextLang = e.target.value;
     setLanguage(nextLang);
@@ -271,8 +277,8 @@ function App() {
       case "tasks":      return <TaskView initialTaskId={deepLinkTaskId} onSelectedTaskChange={handleTaskSelectionChange} />;
       case "profile":    return <ProfileView />;
       case "settings":   return <SettingsView />;
-      case "buyers":     return <BuyersListView />;
-      case "crm":        return <CRMView onNavigateToTask={handleTaskSelectionChange} />;
+      case "buyers":     return <BuyersListView buyerDeepLink={buyerDeepLink} onDeepLinkConsumed={() => setBuyerDeepLink(null)} />;
+      case "crm":        return <CRMView onNavigateToTask={handleTaskSelectionChange} onNavigateToBuyer={handleNavigateToBuyer} />;
       case "projects":   return <ProjectsView />;
       case "spreadsheet": return <SpreadsheetView />;
       case "whitelist":  return accessStatus.isAdmin ? <WhitelistView currentUser={user} /> : <AccessDeniedView userEmail={user.userDetails} />;

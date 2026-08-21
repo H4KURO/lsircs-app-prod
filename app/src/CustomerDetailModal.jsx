@@ -58,10 +58,10 @@ const BLANK_FORM = {
   notes: '',
 };
 
-export function CustomerDetailModal({ open, onClose, customer, onSaved, onDeleted, onNavigateToTask }) {
+export function CustomerDetailModal({ open, onClose, customer, onSaved, onDeleted, onNavigateToTask, onNavigateToBuyer }) {
   const isEdit = customer != null;
   const [form, setForm] = useState(BLANK_FORM);
-  const [buyerLink, setBuyerLink] = useState(null);
+  const [buyerLinks, setBuyerLinks] = useState([]);
   const [buyerSearchOpen, setBuyerSearchOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -93,10 +93,14 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
           nextFollowUpAt: customer.nextFollowUpAt ?? '',
           notes: customer.notes ?? '',
         });
-        setBuyerLink(customer.buyerLink ?? null);
+        // buyerLinks 配列に正規化（旧 buyerLink 単体との後方互換）
+        const links = Array.isArray(customer.buyerLinks)
+          ? customer.buyerLinks
+          : (customer.buyerLink ? [customer.buyerLink] : []);
+        setBuyerLinks(links);
       } else {
         setForm(BLANK_FORM);
-        setBuyerLink(null);
+        setBuyerLinks([]);
       }
       setError('');
       if (isEdit) {
@@ -125,7 +129,9 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
     setError('');
     try {
       const endpoint = isEdit ? 'UpdateCustomer' : 'CreateCustomer';
-      const body = isEdit ? { id: customer.id, ...form, buyerLink } : { ...form, buyerLink };
+      const body = isEdit
+        ? { id: customer.id, ...form, buyerLinks, buyerLink: buyerLinks[0] ?? null }
+        : { ...form, buyerLinks, buyerLink: buyerLinks[0] ?? null };
       const res = await axios.post(`${API_URL}/${endpoint}`, body);
       onSaved(res.data);
       onClose();
@@ -430,35 +436,42 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
           {/* Buyers List 紐づけ */}
           <Grid item xs={12}>
             <Divider sx={{ my: 0.5 }} />
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-              <Typography variant="body2" color="text.secondary" sx={{ minWidth: 120 }}>
+            <Box sx={{ mt: 1 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
                 Buyers List 紐づけ
               </Typography>
-              {buyerLink ? (
-                <>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
+                {buyerLinks.map((lnk, i) => (
                   <Chip
+                    key={i}
                     icon={<LinkIcon sx={{ fontSize: '0.9rem' }} />}
-                    label={buyerLink.displayName}
+                    label={lnk.displayName}
                     color="info"
                     size="small"
                     variant="outlined"
+                    onClick={onNavigateToBuyer ? () => {
+                      onClose();
+                      onNavigateToBuyer({ projectId: lnk.projectId, rowIndex: lnk.rowIndex });
+                    } : undefined}
+                    onDelete={() => setBuyerLinks((prev) => prev.filter((_, idx) => idx !== i))}
+                    deleteIcon={
+                      <Tooltip title="紐づけを解除">
+                        <LinkOffIcon sx={{ fontSize: '0.85rem' }} />
+                      </Tooltip>
+                    }
+                    sx={{ cursor: onNavigateToBuyer ? 'pointer' : 'default' }}
                   />
-                  <Tooltip title="紐づけを解除">
-                    <IconButton size="small" onClick={() => setBuyerLink(null)}>
-                      <LinkOffIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                </>
-              ) : (
+                ))}
                 <Button
                   size="small"
                   variant="outlined"
                   startIcon={<LinkIcon />}
                   onClick={() => setBuyerSearchOpen(true)}
+                  sx={{ fontSize: '0.75rem', py: 0.25 }}
                 >
-                  バイヤーと紐づける
+                  {buyerLinks.length > 0 ? '追加' : 'バイヤーと紐づける'}
                 </Button>
-              )}
+              </Box>
             </Box>
           </Grid>
 
@@ -504,7 +517,11 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
       <BuyerSearchDialog
         open={buyerSearchOpen}
         onClose={() => setBuyerSearchOpen(false)}
-        onSelect={(link) => setBuyerLink(link)}
+        onSelect={(link) => setBuyerLinks((prev) => {
+          const dup = prev.findIndex((l) => l.projectId === link.projectId && l.rowIndex === link.rowIndex);
+          if (dup >= 0) { const next = [...prev]; next[dup] = link; return next; }
+          return [...prev, link];
+        })}
       />
     </Dialog>
   );

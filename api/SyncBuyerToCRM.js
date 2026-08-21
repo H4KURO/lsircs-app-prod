@@ -59,7 +59,9 @@ app.http('SyncBuyerToCRM', {
         return { status: 400, body: 'No identifiable fields (name/email/phone) found in the row.' };
       }
 
-      const displayName = [name, email].filter(Boolean).join(' · ') || `Row ${rowIndex + 1}`;
+      const unitIdx = detectFieldIndex(columnLabels, ['unit', 'ユニット']);
+      const unitNo  = unitIdx >= 0 ? (values[unitIdx] ?? '').trim() : '';
+      const displayName = [projectName, unitNo].filter(Boolean).join(' / ') || name || `Row ${rowIndex + 1}`;
       const buyerLink = {
         projectId: projectId ?? null,
         projectName: projectName ?? null,
@@ -99,10 +101,23 @@ app.http('SyncBuyerToCRM', {
       const now = new Date().toISOString();
 
       if (existingCustomer) {
-        // 既存顧客に buyerLink を追加
+        // 既存の buyerLinks を取得（旧 buyerLink 形式との後方互換）
+        const existingLinks = Array.isArray(existingCustomer.buyerLinks)
+          ? [...existingCustomer.buyerLinks]
+          : (existingCustomer.buyerLink ? [existingCustomer.buyerLink] : []);
+        // 同じ projectId + rowIndex の重複は上書き
+        const dupIdx = existingLinks.findIndex(
+          (l) => l.projectId === buyerLink.projectId && l.rowIndex === buyerLink.rowIndex
+        );
+        if (dupIdx >= 0) {
+          existingLinks[dupIdx] = buyerLink;
+        } else {
+          existingLinks.push(buyerLink);
+        }
         const updated = {
           ...existingCustomer,
-          buyerLink,
+          buyerLinks: existingLinks,
+          buyerLink: existingLinks[0] ?? null,
           updatedAt: now,
           updatedBy: clientPrincipal.userDetails,
         };
@@ -129,6 +144,7 @@ app.http('SyncBuyerToCRM', {
         lastContactedAt: null,
         nextFollowUpAt: null,
         notes: null,
+        buyerLinks: [buyerLink],
         buyerLink,
         createdAt: now,
         updatedAt: now,

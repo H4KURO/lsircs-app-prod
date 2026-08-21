@@ -319,7 +319,7 @@ function BuyerDataTable({ columnLabels, rows, onEditRow, onSyncCRM, crmLinkedRow
 }
 
 // ── シートパネル（共通） ────────────────────────────────────
-function SheetPanel({ fetchEndpoint, updateEndpoint, headerRowCount = 3, summaryColCount = 8, projectId, projectName, sheetName, enableCrmSync = false }) {
+function SheetPanel({ fetchEndpoint, updateEndpoint, headerRowCount = 3, summaryColCount = 8, projectId, projectName, sheetName, enableCrmSync = false, deepLinkRowIndex, onDeepLinkOpened }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [columnLabels, setColumnLabels] = useState([]);
@@ -359,11 +359,15 @@ function SheetPanel({ fetchEndpoint, updateEndpoint, headerRowCount = 3, summary
       const customers = res.data || [];
       const linked = new Set();
       for (const c of customers) {
-        if (!c.buyerLink || c.buyerLink.rowIndex == null) continue;
-        // projectId が一致、または buyerLink 側に projectId がない場合（旧データ互換）
-        const pidMatch = !c.buyerLink.projectId || c.buyerLink.projectId === projectId;
-        if (pidMatch) {
-          linked.add(c.buyerLink.rowIndex);
+        // buyerLinks 配列（新）と buyerLink 単体（旧）の両方を確認
+        const allLinks = [
+          ...(Array.isArray(c.buyerLinks) ? c.buyerLinks : []),
+          ...(c.buyerLink && !Array.isArray(c.buyerLinks) ? [c.buyerLink] : []),
+        ];
+        for (const lnk of allLinks) {
+          if (lnk.rowIndex == null) continue;
+          const pidMatch = !lnk.projectId || lnk.projectId === projectId;
+          if (pidMatch) linked.add(lnk.rowIndex);
         }
       }
       setCrmLinkedRows(linked);
@@ -379,6 +383,18 @@ function SheetPanel({ fetchEndpoint, updateEndpoint, headerRowCount = 3, summary
   useEffect(() => {
     fetchCrmLinked();
   }, [fetchCrmLinked]);
+
+  // DeepLink: データ読み込み後に対象行の編集ダイアログを自動オープン
+  useEffect(() => {
+    if (deepLinkRowIndex == null || rows.length === 0) return;
+    const row = rows[deepLinkRowIndex];
+    if (row) {
+      setEditRowIndex(deepLinkRowIndex);
+      setEditRowValues(row);
+      setEditOpen(true);
+      if (onDeepLinkOpened) onDeepLinkOpened();
+    }
+  }, [deepLinkRowIndex, rows]);
 
   const handleEditRow = (rowIndex, rowValues) => {
     setEditRowIndex(rowIndex);
@@ -471,11 +487,20 @@ function SheetPanel({ fetchEndpoint, updateEndpoint, headerRowCount = 3, summary
 }
 
 // ── メインコンポーネント ────────────────────────────────────
-export function BuyersListView() {
+export function BuyersListView({ buyerDeepLink, onDeepLinkConsumed }) {
   const [activeTab, setActiveTab] = useState(0);
   const [projects, setProjects] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [loadingProjects, setLoadingProjects] = useState(true);
+  // DeepLink: { projectId, rowIndex } → SheetPanelに渡して自動open
+  const [pendingDeepLink, setPendingDeepLink] = useState(null);
+
+  useEffect(() => {
+    if (buyerDeepLink) {
+      setPendingDeepLink(buyerDeepLink);
+      if (onDeepLinkConsumed) onDeepLinkConsumed();
+    }
+  }, [buyerDeepLink, onDeepLinkConsumed]);
 
   useEffect(() => {
     axios
@@ -483,7 +508,11 @@ export function BuyersListView() {
       .then((res) => {
         const active = (res.data || []).filter((p) => p.status !== 'inactive');
         setProjects(active);
-        if (active.length > 0) setSelectedProjectId(active[0].id);
+        if (active.length > 0) {
+          // DeepLinkのprojectIdがあればそちらを優先
+          const target = buyerDeepLink?.projectId && active.find((p) => p.id === buyerDeepLink.projectId);
+          setSelectedProjectId(target ? target.id : active[0].id);
+        }
       })
       .catch((err) => console.error('GetProjects failed', err))
       .finally(() => setLoadingProjects(false));
@@ -599,6 +628,10 @@ export function BuyersListView() {
               projectName={selectedProject?.name}
               sheetName={selectedProject?.sheetName || 'Buyers list'}
               enableCrmSync={tab.enableCrmSync ?? false}
+              deepLinkRowIndex={
+                pendingDeepLink?.projectId === selectedProjectId ? pendingDeepLink.rowIndex : undefined
+              }
+              onDeepLinkOpened={() => setPendingDeepLink(null)}
             />
           ) : null
         )}

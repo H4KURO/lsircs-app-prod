@@ -43,7 +43,7 @@ function getStatusColor(status) {
   }
 }
 
-export function CRMView({ onNavigateToTask }) {
+export function CRMView({ onNavigateToTask, onNavigateToBuyer }) {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -243,18 +243,25 @@ export function CRMView({ onNavigateToTask }) {
                         {customer.source ?? '—'}
                       </TableCell>
                       <TableCell>
-                        {customer.buyerLink ? (
-                          <Chip
-                            icon={<LinkIcon sx={{ fontSize: '0.8rem !important' }} />}
-                            label={customer.buyerLink.displayName}
-                            size="small"
-                            color="info"
-                            variant="outlined"
-                            sx={{ fontSize: '0.7rem', maxWidth: 120 }}
-                          />
-                        ) : (
-                          <Typography sx={{ color: 'text.disabled', fontSize: '0.8rem' }}>—</Typography>
-                        )}
+                        {(() => {
+                          const links = customer.buyerLinks ?? (customer.buyerLink ? [customer.buyerLink] : []);
+                          if (links.length === 0) return <Typography sx={{ color: 'text.disabled', fontSize: '0.8rem' }}>—</Typography>;
+                          return (
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                              {links.map((lnk, i) => (
+                                <Chip
+                                  key={i}
+                                  icon={<LinkIcon sx={{ fontSize: '0.8rem !important' }} />}
+                                  label={lnk.displayName}
+                                  size="small"
+                                  color="info"
+                                  variant="outlined"
+                                  sx={{ fontSize: '0.7rem', maxWidth: 150 }}
+                                />
+                              ))}
+                            </Box>
+                          );
+                        })()}
                       </TableCell>
                     </TableRow>
                   ))
@@ -273,6 +280,7 @@ export function CRMView({ onNavigateToTask }) {
         onSaved={handleSaved}
         onDeleted={handleDeleted}
         onNavigateToTask={onNavigateToTask}
+        onNavigateToBuyer={onNavigateToBuyer}
       />
     </Box>
   );
