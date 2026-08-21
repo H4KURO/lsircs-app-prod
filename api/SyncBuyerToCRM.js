@@ -39,7 +39,8 @@ app.http('SyncBuyerToCRM', {
 
     try {
       const payload = await request.json();
-      const { projectId, projectName, sheetName, rowIndex, values, columnLabels } = payload;
+      const { projectId: rawProjectId, projectName, sheetName, rowIndex, values, columnLabels } = payload;
+      const projectId = rawProjectId || null;
 
       if (!Array.isArray(values) || !Array.isArray(columnLabels)) {
         return { status: 400, body: 'values and columnLabels arrays are required.' };

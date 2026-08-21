@@ -359,7 +359,10 @@ function SheetPanel({ fetchEndpoint, updateEndpoint, headerRowCount = 3, summary
       const customers = res.data || [];
       const linked = new Set();
       for (const c of customers) {
-        if (c.buyerLink && c.buyerLink.projectId === projectId && c.buyerLink.rowIndex != null) {
+        if (!c.buyerLink || c.buyerLink.rowIndex == null) continue;
+        // projectId が一致、または buyerLink 側に projectId がない場合（旧データ互換）
+        const pidMatch = !c.buyerLink.projectId || c.buyerLink.projectId === projectId;
+        if (pidMatch) {
           linked.add(c.buyerLink.rowIndex);
         }
       }
