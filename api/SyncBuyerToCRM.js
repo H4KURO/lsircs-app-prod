@@ -51,16 +51,16 @@ app.http('SyncBuyerToCRM', {
       const emailIdx = detectFieldIndex(columnLabels, ['メール', 'email', 'e-mail']);
       const phoneIdx = detectFieldIndex(columnLabels, ['電話', 'phone', 'tel', 'mobile']);
 
-      const name  = nameIdx  >= 0 ? (values[nameIdx]  ?? '').trim() : '';
-      const email = emailIdx >= 0 ? (values[emailIdx] ?? '').trim() : '';
-      const phone = phoneIdx >= 0 ? (values[phoneIdx] ?? '').trim() : '';
+      const name  = nameIdx  >= 0 ? String(values[nameIdx]  ?? '').trim() : '';
+      const email = emailIdx >= 0 ? String(values[emailIdx] ?? '').trim() : '';
+      const phone = phoneIdx >= 0 ? String(values[phoneIdx] ?? '').trim() : '';
 
       if (!name && !email && !phone) {
         return { status: 400, body: 'No identifiable fields (name/email/phone) found in the row.' };
       }
 
       const unitIdx = detectFieldIndex(columnLabels, ['unit', 'ユニット']);
-      const unitNo  = unitIdx >= 0 ? (values[unitIdx] ?? '').trim() : '';
+      const unitNo  = unitIdx >= 0 ? String(values[unitIdx] ?? '').trim() : '';
       const displayName = [projectName, unitNo].filter(Boolean).join(' / ') || name || `Row ${rowIndex + 1}`;
       const buyerLink = {
         projectId: projectId ?? null,
