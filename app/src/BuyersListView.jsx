@@ -160,6 +160,7 @@ function BuyerEditDialog({ open, onClose, columnLabels, rowValues, rowIndex, api
 function BuyerDataTable({ columnLabels, rows, onEditRow, onSyncCRM, crmLinkedRows, summaryColCount = 8 }) {
   const [searchText, setSearchText] = useState('');
   const [syncStatus, setSyncStatus] = useState({});
+  const [syncErrors, setSyncErrors] = useState({});
 
   const filteredRows = useMemo(() => {
     if (!searchText.trim()) return rows;
@@ -280,9 +281,21 @@ function BuyerDataTable({ columnLabels, rows, onEditRow, onSyncCRM, crmLinkedRow
                           );
                         }
                         if (st === 'error') {
+                          const errMsg = syncErrors[originalIdx] || 'CRM登録に失敗しました';
                           return (
-                            <Tooltip title="CRM登録に失敗しました">
-                              <Chip label="エラー" size="small" color="error" sx={{ ml: 0.5, fontSize: '0.65rem', height: 18 }} />
+                            <Tooltip title={errMsg}>
+                              <Chip
+                                label="エラー"
+                                size="small"
+                                color="error"
+                                sx={{ ml: 0.5, fontSize: '0.65rem', height: 18, cursor: 'pointer' }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // クリックでリトライ
+                                  setSyncStatus((prev) => ({ ...prev, [originalIdx]: undefined }));
+                                  setSyncErrors((prev) => { const n = {...prev}; delete n[originalIdx]; return n; });
+                                }}
+                              />
                             </Tooltip>
                           );
                         }
@@ -296,7 +309,9 @@ function BuyerDataTable({ columnLabels, rows, onEditRow, onSyncCRM, crmLinkedRow
                                 try {
                                   const result = await onSyncCRM(originalIdx, row);
                                   setSyncStatus((prev) => ({ ...prev, [originalIdx]: result.action }));
-                                } catch {
+                                } catch (err) {
+                                  const msg = err?.response?.data || err?.message || 'Unknown error';
+                                  setSyncErrors((prev) => ({ ...prev, [originalIdx]: String(msg) }));
                                   setSyncStatus((prev) => ({ ...prev, [originalIdx]: 'error' }));
                                 }
                               }}

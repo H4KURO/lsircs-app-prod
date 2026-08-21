@@ -157,11 +157,11 @@ app.http('SyncBuyerToCRM', {
 
     } catch (error) {
       const message = error.message || '';
-      if (message.includes('connection string')) {
-        return { status: 500, body: message };
-      }
       context.log('SyncBuyerToCRM failed', error);
-      return { status: 500, body: 'Error syncing buyer to CRM.' };
+      if (message.includes('connection string') || message.includes('COSMOS')) {
+        return { status: 500, body: `DB config error: ${message}` };
+      }
+      return { status: 500, body: `Error: ${message}` };
     }
   },
 });
