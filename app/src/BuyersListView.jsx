@@ -157,8 +157,9 @@ function BuyerEditDialog({ open, onClose, columnLabels, rowValues, rowIndex, api
 }
 
 // ── データテーブル（一覧） ───────────────────────────────────
-function BuyerDataTable({ columnLabels, rows, onEditRow, summaryColCount = 8 }) {
+function BuyerDataTable({ columnLabels, rows, onEditRow, onSyncCRM, summaryColCount = 8 }) {
   const [searchText, setSearchText] = useState('');
+  const [syncStatus, setSyncStatus] = useState({});
 
   const filteredRows = useMemo(() => {
     if (!searchText.trim()) return rows;
@@ -239,7 +240,7 @@ function BuyerDataTable({ columnLabels, rows, onEditRow, summaryColCount = 8 }) 
                         {row[colIdx] ?? ''}
                       </TableCell>
                     ))}
-                    <TableCell>
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
                       <Tooltip title="編集">
                         <IconButton
                           size="small"
@@ -251,6 +252,48 @@ function BuyerDataTable({ columnLabels, rows, onEditRow, summaryColCount = 8 }) 
                           <EditIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
+                      {onSyncCRM && (() => {
+                        const st = syncStatus[originalIdx];
+                        if (st === 'syncing') {
+                          return <CircularProgress size={16} sx={{ ml: 0.5, verticalAlign: 'middle' }} />;
+                        }
+                        if (st === 'created' || st === 'linked') {
+                          return (
+                            <Chip
+                              label={st === 'created' ? '登録済' : '紐づけ済'}
+                              size="small"
+                              color={st === 'created' ? 'success' : 'info'}
+                              sx={{ ml: 0.5, fontSize: '0.65rem', height: 18 }}
+                            />
+                          );
+                        }
+                        if (st === 'error') {
+                          return (
+                            <Tooltip title="CRM登録に失敗しました">
+                              <Chip label="エラー" size="small" color="error" sx={{ ml: 0.5, fontSize: '0.65rem', height: 18 }} />
+                            </Tooltip>
+                          );
+                        }
+                        return (
+                          <Tooltip title="CRMに登録">
+                            <IconButton
+                              size="small"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                setSyncStatus((prev) => ({ ...prev, [originalIdx]: 'syncing' }));
+                                try {
+                                  const result = await onSyncCRM(originalIdx, row);
+                                  setSyncStatus((prev) => ({ ...prev, [originalIdx]: result.action }));
+                                } catch {
+                                  setSyncStatus((prev) => ({ ...prev, [originalIdx]: 'error' }));
+                                }
+                              }}
+                            >
+                              <PersonAddIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        );
+                      })()}
                     </TableCell>
                   </TableRow>
                 );
@@ -264,7 +307,7 @@ function BuyerDataTable({ columnLabels, rows, onEditRow, summaryColCount = 8 }) 
 }
 
 // ── シートパネル（共通） ────────────────────────────────────
-function SheetPanel({ fetchEndpoint, updateEndpoint, headerRowCount = 3, summaryColCount = 8, projectId }) {
+function SheetPanel({ fetchEndpoint, updateEndpoint, headerRowCount = 3, summaryColCount = 8, projectId, projectName, sheetName, enableCrmSync = false }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [columnLabels, setColumnLabels] = useState([]);
@@ -309,6 +352,18 @@ function SheetPanel({ fetchEndpoint, updateEndpoint, headerRowCount = 3, summary
     fetchData();
   };
 
+  const handleSyncCRM = useCallback(async (rowIndex, rowValues) => {
+    const res = await axios.post(`${API_URL}/SyncBuyerToCRM`, {
+      projectId: projectId ?? null,
+      projectName: projectName ?? null,
+      sheetName: sheetName ?? 'Buyers list',
+      rowIndex,
+      values: rowValues,
+      columnLabels,
+    });
+    return res.data;
+  }, [projectId, projectName, sheetName, columnLabels]);
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
@@ -348,6 +403,7 @@ function SheetPanel({ fetchEndpoint, updateEndpoint, headerRowCount = 3, summary
         columnLabels={columnLabels}
         rows={rows}
         onEditRow={handleEditRow}
+        onSyncCRM={enableCrmSync ? handleSyncCRM : undefined}
         summaryColCount={summaryColCount}
       />
 
@@ -401,6 +457,7 @@ export function BuyersListView() {
       headerRowCount: 3,
       summaryColCount: 8,
       useProject: true,
+      enableCrmSync: true,
     },
     {
       label: 'Xld（解約・取消）',
@@ -497,6 +554,9 @@ export function BuyersListView() {
               headerRowCount={tab.headerRowCount}
               summaryColCount={tab.summaryColCount}
               projectId={tab.useProject ? selectedProjectId : undefined}
+              projectName={selectedProject?.name}
+              sheetName={selectedProject?.sheetName || 'Buyers list'}
+              enableCrmSync={tab.enableCrmSync ?? false}
             />
           ) : null
         )}
