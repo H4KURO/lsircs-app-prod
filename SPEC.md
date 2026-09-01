@@ -1,7 +1,7 @@
 # lsir-cs アプリケーション仕様書
 
 > **メンテナンス注意**: このファイルはアプリ変更のたびに更新すること（CLAUDE.md 参照）。  
-> 最終更新: 2026-08-17（StagnantTaskReminder: 停滞タスク週次メールリマインド機能追加）
+> 最終更新: 2026-09-01（TaskDeadlineReminder: タスク期限Slack DM個別リマインド機能追加）
 
 ---
 
@@ -717,6 +717,7 @@ documentSettings: {
 | POST | `/api/SlackCommand` | Slack スラッシュコマンド受信 |
 | POST | `/api/ParseEmailToTask` | メール本文から AI タスク生成 |
 | POST | `/api/StagnantTaskReminder` | 停滞タスク週次リマインドレポート（n8n呼び出し用、`x-n8n-secret-key` 認証） |
+| POST または GET | `/api/TaskDeadlineReminder` | タスク期限Slack DM個別リマインド（n8n 毎朝呼び出し用） |
 
 **StagnantTaskReminder 仕様:**
 - 対象: `status !== 'Done'` かつ `statusHistory` の最終 `changedAt`（なければ `createdAt`）から7日以上経過したタスク
@@ -725,6 +726,16 @@ documentSettings: {
 - レスポンス: `{ reportDate, stagnantCount, recipients: [{ name, email, taskCount, html, tasks }] }`
   - `html` フィールドに送信用HTMLメール本文が含まれる（n8n の Email ノードにそのまま渡せる）
 - 実行タイミング: n8n から毎週月曜朝に呼び出す
+
+**TaskDeadlineReminder 仕様:**
+- 対象: `status !== 'Done'` かつ `deadline` フィールドが今日・1日後・3日後・7日後のいずれかに該当するタスク
+- 通知先: タスク `assignees` 配列に含まれる担当者それぞれへ個別 Slack DM
+  - Users コレクションの `displayName` → `slackMemberId` で Slack ユーザー ID を照合
+  - `slackMemberId` 未設定の担当者はスキップ（ユーザーがプロフィール画面でSlack連携済みの場合のみDM送信）
+- DM送信方法: `conversations.open` → `chat.postMessage` （Slack Bot Token が必要）
+- リマインドタイミング: 7日前（📅）・3日前（⏰）・前日（⚠️）・当日（🚨）
+- レスポンス: `{ date, matchingTasks, assignees, sent, skipped, results }`
+- 実行タイミング: n8n から毎朝（例: 9:00 AM）呼び出す
 
 ---
 
