@@ -360,11 +360,6 @@
       "allowedRoles": ["anonymous"]
     },
     {
-      "route": "/api/PingTest",
-      "methods": ["GET"],
-      "allowedRoles": ["anonymous"]
-    },
-    {
       "route": "/api/AppendSheetRow",
       "methods": [
         "POST"

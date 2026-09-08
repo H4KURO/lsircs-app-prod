@@ -21,9 +21,5 @@ fs.readdirSync(functionsDirectory)
     if (allowedSet && !allowedSet.has(base)) {
       return; // skip non-allowed functions when ALLOWED_FUNCTIONS is set
     }
-    try {
-      require(path.join(functionsDirectory, file));
-    } catch (err) {
-      console.error('[index.js] Failed to load ' + file + ':', err && err.message);
-    }
+    require(path.join(functionsDirectory, file));
   });
