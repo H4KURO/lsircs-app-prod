@@ -360,6 +360,11 @@
       "allowedRoles": ["anonymous"]
     },
     {
+      "route": "/api/DebugInfo",
+      "methods": ["GET"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
       "route": "/api/AppendSheetRow",
       "methods": [
         "POST"
