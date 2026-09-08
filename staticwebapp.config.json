@@ -345,6 +345,21 @@
       "allowedRoles": ["anonymous"]
     },
     {
+      "route": "/api/StagnantTaskReminder",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/SyncBuyerToCRM",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/TaskDeadlineReminder",
+      "methods": ["POST", "GET"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
       "route": "/api/AppendSheetRow",
       "methods": [
         "POST"
