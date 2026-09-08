@@ -6,7 +6,6 @@ const axios = require('axios');
 const slackBotToken = process.env.SLACK_BOT_TOKEN;
 const appBaseUrl = process.env.APP_BASE_URL || null;
 
-// Days ahead to send reminders
 const REMINDER_DAYS = [0, 1, 3, 7];
 
 function dayLabel(daysAhead) {
@@ -46,14 +45,14 @@ async function openDmChannel(slackMemberId) {
       timeout: 5000,
     }
   );
-  if (!data?.ok) throw new Error(`conversations.open failed: ${data?.error}`);
+  if (!data || !data.ok) throw new Error('conversations.open failed: ' + (data && data.error));
   return data.channel.id;
 }
 
 async function sendSlackDm(channelId, text, blocks) {
   const { data } = await axios.post(
     'https://slack.com/api/chat.postMessage',
-    { channel: channelId, text, blocks },
+    { channel: channelId, text: text, blocks: blocks },
     {
       headers: {
         Authorization: `Bearer ${slackBotToken}`,
@@ -62,7 +61,7 @@ async function sendSlackDm(channelId, text, blocks) {
       timeout: 5000,
     }
   );
-  return data?.ok || false;
+  return (data && data.ok) || false;
 }
 
 app.http('TaskDeadlineReminder', {
@@ -78,7 +77,6 @@ app.http('TaskDeadlineReminder', {
       today.setUTCHours(0, 0, 0, 0);
       const todayStr = today.toISOString().split('T')[0];
 
-      // Build a map: deadline date string -> days ahead from today
       const targetDateMap = {};
       for (const d of REMINDER_DAYS) {
         const target = new Date(today);
@@ -86,20 +84,14 @@ app.http('TaskDeadlineReminder', {
         targetDateMap[target.toISOString().split('T')[0]] = d;
       }
 
-      // Fetch non-Done tasks that have a deadline
-      const tasksContainer = getNamedContainer('Tasks', ['COSMOS_TASKS_CONTAINER']);
+      const tasksContainer = getNamedContainer('Tasks', ['COSMOS_TASKS_CONTAINER', 'CosmosTasksContainer']);
       const { resources: allTasks } = await tasksContainer.items
         .query({
-          query: `SELECT c.id, c.title, c.deadline, c.status, c.assignees, c.assignee
-                  FROM c
-                  WHERE c.status != 'Done'
-                    AND IS_DEFINED(c.deadline)
-                    AND c.deadline != null`,
+          query: "SELECT c.id, c.title, c.deadline, c.status, c.assignees, c.assignee FROM c WHERE c.status != 'Done' AND IS_DEFINED(c.deadline) AND c.deadline != null",
         })
         .fetchAll();
 
-      // Keep only tasks whose deadline falls on one of our target dates
-      const matchingTasks = allTasks.filter((t) => {
+      const matchingTasks = allTasks.filter(function(t) {
         if (!t.deadline) return false;
         return (t.deadline.split('T')[0]) in targetDateMap;
       });
@@ -111,13 +103,11 @@ app.http('TaskDeadlineReminder', {
         };
       }
 
-      // Load Slack member IDs keyed by displayName (which equals email)
       const usersCol = await usersContainer();
       const { resources: userProfiles } = await usersCol.items
-        .query({
-          query: 'SELECT c.displayName, c.slackMemberId FROM c WHERE IS_DEFINED(c.slackMemberId)',
-        })
+        .query({ query: 'SELECT c.displayName, c.slackMemberId FROM c WHERE IS_DEFINED(c.slackMemberId)' })
         .fetchAll();
+
       const slackIdByName = {};
       for (const u of userProfiles) {
         if (u.displayName && u.slackMemberId) {
@@ -125,7 +115,6 @@ app.http('TaskDeadlineReminder', {
         }
       }
 
-      // Group tasks by assignee name
       const tasksByAssignee = {};
       for (const task of matchingTasks) {
         const assignees =
@@ -145,64 +134,56 @@ app.http('TaskDeadlineReminder', {
       let totalSkipped = 0;
       const results = [];
 
-      for (const [assignee, tasks] of Object.entries(tasksByAssignee)) {
+      for (const assignee of Object.keys(tasksByAssignee)) {
+        const tasks = tasksByAssignee[assignee];
         const slackMemberId = slackIdByName[assignee];
 
         if (!slackMemberId) {
-          context.log(`[TaskDeadlineReminder] No Slack ID for: ${assignee}`);
+          context.log('[TaskDeadlineReminder] No Slack ID for: ' + assignee);
           totalSkipped++;
-          results.push({ assignee, method: 'skipped', reason: 'no_slack_id', tasks: tasks.length });
+          results.push({ assignee: assignee, method: 'skipped', reason: 'no_slack_id', tasks: tasks.length });
           continue;
         }
 
-        // Sort tasks by urgency (soonest deadline first)
-        tasks.sort((a, b) => a.deadline.localeCompare(b.deadline));
+        tasks.sort(function(a, b) { return a.deadline.localeCompare(b.deadline); });
 
-        const taskLines = tasks.map((t) => {
+        const taskLines = tasks.map(function(t) {
           const daysAhead = targetDateMap[t.deadline.split('T')[0]];
           const emoji = urgencyEmoji(daysAhead);
           const label = dayLabel(daysAhead);
           const link = buildTaskLink(t.id);
-          const titleText = link ? `<${link}|${t.title || 'Untitled'}>` : (t.title || 'Untitled');
-          return `${emoji} *${label}* — ${titleText}`;
+          const titleText = link ? ('<' + link + '|' + (t.title || 'Untitled') + '>') : (t.title || 'Untitled');
+          return emoji + ' *' + label + '* — ' + titleText;
         });
 
-        const text = `⏰ Task deadline reminder — you have ${tasks.length} task(s) coming up`;
+        const text = 'Task deadline reminder — you have ' + tasks.length + ' task(s) coming up';
         const blocks = [
           {
             type: 'section',
             text: {
               type: 'mrkdwn',
-              text: `⏰ *Task Deadline Reminder*\nYou have *${tasks.length}* task(s) with upcoming deadlines:`,
+              text: '*Task Deadline Reminder*\nYou have *' + tasks.length + '* task(s) with upcoming deadlines:',
             },
           },
           {
             type: 'section',
-            text: {
-              type: 'mrkdwn',
-              text: taskLines.join('\n'),
-            },
+            text: { type: 'mrkdwn', text: taskLines.join('\n') },
           },
           {
             type: 'context',
-            elements: [
-              { type: 'mrkdwn', text: `Sent: ${todayStr}` },
-            ],
+            elements: [{ type: 'mrkdwn', text: 'Sent: ' + todayStr }],
           },
         ];
 
         try {
           const dmChannelId = await openDmChannel(slackMemberId);
           const ok = await sendSlackDm(dmChannelId, text, blocks);
-          results.push({ assignee, method: 'dm', ok, tasks: tasks.length });
+          results.push({ assignee: assignee, method: 'dm', ok: ok, tasks: tasks.length });
           if (ok) totalSent++;
-          else {
-            totalSkipped++;
-            context.log(`[TaskDeadlineReminder] chat.postMessage failed for: ${assignee}`);
-          }
+          else totalSkipped++;
         } catch (err) {
-          context.log(`[TaskDeadlineReminder] Error sending DM to ${assignee}:`, err.message);
-          results.push({ assignee, method: 'error', error: err.message, tasks: tasks.length });
+          context.log('[TaskDeadlineReminder] Error sending DM to ' + assignee + ': ' + err.message);
+          results.push({ assignee: assignee, method: 'error', error: err.message, tasks: tasks.length });
           totalSkipped++;
         }
       }
@@ -215,11 +196,11 @@ app.http('TaskDeadlineReminder', {
           assignees: Object.keys(tasksByAssignee).length,
           sent: totalSent,
           skipped: totalSkipped,
-          results,
+          results: results,
         },
       };
     } catch (error) {
-      context.log('[TaskDeadlineReminder] Error:', error);
+      context.log('[TaskDeadlineReminder] Error: ' + error.message);
       return { status: 500, body: error.message || 'Internal server error' };
     }
   },
