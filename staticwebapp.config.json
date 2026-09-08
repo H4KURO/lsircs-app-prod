@@ -360,7 +360,7 @@
       "allowedRoles": ["anonymous"]
     },
     {
-      "route": "/api/DebugInfo",
+      "route": "/api/PingTest",
       "methods": ["GET"],
       "allowedRoles": ["anonymous"]
     },
