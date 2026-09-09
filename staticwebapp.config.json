@@ -9,6 +9,11 @@
       "allowedRoles": ["anonymous"]
     },
     {
+      "route": "/tasks",
+      "rewrite": "/index.html",
+      "allowedRoles": ["anonymous"]
+    },
+    {
       "route": "/api/GetAllUsers",
       "allowedRoles": [
         "anonymous"
