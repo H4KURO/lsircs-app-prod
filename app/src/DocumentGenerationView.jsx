@@ -506,7 +506,11 @@ export function DocumentGenerationView() {
     try {
       const r = await axios.post(`${API}/UpdateProject`, {
         id: selectedProjectId,
-        documentSettings: settings,
+        documentSettings: {
+          ...settings,
+          pdfTemplates,
+          serviceProviders,
+        },
       });
       setProjects(prev => prev.map(p => p.id === selectedProjectId ? r.data : p));
       setSaveOk(true);
