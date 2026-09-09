@@ -22,7 +22,7 @@ async function getContainerClient() {
     cachedContainerPromise = (async () => {
       const client = BlobServiceClient.fromConnectionString(resolveConnectionString())
         .getContainerClient(CONTAINER_NAME);
-      await client.createIfNotExists({ access: 'private' });
+      await client.createIfNotExists();
       return client;
     })();
   }
