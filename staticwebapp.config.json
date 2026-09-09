@@ -4,6 +4,11 @@
   },
   "routes": [
     {
+      "route": "/",
+      "rewrite": "/index.html",
+      "allowedRoles": ["anonymous"]
+    },
+    {
       "route": "/api/GetAllUsers",
       "allowedRoles": [
         "anonymous"

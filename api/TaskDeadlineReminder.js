@@ -27,7 +27,11 @@ function buildTaskLink(taskId) {
   if (!appBaseUrl || !taskId) return null;
   try {
     const url = new URL(appBaseUrl);
-    url.searchParams.set('view', 'tasks');
+    // Always use origin root to guarantee Azure SWA serves index.html
+    // (any path component in APP_BASE_URL would route to /api and return 404)
+    url.pathname = '/';
+    url.search = '';
+    url.hash = '';
     url.searchParams.set('taskId', taskId);
     return url.toString();
   } catch {
