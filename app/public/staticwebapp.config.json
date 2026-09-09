@@ -1,0 +1,413 @@
+{
+  "platform": {
+    "apiRuntime": "node:20"
+  },
+  "routes": [
+    {
+      "route": "/",
+      "rewrite": "/index.html",
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/tasks",
+      "rewrite": "/index.html",
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/GetAllUsers",
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/GetUserProfile",
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/UpdateUserProfile",
+      "methods": [
+        "PUT"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/GetCategories",
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/AddCategory",
+      "methods": [
+        "POST"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/UpdateCategory/{id}",
+      "methods": [
+        "PUT"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/GetInvoices",
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/CreateInvoice",
+      "methods": [
+        "POST"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/UpdateInvoice/{id}",
+      "methods": [
+        "PUT"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/DeleteInvoice/{id}",
+      "methods": [
+        "DELETE"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/GetTasks",
+      "methods": ["GET", "POST"],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/CreateTask",
+      "methods": [
+        "POST"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/UpdateTask/{id}",
+      "methods": [
+        "PUT"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/DeleteTask/{id}",
+      "methods": [
+        "DELETE"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/GetBuyersList",
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/CreateBuyersListItem",
+      "methods": [
+        "POST"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/UpdateBuyersListItem/{id}",
+      "methods": [
+        "PUT"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/DeleteBuyersListItem/{id}",
+      "methods": [
+        "DELETE"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/ImportBuyersListExcel",
+      "methods": [
+        "POST"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/HealthCheck",
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/GetSheetData",
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/GetBuyers",
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/UpdateBuyer",
+      "methods": [
+        "POST"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/CreateBuyer",
+      "methods": [
+        "POST"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/GetXldBuyers",
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/UpdateXldBuyer",
+      "methods": [
+        "POST"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/GetCommissions",
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/UpdateCommission",
+      "methods": [
+        "POST"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/GenerateBuyersExcel",
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/GetBuyerSyncStatus",
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/UpdateBuyerCell",
+      "methods": [
+        "POST"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/GetCustomers",
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/CreateCustomer",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/UpdateCustomer",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/DeleteCustomer",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/GetProjects",
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/CreateProject",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/UpdateProject",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/DeleteProject",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/AddTaskComment",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/DeleteTaskComment",
+      "methods": ["DELETE"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/SlackTest",
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/SlackOAuthStart",
+      "methods": ["GET"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/SlackOAuthCallback",
+      "methods": ["GET"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/GetSavedViews",
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/SaveView",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/DeleteSavedView/{id}",
+      "methods": ["DELETE"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/GetTaskTemplates",
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/CreateTaskTemplate",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/UpdateTaskTemplate/{id}",
+      "methods": ["PUT"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/DeleteTaskTemplate/{id}",
+      "methods": ["DELETE"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/GenerateRemittanceExcel",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/StagnantTaskReminder",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/SyncBuyerToCRM",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/TaskDeadlineReminder",
+      "methods": ["POST", "GET"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/AppendSheetRow",
+      "methods": [
+        "POST"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/UpdateSheetRow",
+      "methods": [
+        "PUT"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/DeleteSheetRow",
+      "methods": [
+        "DELETE"
+      ],
+      "allowedRoles": [
+        "anonymous"
+      ]
+    }
+  ],
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": ["/api/*", "/*.{js,css,png,jpg,gif,ico,svg,woff,woff2,ttf,eot,json}"]
+  },
+  "responseOverrides": {
+    "401": {
+      "redirect": "/.auth/login/aad",
+      "statusCode": 302
+    }
+  },
+  "globalHeaders": {
+    "Content-Security-Policy": "default-src 'self' https:; script-src 'self' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; connect-src 'self' https:; font-src 'self' https:; object-src 'none'; frame-ancestors 'self'; base-uri 'self'"
+  }
+}
