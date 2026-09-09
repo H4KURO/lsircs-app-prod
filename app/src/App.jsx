@@ -62,6 +62,13 @@ const ALLOWED_VIEWS = new Set([
 const parseInitialLocation = () => {
   if (typeof window === "undefined") return { view: "dashboard", taskId: null };
   try {
+    // Hash-based deep link: /tasks#taskId=abc123 (Slack notifications use this)
+    const hash = window.location.hash.replace(/^#/, '');
+    if (hash) {
+      const hashTaskId = new URLSearchParams(hash).get('taskId');
+      if (hashTaskId) return { view: 'tasks', taskId: hashTaskId };
+    }
+    // Query-param deep link: /?view=tasks&taskId=abc123 (legacy / in-app URL sync)
     const params = new URLSearchParams(window.location.search);
     const rawView = params.get("view");
     const taskId = params.get("taskId");

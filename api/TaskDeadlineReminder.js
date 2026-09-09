@@ -29,13 +29,12 @@ function buildTaskLink(taskId) {
     const url = new URL(appBaseUrl);
     // Always use origin root to guarantee Azure SWA serves index.html
     // (any path component in APP_BASE_URL would route to /api and return 404)
-    // Use /tasks path (no static file exists there) so Azure SWA's
-    // navigationFallback reliably rewrites to index.html.
-    // Root path / with query params causes Azure SWA to return 404.
+    // Use hash-based URL: server receives GET /tasks (no query string),
+    // Azure SWA serves index.html, then React reads window.location.hash.
+    // Query params on any path cause Azure SWA to return 404.
     url.pathname = '/tasks';
     url.search = '';
-    url.hash = '';
-    url.searchParams.set('taskId', taskId);
+    url.hash = 'taskId=' + encodeURIComponent(taskId);
     return url.toString();
   } catch {
     return null;
