@@ -27,12 +27,9 @@ function buildTaskLink(taskId) {
   if (!appBaseUrl || !taskId) return null;
   try {
     const url = new URL(appBaseUrl);
-    // Use root path with hash: server receives GET /, Azure SWA serves index.html,
-    // React reads window.location.hash to get taskId.
-    // Using root (/) is most reliable — avoids any SWA routing issues with /tasks.
     url.pathname = '/';
-    url.search = '';
-    url.hash = 'taskId=' + encodeURIComponent(taskId);
+    url.search = '?view=tasks&taskId=' + encodeURIComponent(taskId);
+    url.hash = '';
     return url.toString();
   } catch {
     return null;
