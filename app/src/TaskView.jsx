@@ -662,6 +662,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   const [assigneeOptions, setAssigneeOptions] = useState([]);
   const [categoryOptions, setCategoryOptions] = useState([]);
   const [dbCategories, setDbCategories] = useState([]);
+  const [categoryObjects, setCategoryObjects] = useState([]);
   const [tagOptions, setTagOptions] = useState([]);
   const [automationRules, setAutomationRules] = useState([]);
   const [preferences, setPreferences] = useState(() => clonePreferences(DEFAULT_PREFERENCES));
@@ -764,6 +765,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
           ? categoriesRes.data.map((c) => (typeof c === 'string' ? c.trim() : c?.name?.trim() ?? '')).filter(Boolean)
           : [];
         setDbCategories(fetchedDbCategories);
+        setCategoryObjects(Array.isArray(categoriesRes?.data) ? categoriesRes.data.filter((c) => c && typeof c === 'object') : []);
 
         const assignees = usersRes.data.map((user) => user.displayName);
         setAssigneeOptions(assignees);
@@ -2997,6 +2999,7 @@ const renderListLayout = () => {
           onClose={() => setSelectedTask(null)}
           assigneeOptions={assigneeOptions}
           categoryOptions={categoryOptions.map((category) => category === DEFAULT_CATEGORY_LABEL ? '' : category)}
+          categoryObjects={categoryObjects}
           automationRules={automationRules}
           tagOptions={tagOptions}
           allTasks={tasks}

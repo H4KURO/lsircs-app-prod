@@ -1,6 +1,6 @@
 const { app } = require('@azure/functions');
 const { getNamedContainer } = require('./cosmosClient');
-const { getBatchCellValues, getSheetDataRow, resolveColumnLetter } = require('./sheetsClient');
+const { getBatchCellValues, getBatchCellValuesById, getSheetDataRow, resolveColumnLetter, resolveColumnLetterById } = require('./sheetsClient');
 
 const tasksContainer = () =>
   getNamedContainer('Tasks', ['COSMOS_TASKS_CONTAINER', 'CosmosTasksContainer']);
@@ -40,9 +40,15 @@ app.http('GetBuyerSyncStatus', {
       }
 
       // 列記号を解決（新形式: columnName → 列記号、旧形式: column をそのまま使用）
+      const customSpreadsheetId = sheetsSync.spreadsheetId || null;
+      const customSheetName = sheetsSync.sheetName || 'Buyers list';
+      const customHeaderRows = sheetsSync.headerRows ?? 3;
+
       let columnLetter = sheetsSync.column;
       if (!columnLetter && sheetsSync.columnName) {
-        columnLetter = await resolveColumnLetter('Buyers list', sheetsSync.columnName);
+        columnLetter = customSpreadsheetId
+          ? await resolveColumnLetterById(customSpreadsheetId, customSheetName, customHeaderRows, sheetsSync.columnName)
+          : await resolveColumnLetter('Buyers list', sheetsSync.columnName);
       }
       if (!columnLetter) return { status: 200, jsonBody: {} };
 
@@ -60,7 +66,9 @@ app.http('GetBuyerSyncStatus', {
         return `'${s.buyerLink.sheetName}'!${columnLetter}${sheetRow}`;
       });
 
-      const valueRanges = await getBatchCellValues(ranges);
+      const valueRanges = customSpreadsheetId
+        ? await getBatchCellValuesById(customSpreadsheetId, ranges)
+        : await getBatchCellValues(ranges);
       const completionValue = sheetsSync.completionValue || '〇';
 
       const result = {};

@@ -48,7 +48,9 @@ app.http('CreateTask', {
 
       const container = tasksContainer();
       const now = new Date().toISOString();
-      const assignees = normalizeAssigneesPayload(payload);
+      const rawAssignees = normalizeAssigneesPayload(payload);
+      const creatorName = clientPrincipal.userDetails?.trim() || clientPrincipal.userId || '';
+      const assignees = rawAssignees.length > 0 ? rawAssignees : (creatorName ? [creatorName] : []);
       const { existingAttachments, newAttachments } = splitAttachmentsByUploadRequirement(
         payload?.attachments,
         { now },

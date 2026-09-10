@@ -71,6 +71,7 @@ export function TaskDetailModal({
   onClose,
   assigneeOptions,
   categoryOptions,
+  categoryObjects = [],
   tagOptions,
   automationRules = [],
   allTasks = [],
@@ -147,6 +148,7 @@ export function TaskDetailModal({
     setNewSubtaskTitle('');
     setSheetsSyncColumnName(task?.sheetsSync?.columnName || '');
     setSheetsSyncValue(task?.sheetsSync?.completionValue || '〇');
+    setBuyerColumnOptions([]); // タスク(カテゴリ)が変わったらリセット→再取得させる
 
     // レガシー: column（列記号）しかない場合は列名に変換
     const legacyLetter = task?.sheetsSync?.column;
@@ -278,10 +280,34 @@ export function TaskDetailModal({
     }
   }, [editableTask.id]);
 
+  // カテゴリのBL設定を解決するヘルパー
+  const getCategoryBlConfig = () => {
+    const catName = editableTask?.category;
+    if (!catName || !categoryObjects?.length) return null;
+    const cat = categoryObjects.find((c) => c.name === catName);
+    if (!cat?.blSpreadsheetId) return null;
+    return {
+      spreadsheetId: cat.blSpreadsheetId,
+      sheetName: cat.blSheetName || 'Buyers list',
+      headerRows: cat.blHeaderRows ?? 3,
+    };
+  };
+
+  const buildColumnsUrl = () => {
+    const blConfig = getCategoryBlConfig();
+    if (!blConfig) return `${API_URL}/GetBuyerListColumns`;
+    const p = new URLSearchParams({
+      spreadsheetId: blConfig.spreadsheetId,
+      sheetName: blConfig.sheetName,
+      headerRows: String(blConfig.headerRows),
+    });
+    return `${API_URL}/GetBuyerListColumns?${p.toString()}`;
+  };
+
   // Sheets連携セクションが開いたとき: 列オプションを取得
   useEffect(() => {
     if (!sheetsSyncOpen || buyerColumnOptions.length > 0) return;
-    axios.get(`${API_URL}/GetBuyerListColumns`)
+    axios.get(buildColumnsUrl())
       .then((res) => setBuyerColumnOptions(res.data || []))
       .catch(() => {});
   }, [sheetsSyncOpen, buyerColumnOptions.length]);
@@ -385,8 +411,17 @@ export function TaskDetailModal({
       }),
     );
 
+    const categoryBlConfig = getCategoryBlConfig();
     const sheetsSync = sheetsSyncColumnName.trim()
-      ? { columnName: sheetsSyncColumnName.trim(), completionValue: sheetsSyncValue || '〇' }
+      ? {
+          columnName: sheetsSyncColumnName.trim(),
+          completionValue: sheetsSyncValue || '〇',
+          ...(categoryBlConfig && {
+            spreadsheetId: categoryBlConfig.spreadsheetId,
+            sheetName: categoryBlConfig.sheetName,
+            headerRows: categoryBlConfig.headerRows,
+          }),
+        }
       : null;
 
     const taskToSave = {
@@ -412,6 +447,11 @@ export function TaskDetailModal({
             rowIndex: s.buyerLink.rowIndex,
             columnName: sheetsSync.columnName,
             value,
+            ...(sheetsSync.spreadsheetId && {
+              spreadsheetId: sheetsSync.spreadsheetId,
+              sheetName: sheetsSync.sheetName,
+              headerRows: sheetsSync.headerRows,
+            }),
           })
           .catch((err) => console.error('Sheets write failed', err));
       });

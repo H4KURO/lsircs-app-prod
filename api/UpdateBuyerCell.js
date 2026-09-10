@@ -1,5 +1,5 @@
 const { app } = require('@azure/functions');
-const { updateSheetValues, getSheetDataRow, resolveColumnLetter } = require('./sheetsClient');
+const { updateSheetValues, updateSheetValuesById, getSheetDataRow, resolveColumnLetter, resolveColumnLetterById } = require('./sheetsClient');
 
 function parseClientPrincipal(request) {
   const header = request.headers.get('x-ms-client-principal');
@@ -27,21 +27,31 @@ app.http('UpdateBuyerCell', {
 
     try {
       const payload = await request.json();
-      const { sheetName, rowIndex, column, value } = payload;
+      const { sheetName, rowIndex, column, value, spreadsheetId, sheetName: syncSheetName, headerRows } = payload;
 
       if (!sheetName || rowIndex == null || (!column && !payload.columnName)) {
         return { status: 400, body: 'sheetName, rowIndex, column are required.' };
       }
 
+      const customSpreadsheetId = spreadsheetId || null;
+      const customSheetName = syncSheetName || 'Buyers list';
+      const customHeaderRows = headerRows ?? 3;
+
       let col = column ? String(column).toUpperCase() : null;
       if (!col && payload.columnName) {
-        col = await resolveColumnLetter(sheetName || 'Buyers list', payload.columnName);
+        col = customSpreadsheetId
+          ? await resolveColumnLetterById(customSpreadsheetId, customSheetName, customHeaderRows, payload.columnName)
+          : await resolveColumnLetter(sheetName || 'Buyers list', payload.columnName);
       }
       if (!col) return { status: 400, body: 'column or columnName is required.' };
       const sheetRow = getSheetDataRow(sheetName, rowIndex);
       const range = `'${sheetName}'!${col}${sheetRow}`;
 
-      await updateSheetValues(range, [[value ?? '']]);
+      if (customSpreadsheetId) {
+        await updateSheetValuesById(customSpreadsheetId, range, [[value ?? '']]);
+      } else {
+        await updateSheetValues(range, [[value ?? '']]);
+      }
 
       context.log(
         `UpdateBuyerCell: ${range} = "${value}" by ${clientPrincipal.userDetails}`,

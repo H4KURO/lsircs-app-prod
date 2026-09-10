@@ -41,6 +41,14 @@ app.http('GetBuyerListColumns', {
       const url = new URL(request.url);
       const projectId = url.searchParams.get('projectId');
 
+      const directSpreadsheetId = url.searchParams.get('spreadsheetId');
+      if (directSpreadsheetId) {
+        const sheetName = url.searchParams.get('sheetName') || BUYERS_SHEET;
+        const headerRows = parseInt(url.searchParams.get('headerRows') || String(DEFAULT_HEADER_ROWS), 10);
+        const allValues = await getSheetValuesById(directSpreadsheetId, `'${sheetName}'!1:${headerRows}`);
+        return { status: 200, jsonBody: buildColumnList(allValues) };
+      }
+
       if (projectId) {
         const container = projectsContainer();
         let project;

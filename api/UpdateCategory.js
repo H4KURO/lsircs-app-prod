@@ -28,10 +28,17 @@ app.http('UpdateCategory', {
         return { status: 404, body: 'Category not found.' };
       }
 
+      const blSpreadsheetId = payload?.blSpreadsheetId?.trim() || null;
+      const blSheetName = payload?.blSheetName?.trim() || null;
+      const blHeaderRows = payload?.blHeaderRows != null ? Number(payload.blHeaderRows) : null;
+
       const updated = {
         ...existing,
         name,
         color,
+        ...(blSpreadsheetId !== undefined && { blSpreadsheetId }),
+        ...(blSheetName !== undefined && { blSheetName }),
+        ...(blHeaderRows !== undefined && { blHeaderRows }),
         updatedAt: new Date().toISOString(),
       };
 

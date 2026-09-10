@@ -152,17 +152,55 @@ async function resolveColumnLetter(sheetName, columnName) {
   return found?.letter ?? null;
 }
 
+async function updateSheetValuesById(spreadsheetId, range, values) {
+  const sheets = await getSheetsClient();
+  const response = await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range,
+    valueInputOption: 'USER_ENTERED',
+    requestBody: { values },
+  });
+  return response.data;
+}
+
+async function getBatchCellValuesById(spreadsheetId, ranges) {
+  const sheets = await getSheetsClient();
+  const response = await sheets.spreadsheets.values.batchGet({
+    spreadsheetId,
+    ranges,
+    valueRenderOption: 'UNFORMATTED_VALUE',
+  });
+  return response.data.valueRanges || [];
+}
+
+async function resolveColumnLetterById(spreadsheetId, sheetName, headerRows, columnName) {
+  const allValues = await getSheetValuesById(spreadsheetId, `'${sheetName}'!1:${headerRows}`);
+  if (!allValues || allValues.length === 0) return null;
+  const maxCols = Math.max(...allValues.map((r) => r?.length ?? 0));
+  for (let col = 0; col < maxCols; col++) {
+    const parts = allValues
+      .map((row) => (row?.[col] != null && row[col] !== '' ? String(row[col]).trim() : null))
+      .filter(Boolean);
+    const name = [...new Set(parts)].join(' / ') || `列${col + 1}`;
+    if (name === columnName) return indexToColumnLetter(col);
+  }
+  return null;
+}
+
 module.exports = {
   SPREADSHEET_ID,
   getSheetValues,
   getSheetValuesById,
   updateSheetValues,
+  updateSheetValuesById,
   appendSheetValues,
   exportSpreadsheetAsExcel,
   getSheetDataRow,
   getBatchCellValues,
+  getBatchCellValuesById,
   columnLetterToIndex,
   indexToColumnLetter,
   getSheetColumnNames,
   resolveColumnLetter,
+  resolveColumnLetterById,
 };

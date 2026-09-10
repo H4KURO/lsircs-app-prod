@@ -19,10 +19,17 @@ app.http('AddCategory', {
       }
 
       const container = categoriesContainer();
+      const blSpreadsheetId = payload?.blSpreadsheetId?.trim() || null;
+      const blSheetName = payload?.blSheetName?.trim() || null;
+      const blHeaderRows = payload?.blHeaderRows != null ? Number(payload.blHeaderRows) : null;
+
       const newCategory = {
         id: uuidv4(),
         name,
         color,
+        ...(blSpreadsheetId && { blSpreadsheetId }),
+        ...(blSheetName && { blSheetName }),
+        ...(blHeaderRows && { blHeaderRows }),
         createdAt: new Date().toISOString(),
       };
 

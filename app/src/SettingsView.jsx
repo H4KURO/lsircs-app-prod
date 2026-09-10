@@ -128,6 +128,10 @@ export function SettingsView() {
     setCategories((prev) => prev.map((category) => (category.id === id ? { ...category, color: normaliseHex(value) } : category)));
   };
 
+  const handleCategoryBlChange = (id, field, value) => {
+    setCategories((prev) => prev.map((category) => (category.id === id ? { ...category, [field]: value } : category)));
+  };
+
   const handleSaveCategory = async (categoryToSave) => {
     const name = categoryToSave.name?.trim();
     const color = normaliseHex(categoryToSave.color);
@@ -139,7 +143,13 @@ export function SettingsView() {
 
     try {
       setSavingCategoryId(categoryToSave.id);
-      const { data } = await axios.put(`${API_URL}/UpdateCategory/${categoryToSave.id}`, { name, color });
+      const { data } = await axios.put(`${API_URL}/UpdateCategory/${categoryToSave.id}`, {
+        name,
+        color,
+        blSpreadsheetId: categoryToSave.blSpreadsheetId || null,
+        blSheetName: categoryToSave.blSheetName || null,
+        blHeaderRows: categoryToSave.blHeaderRows ? Number(categoryToSave.blHeaderRows) : null,
+      });
       setCategories((prev) => prev.map((category) => (category.id === data.id ? data : category)));
       alert('カテゴリを保存しました。');
     } catch (error) {
@@ -455,23 +465,48 @@ export function SettingsView() {
                     </Button>
                   }
                 >
-                  <Stack
-                    direction={{ xs: 'column', sm: 'row' }}
-                    spacing={2}
-                    alignItems={{ sm: 'center' }}
-                    sx={{ flexGrow: 1, pr: 8 }}
-                  >
-                    <TextField
-                      label="カテゴリ名"
-                      value={category.name || ''}
-                      onChange={(event) => handleNameChange(category.id, event.target.value)}
-                      fullWidth
-                      size="small"
-                    />
-                    <MuiColorInput
-                      value={category.color || '#ffffff'}
-                      onChange={(color) => handleColorChange(category.id, color)}
-                    />
+                  <Stack spacing={1.5} sx={{ flexGrow: 1, pr: 8 }}>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'center' }}>
+                      <TextField
+                        label="カテゴリ名"
+                        value={category.name || ''}
+                        onChange={(event) => handleNameChange(category.id, event.target.value)}
+                        fullWidth
+                        size="small"
+                      />
+                      <MuiColorInput
+                        value={category.color || '#ffffff'}
+                        onChange={(color) => handleColorChange(category.id, color)}
+                      />
+                    </Stack>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+                      <TextField
+                        label="BL スプレッドシートID（任意）"
+                        placeholder="省略時はデフォルトBLを使用"
+                        value={category.blSpreadsheetId || ''}
+                        onChange={(e) => handleCategoryBlChange(category.id, 'blSpreadsheetId', e.target.value)}
+                        size="small"
+                        sx={{ flex: 2 }}
+                      />
+                      <TextField
+                        label="シート名"
+                        placeholder="Buyers list"
+                        value={category.blSheetName || ''}
+                        onChange={(e) => handleCategoryBlChange(category.id, 'blSheetName', e.target.value)}
+                        size="small"
+                        sx={{ flex: 1 }}
+                      />
+                      <TextField
+                        label="ヘッダー行数"
+                        placeholder="3"
+                        type="number"
+                        value={category.blHeaderRows ?? ''}
+                        onChange={(e) => handleCategoryBlChange(category.id, 'blHeaderRows', e.target.value)}
+                        size="small"
+                        sx={{ width: 90 }}
+                        inputProps={{ min: 1, max: 10 }}
+                      />
+                    </Stack>
                   </Stack>
                 </ListItem>
               ))}
