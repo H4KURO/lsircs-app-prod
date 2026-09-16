@@ -88,7 +88,6 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
   const [selectedFolderIdx, setSelectedFolderIdx] = useState(0);
   const [boxView, setBoxView] = useState('preview');
   const [addFolderOpen, setAddFolderOpen] = useState(false);
-  const [newFolderLabel, setNewFolderLabel] = useState('');
   const [newFolderUrl, setNewFolderUrl] = useState('');
 
   const linkedTasks = useMemo(
@@ -124,6 +123,7 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
         setSelectedFolderIdx(0);
         setBoxView('preview');
         setAddFolderOpen(false);
+        setNewFolderUrl('');
       } else {
         setForm(BLANK_FORM);
         setBuyerLinks([]);
@@ -640,7 +640,7 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
                         <Chip
                           key={i}
                           icon={<FolderIcon />}
-                          label={f.label || 'フォルダ'}
+                          label={`フォルダ ${i + 1}`}
                           size="small"
                           variant={selectedFolderIdx === i ? 'filled' : 'outlined'}
                           color={selectedFolderIdx === i ? 'primary' : 'default'}
@@ -701,7 +701,7 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
                           }}>
                             <FolderIcon sx={{ color: 'primary.main', fontSize: 18, flexShrink: 0 }} />
                             <Box sx={{ flex: 1, minWidth: 0 }}>
-                              <Typography variant="body2" fontWeight={500} noWrap>{f.label || 'フォルダ'}</Typography>
+                              <Typography variant="body2" fontWeight={500} noWrap>{`フォルダ ${i + 1}`}</Typography>
                               <Typography variant="caption" color="text.secondary" noWrap>{f.url}</Typography>
                             </Box>
                             <Button
@@ -720,11 +720,6 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
                 {addFolderOpen ? (
                   <Box sx={{ mt: 1.5, p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
                     <TextField
-                      size="small" label="フォルダ名" value={newFolderLabel}
-                      onChange={e => setNewFolderLabel(e.target.value)}
-                      fullWidth placeholder="例: 契約書類"
-                    />
-                    <TextField
                       size="small" label="Box URL" value={newFolderUrl}
                       onChange={e => setNewFolderUrl(e.target.value)}
                       fullWidth placeholder="https://app.box.com/s/..."
@@ -734,15 +729,14 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
                         size="small" variant="contained" disableElevation
                         disabled={!newFolderUrl.trim()}
                         onClick={() => {
-                          const next = [...boxFolders, { label: newFolderLabel.trim() || 'フォルダ', url: newFolderUrl.trim() }];
+                          const next = [...boxFolders, { url: newFolderUrl.trim() }];
                           setBoxFolders(next);
                           setSelectedFolderIdx(next.length - 1);
-                          setNewFolderLabel('');
                           setNewFolderUrl('');
                           setAddFolderOpen(false);
                         }}
                       >追加</Button>
-                      <Button size="small" onClick={() => { setAddFolderOpen(false); setNewFolderLabel(''); setNewFolderUrl(''); }}>キャンセル</Button>
+                      <Button size="small" onClick={() => { setAddFolderOpen(false); setNewFolderUrl(''); }}>キャンセル</Button>
                     </Box>
                   </Box>
                 ) : (
