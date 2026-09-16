@@ -5,7 +5,8 @@ const propertiesContainer = () =>
   getNamedContainer('Properties', ['COSMOS_PROPERTIES_CONTAINER']);
 
 const ALLOWED_FIELDS = ['managementType', 'ownerName', 'ownerPhone', 'tenantStatus',
-  'leaseStart', 'leaseEnd', 'monthlyRent', 'notes', 'manualFields', 'status'];
+  'leaseStart', 'leaseEnd', 'monthlyRent', 'notes', 'manualFields', 'status',
+  'buildingName', 'registrationDate', 'purchasePrice'];
 
 app.http('UpdateProperty', {
   methods: ['PUT'],

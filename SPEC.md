@@ -1,7 +1,7 @@
 # lsir-cs アプリケーション仕様書
 
 > **メンテナンス注意**: このファイルはアプリ変更のたびに更新すること（CLAUDE.md 参照）。  
-> 最終更新: 2026-09-16（物件→CRM同期機能追加: SyncPropertiesToCRM / MergeCustomers API、CRMView名寄せUI）
+> 最終更新: 2026-09-16（物件管理に建物名・登記日・購入価格フィールド追加）
 
 ---
 
@@ -809,7 +809,7 @@ documentSettings: {
 | Customers | `/id` | CRM顧客データ（env: `COSMOS_CUSTOMERS_CONTAINER`） |
 | Projects | `/id` | プロジェクト台帳（env: `COSMOS_PROJECTS_CONTAINER`） |
 | TaskTemplates | `/id` | タスクテンプレート（Phase 2） |
-| Properties | `/id` | Appfolio物件データ（env: `COSMOS_PROPERTIES_CONTAINER`） |
+| Properties | `/id` | Appfolio物件データ（env: `COSMOS_PROPERTIES_CONTAINER`）。フィールド: `propertyName`, `buildingName`（#前を自動抽出）, `managementType`, `ownerName`, `ownerPhone`, `tenantStatus`, `leaseStart`, `leaseEnd`, `monthlyRent`, `registrationDate`（登記日・手動入力）, `purchasePrice`（購入価格・手動入力）, `notes`, `appfolioPropertyString`, `importedAt`, `importSource` |
 
 ---
 

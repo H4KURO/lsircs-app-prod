@@ -125,9 +125,12 @@ function EditDialog({ property, open, onClose, onSaved }) {
 
   useEffect(() => {
     if (property) setForm({
+      buildingName: property.buildingName || (property.propertyName?.includes('#') ? property.propertyName.split('#')[0].trim() : property.propertyName) || '',
       managementType: property.managementType || '',
       ownerName: property.ownerName || '',
       ownerPhone: property.ownerPhone || '',
+      registrationDate: property.registrationDate || '',
+      purchasePrice: property.purchasePrice || '',
       tenantStatus: property.tenantStatus || '',
       leaseStart: property.leaseStart || '',
       leaseEnd: property.leaseEnd || '',
@@ -142,6 +145,7 @@ function EditDialog({ property, open, onClose, onSaved }) {
       const { data } = await axios.put(`${API}/UpdateProperty/${property.id}`, {
         ...form,
         monthlyRent: form.monthlyRent ? Number(form.monthlyRent) : null,
+        purchasePrice: form.purchasePrice ? Number(form.purchasePrice) : null,
       });
       onSaved(data);
       onClose();
@@ -155,9 +159,12 @@ function EditDialog({ property, open, onClose, onSaved }) {
   if (!property) return null;
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{property.propertyName}</DialogTitle>
+      <DialogTitle>
+        <Typography variant="subtitle1" fontWeight={700}>{property.propertyName}</Typography>
+      </DialogTitle>
       <DialogContent>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+          <TextField size="small" label="建物名" value={form.buildingName || ''} onChange={e => setForm(p => ({ ...p, buildingName: e.target.value }))} fullWidth helperText="物件名の # より前を自動取得。手動で修正可能" />
           <FormControl size="small" fullWidth>
             <InputLabel>管理形態</InputLabel>
             <Select value={form.managementType || ''} label="管理形態" onChange={e => setForm(p => ({ ...p, managementType: e.target.value }))}>
@@ -167,6 +174,10 @@ function EditDialog({ property, open, onClose, onSaved }) {
           </FormControl>
           <TextField size="small" label="オーナー名" value={form.ownerName || ''} onChange={e => setForm(p => ({ ...p, ownerName: e.target.value }))} fullWidth />
           <TextField size="small" label="オーナー電話" value={form.ownerPhone || ''} onChange={e => setForm(p => ({ ...p, ownerPhone: e.target.value }))} fullWidth />
+          <Box sx={{ display: 'flex', gap: 1.5 }}>
+            <TextField size="small" label="登記日" type="date" value={form.registrationDate || ''} onChange={e => setForm(p => ({ ...p, registrationDate: e.target.value }))} InputLabelProps={{ shrink: true }} fullWidth />
+            <TextField size="small" label="購入価格 ($)" type="number" value={form.purchasePrice || ''} onChange={e => setForm(p => ({ ...p, purchasePrice: e.target.value }))} fullWidth />
+          </Box>
           <Box sx={{ display: 'flex', gap: 1.5 }}>
             <TextField size="small" label="賃貸開始日" type="date" value={form.leaseStart || ''} onChange={e => setForm(p => ({ ...p, leaseStart: e.target.value }))} InputLabelProps={{ shrink: true }} fullWidth />
             <TextField size="small" label="賃貸終了日" type="date" value={form.leaseEnd || ''} onChange={e => setForm(p => ({ ...p, leaseEnd: e.target.value }))} InputLabelProps={{ shrink: true }} fullWidth />
@@ -474,7 +485,8 @@ export function PropertiesView() {
           <Table stickyHeader size="small">
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontWeight: 700, minWidth: 220 }}>物件名</TableCell>
+                <TableCell sx={{ fontWeight: 700, minWidth: 160 }}>建物名</TableCell>
+                <TableCell sx={{ fontWeight: 700, minWidth: 200 }}>物件名</TableCell>
                 <TableCell sx={{ fontWeight: 700, width: 90 }}>管理形態</TableCell>
                 <TableCell sx={{ fontWeight: 700, minWidth: 180 }}>オーナー名</TableCell>
                 <TableCell sx={{ fontWeight: 700, width: 100 }}>テナント</TableCell>
@@ -486,13 +498,16 @@ export function PropertiesView() {
             <TableBody>
               {filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                  <TableCell colSpan={8} align="center" sx={{ py: 4, color: 'text.secondary' }}>
                     {properties.length === 0 ? 'データがありません。Appfolioからインポートしてください。' : '条件に一致する物件がありません。'}
                   </TableCell>
                 </TableRow>
               ) : (
                 filtered.map(p => (
                   <TableRow key={p.id} hover>
+                    <TableCell>
+                      <Typography variant="body2">{p.buildingName || '—'}</Typography>
+                    </TableCell>
                     <TableCell>
                       <Typography variant="body2" fontWeight={500}>{p.propertyName}</Typography>
                       {p.notes && <Typography variant="caption" color="text.secondary">{p.notes}</Typography>}

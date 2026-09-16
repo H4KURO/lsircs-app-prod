@@ -13,6 +13,12 @@ function extractPropertyName(raw) {
   return idx > 0 ? s.slice(0, idx).trim() : s;
 }
 
+function extractBuildingName(propertyName) {
+  if (!propertyName) return null;
+  const idx = propertyName.indexOf('#');
+  return idx > 0 ? propertyName.slice(0, idx).trim() : propertyName;
+}
+
 async function parseWorkbook(base64) {
   const buf = Buffer.from(base64, 'base64');
   const wb = new ExcelJS.Workbook();
@@ -122,6 +128,7 @@ async function mergeAppfolioData({ propertyFile, propertyGroupFile, tenantFile, 
     const tenant = tenantMap[p.propertyName] || {};
     return {
       propertyName: p.propertyName,
+      buildingName: extractBuildingName(p.propertyName),
       managementType: groupMap[p.propertyName] || null,
       ownerName: p.ownerName,
       ownerPhone: p.ownerPhone,
