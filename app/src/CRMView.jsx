@@ -17,15 +17,162 @@ import {
   TableHead,
   TableRow,
   Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemButton,
+  Radio,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import LinkIcon from '@mui/icons-material/Link';
+import MergeIcon from '@mui/icons-material/MergeType';
 import { CustomerDetailModal } from './CustomerDetailModal';
 
 const API_URL = '/api';
 
 const STATUS_OPTIONS = ['すべて', 'Lead', '商談中', '契約済み', 'フォローアップ', '見送り'];
+
+const API_URL = '/api';
+
+// Simple edit distance for fuzzy duplicate detection
+function normalize(s) { return (s || '').trim().toLowerCase().replace(/\s+/g, ' '); }
+function editDistance(a, b) {
+  const m = a.length, n = b.length;
+  const dp = Array.from({ length: m + 1 }, (_, i) => Array.from({ length: n + 1 }, (_, j) => i === 0 ? j : j === 0 ? i : 0));
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+  return dp[m][n];
+}
+function similarity(a, b) {
+  const na = normalize(a), nb = normalize(b);
+  if (!na || !nb) return 0;
+  return 1 - editDistance(na, nb) / Math.max(na.length, nb.length);
+}
+
+function MergeDialog({ open, customers, onClose, onMerged }) {
+  const [step, setStep] = useState('select'); // 'select' | 'confirm'
+  const [primaryId, setPrimaryId] = useState('');
+  const [secondaryId, setSecondaryId] = useState('');
+  const [merging, setMerging] = useState(false);
+  const [error, setError] = useState('');
+
+  // Find similar pairs
+  const pairs = useMemo(() => {
+    const result = [];
+    for (let i = 0; i < customers.length; i++) {
+      for (let j = i + 1; j < customers.length; j++) {
+        const score = similarity(customers[i].name, customers[j].name);
+        if (score >= 0.7) result.push({ a: customers[i], b: customers[j], score });
+      }
+    }
+    return result.sort((x, y) => y.score - x.score).slice(0, 20);
+  }, [customers]);
+
+  const handleMerge = async () => {
+    if (!primaryId || !secondaryId) return;
+    setMerging(true);
+    setError('');
+    try {
+      await axios.post(`${API_URL}/MergeCustomers`, { primaryId, secondaryId });
+      onMerged();
+      handleClose();
+    } catch (e) {
+      setError(e.response?.data || e.message);
+    } finally {
+      setMerging(false);
+    }
+  };
+
+  const handleClose = () => {
+    setStep('select');
+    setPrimaryId('');
+    setSecondaryId('');
+    setError('');
+    onClose();
+  };
+
+  const primary = customers.find(c => c.id === primaryId);
+  const secondary = customers.find(c => c.id === secondaryId);
+
+  return (
+    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+      <DialogTitle>名寄せ（顧客統合）</DialogTitle>
+      <DialogContent dividers>
+        {step === 'select' && (
+          <>
+            {pairs.length === 0 ? (
+              <Typography color="text.secondary">類似名の顧客は見つかりませんでした。</Typography>
+            ) : (
+              <>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  名前が似ている顧客ペアが見つかりました。統合するペアを選択し、残す方（primary）を選んでください。
+                </Typography>
+                <List dense>
+                  {pairs.map(({ a, b, score }, i) => (
+                    <ListItem key={i} disablePadding divider>
+                      <ListItemButton
+                        onClick={() => { setPrimaryId(a.id); setSecondaryId(b.id); setStep('confirm'); }}
+                        sx={{ flexDirection: 'column', alignItems: 'flex-start', py: 1.5 }}
+                      >
+                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', width: '100%' }}>
+                          <Typography variant="body2" fontWeight={600}>{a.name}</Typography>
+                          <Typography variant="caption" color="text.secondary">←→</Typography>
+                          <Typography variant="body2" fontWeight={600}>{b.name}</Typography>
+                          <Chip label={`${Math.round(score * 100)}%`} size="small" color="warning" sx={{ ml: 'auto' }} />
+                        </Box>
+                      </ListItemButton>
+                    </ListItem>
+                  ))}
+                </List>
+              </>
+            )}
+          </>
+        )}
+        {step === 'confirm' && primary && secondary && (
+          <Box>
+            <Typography variant="body2" sx={{ mb: 2 }}>
+              どちらを残しますか？残さない方のデータは統合されて削除されます。
+            </Typography>
+            {[primary, secondary].map(c => (
+              <Paper
+                key={c.id}
+                variant="outlined"
+                sx={{ p: 1.5, mb: 1, cursor: 'pointer', borderColor: primaryId === c.id ? 'primary.main' : 'divider', borderWidth: primaryId === c.id ? 2 : 1 }}
+                onClick={() => { setPrimaryId(c.id); setSecondaryId(c.id === primary.id ? secondary.id : primary.id); }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Radio checked={primaryId === c.id} size="small" />
+                  <Box>
+                    <Typography variant="body2" fontWeight={600}>{c.name}</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {[c.phone, c.email, c.company].filter(Boolean).join(' / ') || '詳細なし'}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Paper>
+            ))}
+            {error && <Alert severity="error" sx={{ mt: 1 }}>{error}</Alert>}
+          </Box>
+        )}
+      </DialogContent>
+      <DialogActions>
+        {step === 'confirm' && <Button onClick={() => setStep('select')}>戻る</Button>}
+        <Button onClick={handleClose}>キャンセル</Button>
+        {step === 'confirm' && (
+          <Button variant="contained" color="error" onClick={handleMerge} disabled={merging}>
+            {merging ? '統合中...' : '統合・削除'}
+          </Button>
+        )}
+      </DialogActions>
+    </Dialog>
+  );
+}
 
 function getStatusColor(status) {
   switch (status) {
@@ -51,6 +198,7 @@ export function CRMView({ onNavigateToTask, onNavigateToBuyer }) {
   const [statusFilter, setStatusFilter] = useState('すべて');
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [mergeOpen, setMergeOpen] = useState(false);
 
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
@@ -121,6 +269,13 @@ export function CRMView({ onNavigateToTask, onNavigateToBuyer }) {
           顧客管理 (CRM)
         </Typography>
         <Box sx={{ flexGrow: 1 }} />
+        <Button
+          variant="outlined"
+          startIcon={<MergeIcon />}
+          onClick={() => setMergeOpen(true)}
+        >
+          名寄せ
+        </Button>
         <Button
           variant="contained"
           startIcon={<PersonAddIcon />}
@@ -281,6 +436,12 @@ export function CRMView({ onNavigateToTask, onNavigateToBuyer }) {
         onDeleted={handleDeleted}
         onNavigateToTask={onNavigateToTask}
         onNavigateToBuyer={onNavigateToBuyer}
+      />
+      <MergeDialog
+        open={mergeOpen}
+        customers={customers}
+        onClose={() => setMergeOpen(false)}
+        onMerged={fetchCustomers}
       />
     </Box>
   );
