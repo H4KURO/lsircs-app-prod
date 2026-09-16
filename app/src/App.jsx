@@ -26,6 +26,7 @@ import { CRMView } from "./CRMView";
 import { ProjectsView } from "./ProjectsView";
 import { GlobalSearch } from "./GlobalSearch";
 import { DocumentGenerationView } from "./DocumentGenerationView";
+import { PropertiesView } from "./PropertiesView";
 
 // MUI icons
 import DashboardIcon from "@mui/icons-material/Dashboard";
@@ -41,6 +42,7 @@ import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import SearchIcon from "@mui/icons-material/Search";
 import LogoutIcon from "@mui/icons-material/Logout";
 import MicrosoftIcon from "@mui/icons-material/Microsoft";
+import ApartmentIcon from "@mui/icons-material/Apartment";
 
 const RAIL_WIDTH = 56;
 const RAIL_BG = "#001731";
@@ -242,6 +244,7 @@ function App() {
     { view: "crm",       label: "顧客管理 (CRM)",    icon: <ContactsIcon sx={{ fontSize: 20 }} /> },
     { view: "spreadsheet", label: "スプレッドシート", icon: <TableViewIcon sx={{ fontSize: 20 }} /> },
     { view: "documents", label: "文書生成",           icon: <ArticleIcon sx={{ fontSize: 20 }} /> },
+    { view: "properties", label: "物件管理",          icon: <ApartmentIcon sx={{ fontSize: 20 }} /> },
   ], [t]);
 
   const renderView = () => {
@@ -290,6 +293,7 @@ function App() {
       case "spreadsheet": return <SpreadsheetView />;
       case "whitelist":  return accessStatus.isAdmin ? <WhitelistView currentUser={user} /> : <AccessDeniedView userEmail={user.userDetails} />;
       case "documents":  return <DocumentGenerationView />;
+      case "properties": return <PropertiesView />;
       default:           return <DashboardView user={user} />;
     }
   };
