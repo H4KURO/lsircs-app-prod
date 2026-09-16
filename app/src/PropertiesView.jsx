@@ -485,8 +485,7 @@ export function PropertiesView() {
           <Table stickyHeader size="small">
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontWeight: 700, minWidth: 160 }}>建物名</TableCell>
-                <TableCell sx={{ fontWeight: 700, minWidth: 200 }}>物件名</TableCell>
+                <TableCell sx={{ fontWeight: 700, minWidth: 220 }}>物件名</TableCell>
                 <TableCell sx={{ fontWeight: 700, width: 90 }}>管理形態</TableCell>
                 <TableCell sx={{ fontWeight: 700, minWidth: 180 }}>オーナー名</TableCell>
                 <TableCell sx={{ fontWeight: 700, width: 100 }}>テナント</TableCell>
@@ -498,16 +497,13 @@ export function PropertiesView() {
             <TableBody>
               {filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                  <TableCell colSpan={7} align="center" sx={{ py: 4, color: 'text.secondary' }}>
                     {properties.length === 0 ? 'データがありません。Appfolioからインポートしてください。' : '条件に一致する物件がありません。'}
                   </TableCell>
                 </TableRow>
               ) : (
                 filtered.map(p => (
                   <TableRow key={p.id} hover>
-                    <TableCell>
-                      <Typography variant="body2">{p.buildingName || '—'}</Typography>
-                    </TableCell>
                     <TableCell>
                       <Typography variant="body2" fontWeight={500}>{p.propertyName}</Typography>
                       {p.notes && <Typography variant="caption" color="text.secondary">{p.notes}</Typography>}
