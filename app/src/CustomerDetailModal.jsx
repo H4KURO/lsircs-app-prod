@@ -35,6 +35,7 @@ import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import ApartmentIcon from '@mui/icons-material/Apartment';
 import FolderIcon from '@mui/icons-material/Folder';
+import AddIcon from '@mui/icons-material/Add';
 import { BuyerSearchDialog } from './BuyerSearchDialog';
 
 const MGMT_COLORS = {
@@ -45,6 +46,11 @@ const MGMT_COLORS = {
 function getMgmtStyle(type) { return MGMT_COLORS[type] || { bg: '#F1F5F9', text: '#64748B', bar: '#94A3B8' }; }
 
 const API_URL = '/api';
+
+function toBoxEmbedUrl(url) {
+  if (!url) return '';
+  return url.replace('app.box.com/s/', 'app.box.com/embed/s/');
+}
 
 const STATUS_OPTIONS = ['Lead', '商談中', '契約済み', 'フォローアップ', '見送り'];
 const SOURCE_OPTIONS = ['ZOHO', 'Appfolio', 'WP', 'Qドライブ', '手動入力'];
@@ -78,6 +84,12 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [linkedProperties, setLinkedProperties] = useState([]);
   const [loadingProperties, setLoadingProperties] = useState(false);
+  const [boxFolders, setBoxFolders] = useState([]);
+  const [selectedFolderIdx, setSelectedFolderIdx] = useState(0);
+  const [boxView, setBoxView] = useState('preview');
+  const [addFolderOpen, setAddFolderOpen] = useState(false);
+  const [newFolderLabel, setNewFolderLabel] = useState('');
+  const [newFolderUrl, setNewFolderUrl] = useState('');
 
   const linkedTasks = useMemo(
     () => (customer ? allTasks.filter((t) => t.customerId === customer.id) : []),
@@ -104,14 +116,18 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
           nextFollowUpAt: customer.nextFollowUpAt ?? '',
           notes: customer.notes ?? '',
         });
-        // buyerLinks 配列に正規化（旧 buyerLink 単体との後方互換）
         const links = Array.isArray(customer.buyerLinks)
           ? customer.buyerLinks
           : (customer.buyerLink ? [customer.buyerLink] : []);
         setBuyerLinks(links);
+        setBoxFolders(Array.isArray(customer.boxFolders) ? customer.boxFolders : []);
+        setSelectedFolderIdx(0);
+        setBoxView('preview');
+        setAddFolderOpen(false);
       } else {
         setForm(BLANK_FORM);
         setBuyerLinks([]);
+        setBoxFolders([]);
       }
       setError('');
       if (isEdit) {
@@ -157,7 +173,7 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
     try {
       const endpoint = isEdit ? 'UpdateCustomer' : 'CreateCustomer';
       const body = isEdit
-        ? { id: customer.id, ...form, buyerLinks, buyerLink: buyerLinks[0] ?? null }
+        ? { id: customer.id, ...form, buyerLinks, buyerLink: buyerLinks[0] ?? null, boxFolders }
         : { ...form, buyerLinks, buyerLink: buyerLinks[0] ?? null };
       const res = await axios.post(`${API_URL}/${endpoint}`, body);
       onSaved(res.data);
@@ -605,25 +621,139 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
             </Grid>
           )}
 
-          {/* ドキュメント */}
+          {/* ドキュメント (Box) */}
           {isEdit && (
             <Grid item xs={12}>
               <Divider sx={{ my: 0.5 }} />
               <Box sx={{ mt: 1 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
                   <FolderIcon fontSize="small" color="action" />
                   <Typography variant="body2" fontWeight={600}>ドキュメント</Typography>
+                  {boxFolders.length > 0 && <Chip label={boxFolders.length} size="small" />}
                 </Box>
-                <Box sx={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  p: 2.5, borderRadius: 1, border: '1px dashed', borderColor: 'divider',
-                  flexDirection: 'column', gap: 0.5,
-                }}>
-                  <FolderIcon sx={{ fontSize: 28, color: 'text.disabled' }} />
-                  <Typography variant="body2" color="text.disabled">
-                    Box連携は今後対応予定
-                  </Typography>
-                </Box>
+
+                {boxFolders.length > 0 && (
+                  <Box>
+                    {/* フォルダ選択 */}
+                    <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', mb: 1.5 }}>
+                      {boxFolders.map((f, i) => (
+                        <Chip
+                          key={i}
+                          icon={<FolderIcon />}
+                          label={f.label || 'フォルダ'}
+                          size="small"
+                          variant={selectedFolderIdx === i ? 'filled' : 'outlined'}
+                          color={selectedFolderIdx === i ? 'primary' : 'default'}
+                          onClick={() => setSelectedFolderIdx(i)}
+                          onDelete={() => {
+                            setBoxFolders(prev => prev.filter((_, idx) => idx !== i));
+                            setSelectedFolderIdx(prev => Math.max(0, prev >= i ? prev - 1 : prev));
+                          }}
+                        />
+                      ))}
+                    </Box>
+
+                    {/* 表示切替 + 外部リンク */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                      <Box sx={{ display: 'flex', border: '1px solid', borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
+                        <Button
+                          size="small" disableElevation
+                          variant={boxView === 'preview' ? 'contained' : 'text'}
+                          onClick={() => setBoxView('preview')}
+                          sx={{ borderRadius: 0, minWidth: 80, fontSize: '0.75rem' }}
+                        >プレビュー</Button>
+                        <Button
+                          size="small" disableElevation
+                          variant={boxView === 'list' ? 'contained' : 'text'}
+                          onClick={() => setBoxView('list')}
+                          sx={{ borderRadius: 0, minWidth: 80, fontSize: '0.75rem' }}
+                        >リンク一覧</Button>
+                      </Box>
+                      <Button
+                        size="small" variant="outlined" endIcon={<OpenInNewIcon />}
+                        component="a" href={boxFolders[selectedFolderIdx]?.url}
+                        target="_blank" rel="noopener noreferrer"
+                        sx={{ fontSize: '0.75rem' }}
+                      >Boxで開く</Button>
+                    </Box>
+
+                    {/* iframe プレビュー */}
+                    {boxView === 'preview' && (
+                      <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, overflow: 'hidden', height: 320 }}>
+                        <iframe
+                          key={boxFolders[selectedFolderIdx]?.url}
+                          src={toBoxEmbedUrl(boxFolders[selectedFolderIdx]?.url)}
+                          width="100%" height="100%"
+                          style={{ border: 'none', display: 'block' }}
+                          title="Box preview"
+                        />
+                      </Box>
+                    )}
+
+                    {/* リンク一覧 */}
+                    {boxView === 'list' && (
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                        {boxFolders.map((f, i) => (
+                          <Box key={i} sx={{
+                            display: 'flex', alignItems: 'center', gap: 1.5,
+                            px: 1.5, py: 1, borderRadius: 1,
+                            border: '1px solid', borderColor: 'divider', bgcolor: 'action.hover',
+                          }}>
+                            <FolderIcon sx={{ color: 'primary.main', fontSize: 18, flexShrink: 0 }} />
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                              <Typography variant="body2" fontWeight={500} noWrap>{f.label || 'フォルダ'}</Typography>
+                              <Typography variant="caption" color="text.secondary" noWrap>{f.url}</Typography>
+                            </Box>
+                            <Button
+                              size="small" component="a" href={f.url}
+                              target="_blank" rel="noopener noreferrer"
+                              endIcon={<OpenInNewIcon />} sx={{ fontSize: '0.72rem', flexShrink: 0 }}
+                            >開く</Button>
+                          </Box>
+                        ))}
+                      </Box>
+                    )}
+                  </Box>
+                )}
+
+                {/* フォルダ追加フォーム */}
+                {addFolderOpen ? (
+                  <Box sx={{ mt: 1.5, p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <TextField
+                      size="small" label="フォルダ名" value={newFolderLabel}
+                      onChange={e => setNewFolderLabel(e.target.value)}
+                      fullWidth placeholder="例: 契約書類"
+                    />
+                    <TextField
+                      size="small" label="Box URL" value={newFolderUrl}
+                      onChange={e => setNewFolderUrl(e.target.value)}
+                      fullWidth placeholder="https://app.box.com/s/..."
+                    />
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Button
+                        size="small" variant="contained" disableElevation
+                        disabled={!newFolderUrl.trim()}
+                        onClick={() => {
+                          const next = [...boxFolders, { label: newFolderLabel.trim() || 'フォルダ', url: newFolderUrl.trim() }];
+                          setBoxFolders(next);
+                          setSelectedFolderIdx(next.length - 1);
+                          setNewFolderLabel('');
+                          setNewFolderUrl('');
+                          setAddFolderOpen(false);
+                        }}
+                      >追加</Button>
+                      <Button size="small" onClick={() => { setAddFolderOpen(false); setNewFolderLabel(''); setNewFolderUrl(''); }}>キャンセル</Button>
+                    </Box>
+                  </Box>
+                ) : (
+                  <Button
+                    size="small" startIcon={<AddIcon />}
+                    onClick={() => setAddFolderOpen(true)}
+                    sx={{ mt: boxFolders.length > 0 ? 1.5 : 0, fontSize: '0.75rem' }}
+                  >
+                    {boxFolders.length === 0 ? 'Box フォルダを紐づける' : 'フォルダを追加'}
+                  </Button>
+                )}
               </Box>
             </Grid>
           )}
