@@ -37,8 +37,6 @@ const API_URL = '/api';
 
 const STATUS_OPTIONS = ['すべて', 'Lead', '商談中', '契約済み', 'フォローアップ', '見送り'];
 
-const API_URL = '/api';
-
 // Simple edit distance for fuzzy duplicate detection
 function normalize(s) { return (s || '').trim().toLowerCase().replace(/\s+/g, ' '); }
 function editDistance(a, b) {
