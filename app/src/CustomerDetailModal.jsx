@@ -33,7 +33,16 @@ import LinkIcon from '@mui/icons-material/Link';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import ApartmentIcon from '@mui/icons-material/Apartment';
+import FolderIcon from '@mui/icons-material/Folder';
 import { BuyerSearchDialog } from './BuyerSearchDialog';
+
+const MGMT_COLORS = {
+  PM:    { bg: '#F0FDFB', text: '#0D9488', bar: '#0D9488' },
+  'PCS A': { bg: '#F0FDF4', text: '#16A34A', bar: '#16A34A' },
+  'PCS B': { bg: '#FFFBEB', text: '#D97706', bar: '#D97706' },
+};
+function getMgmtStyle(type) { return MGMT_COLORS[type] || { bg: '#F1F5F9', text: '#64748B', bar: '#94A3B8' }; }
 
 const API_URL = '/api';
 
@@ -67,6 +76,8 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
   const [error, setError] = useState('');
   const [allTasks, setAllTasks] = useState([]);
   const [loadingTasks, setLoadingTasks] = useState(false);
+  const [linkedProperties, setLinkedProperties] = useState([]);
+  const [loadingProperties, setLoadingProperties] = useState(false);
 
   const linkedTasks = useMemo(
     () => (customer ? allTasks.filter((t) => t.customerId === customer.id) : []),
@@ -110,8 +121,24 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
           .then((res) => setAllTasks(Array.isArray(res.data) ? res.data : []))
           .catch(() => {})
           .finally(() => setLoadingTasks(false));
+
+        const names = customer.linkedPropertyNames;
+        if (Array.isArray(names) && names.length > 0) {
+          setLoadingProperties(true);
+          axios
+            .get(`${API_URL}/GetProperties`)
+            .then((res) => {
+              const all = Array.isArray(res.data) ? res.data : [];
+              setLinkedProperties(all.filter((p) => names.includes(p.propertyName)));
+            })
+            .catch(() => {})
+            .finally(() => setLoadingProperties(false));
+        } else {
+          setLinkedProperties([]);
+        }
       } else {
         setAllTasks([]);
+        setLinkedProperties([]);
       }
     }
   }, [open, customer, isEdit]);
@@ -474,6 +501,132 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
               </Box>
             </Box>
           </Grid>
+
+          {/* 所有物件 */}
+          {isEdit && (
+            <Grid item xs={12}>
+              <Divider sx={{ my: 0.5 }} />
+              <Box sx={{ mt: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                  <ApartmentIcon fontSize="small" color="action" />
+                  <Typography variant="body2" fontWeight={600}>所有物件</Typography>
+                  {linkedProperties.length > 0 && <Chip label={linkedProperties.length} size="small" />}
+                </Box>
+                {loadingProperties ? (
+                  <CircularProgress size={20} />
+                ) : linkedProperties.length === 0 ? (
+                  <Typography variant="body2" color="text.disabled" sx={{ pl: 0.5 }}>
+                    紐づいている物件はありません（CRM同期後に表示されます）
+                  </Typography>
+                ) : (() => {
+                  const totalRent = linkedProperties.reduce((s, p) => s + (Number(p.monthlyRent) || 0), 0);
+                  const mgmtCounts = linkedProperties.reduce((acc, p) => {
+                    if (p.managementType) acc[p.managementType] = (acc[p.managementType] || 0) + 1;
+                    return acc;
+                  }, {});
+                  return (
+                    <Box>
+                      {/* サマリーバー */}
+                      <Box sx={{
+                        display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap',
+                        p: 1.5, mb: 1.5, borderRadius: 1, bgcolor: 'action.hover',
+                        border: '1px solid', borderColor: 'divider',
+                      }}>
+                        <Box>
+                          <Typography variant="h6" fontWeight={700} lineHeight={1}>{linkedProperties.length}</Typography>
+                          <Typography variant="caption" color="text.secondary">物件</Typography>
+                        </Box>
+                        <Divider orientation="vertical" flexItem />
+                        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+                          {Object.entries(mgmtCounts).map(([type, count]) => {
+                            const s = getMgmtStyle(type);
+                            return (
+                              <Box key={type} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: s.bar }} />
+                                <Typography variant="caption" color="text.secondary">{type}</Typography>
+                                <Typography variant="caption" fontWeight={700}>{count}</Typography>
+                              </Box>
+                            );
+                          })}
+                        </Box>
+                        {totalRent > 0 && (
+                          <>
+                            <Divider orientation="vertical" flexItem />
+                            <Box>
+                              <Typography variant="body2" fontWeight={700} color="success.main" fontVariantNumeric="tabular-nums">
+                                ${totalRent.toLocaleString()}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">月額合計</Typography>
+                            </Box>
+                          </>
+                        )}
+                      </Box>
+                      {/* 物件リスト */}
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                        {linkedProperties.map((p) => {
+                          const s = getMgmtStyle(p.managementType);
+                          const isCurrent = p.tenantStatus === 'Current';
+                          const isNotice = p.tenantStatus === 'Notice';
+                          return (
+                            <Box key={p.id} sx={{
+                              display: 'flex', alignItems: 'center', gap: 1.5,
+                              px: 1.5, py: 1, borderRadius: 1,
+                              '&:hover': { bgcolor: 'action.hover' },
+                            }}>
+                              <Box sx={{ width: 3, height: 36, borderRadius: 1, bgcolor: s.bar, flexShrink: 0 }} />
+                              <Box sx={{ flex: 1, minWidth: 0 }}>
+                                <Typography variant="body2" fontWeight={500} noWrap>{p.propertyName}</Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {p.managementType || '—'}
+                                  {p.leaseStart && p.leaseEnd ? ` · ${p.leaseStart} 〜 ${p.leaseEnd}` : ''}
+                                </Typography>
+                              </Box>
+                              <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
+                                {p.monthlyRent && (
+                                  <Typography variant="body2" fontWeight={600} fontVariantNumeric="tabular-nums">
+                                    ${Number(p.monthlyRent).toLocaleString()}
+                                  </Typography>
+                                )}
+                                {p.tenantStatus && (
+                                  <Typography variant="caption" fontWeight={600}
+                                    sx={{ color: isCurrent ? 'success.main' : isNotice ? 'warning.main' : 'text.secondary' }}>
+                                    {p.tenantStatus}
+                                  </Typography>
+                                )}
+                              </Box>
+                            </Box>
+                          );
+                        })}
+                      </Box>
+                    </Box>
+                  );
+                })()}
+              </Box>
+            </Grid>
+          )}
+
+          {/* ドキュメント */}
+          {isEdit && (
+            <Grid item xs={12}>
+              <Divider sx={{ my: 0.5 }} />
+              <Box sx={{ mt: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  <FolderIcon fontSize="small" color="action" />
+                  <Typography variant="body2" fontWeight={600}>ドキュメント</Typography>
+                </Box>
+                <Box sx={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  p: 2.5, borderRadius: 1, border: '1px dashed', borderColor: 'divider',
+                  flexDirection: 'column', gap: 0.5,
+                }}>
+                  <FolderIcon sx={{ fontSize: 28, color: 'text.disabled' }} />
+                  <Typography variant="body2" color="text.disabled">
+                    Box連携は今後対応予定
+                  </Typography>
+                </Box>
+              </Box>
+            </Grid>
+          )}
 
           {/* 備考 */}
           <Grid item xs={12}>
