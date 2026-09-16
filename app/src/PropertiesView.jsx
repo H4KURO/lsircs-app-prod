@@ -1,0 +1,372 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import axios from 'axios';
+import {
+  Box, Typography, Button, TextField, Select, MenuItem, FormControl, InputLabel,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
+  Chip, CircularProgress, Alert, Dialog, DialogTitle, DialogContent,
+  DialogActions, LinearProgress, InputAdornment, IconButton, Tooltip,
+} from '@mui/material';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
+import DownloadIcon from '@mui/icons-material/Download';
+import SearchIcon from '@mui/icons-material/Search';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import ClearIcon from '@mui/icons-material/Clear';
+
+const API = '/api';
+const MGMT_TYPES = ['PM', 'PCS A', 'PCS B'];
+const MGMT_COLORS = { PM: 'primary', 'PCS A': 'success', 'PCS B': 'warning' };
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function ImportDialog({ open, onClose, onImported }) {
+  const [files, setFiles] = useState({ property: null, propertyGroup: null, tenant: null, owner: null });
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const fileLabels = [
+    { key: 'property', label: 'Property Directory（必須）', accept: '.xlsx' },
+    { key: 'propertyGroup', label: 'Property Group Directory', accept: '.xlsx' },
+    { key: 'tenant', label: 'Tenant Directory', accept: '.xlsx' },
+    { key: 'owner', label: 'Owner Directory', accept: '.xlsx' },
+  ];
+
+  const handleFile = (key, file) => setFiles(prev => ({ ...prev, [key]: file }));
+
+  const handleImport = async () => {
+    if (!files.property) return;
+    setLoading(true);
+    setResult(null);
+    try {
+      const body = { importSource: 'manual' };
+      if (files.property) body.propertyFile = await fileToBase64(files.property);
+      if (files.propertyGroup) body.propertyGroupFile = await fileToBase64(files.propertyGroup);
+      if (files.tenant) body.tenantFile = await fileToBase64(files.tenant);
+      if (files.owner) body.ownerFile = await fileToBase64(files.owner);
+
+      const { data } = await axios.post(`${API}/AppfolioImport`, body);
+      setResult(data);
+      if (data.ok) onImported();
+    } catch (e) {
+      setResult({ ok: false, error: e.response?.data || e.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClose = () => {
+    setFiles({ property: null, propertyGroup: null, tenant: null, owner: null });
+    setResult(null);
+    onClose();
+  };
+
+  return (
+    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+      <DialogTitle>Appfolio データインポート</DialogTitle>
+      <DialogContent>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          AppfolioからエクスポートしたExcelファイルを選択してください。Property Directoryのみ必須です。
+        </Typography>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {fileLabels.map(({ key, label }) => (
+            <Box key={key} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Button
+                variant="outlined"
+                component="label"
+                size="small"
+                startIcon={<UploadFileIcon />}
+                sx={{ minWidth: 140, flexShrink: 0 }}
+              >
+                選択
+                <input type="file" accept=".xlsx" hidden onChange={e => handleFile(key, e.target.files[0])} />
+              </Button>
+              <Box>
+                <Typography variant="caption" display="block" color="text.secondary">{label}</Typography>
+                <Typography variant="body2">{files[key]?.name || '未選択'}</Typography>
+              </Box>
+            </Box>
+          ))}
+        </Box>
+        {loading && <LinearProgress sx={{ mt: 2 }} />}
+        {result && (
+          <Alert severity={result.ok ? 'success' : 'error'} sx={{ mt: 2 }}>
+            {result.ok
+              ? `完了: 新規 ${result.created}件、更新 ${result.updated}件、エラー ${result.errors}件（合計 ${result.total}件）`
+              : `エラー: ${result.error}`}
+          </Alert>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={handleClose}>閉じる</Button>
+        <Button
+          variant="contained"
+          onClick={handleImport}
+          disabled={!files.property || loading}
+        >
+          インポート実行
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+function EditDialog({ property, open, onClose, onSaved }) {
+  const [form, setForm] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (property) setForm({
+      managementType: property.managementType || '',
+      ownerName: property.ownerName || '',
+      ownerPhone: property.ownerPhone || '',
+      tenantStatus: property.tenantStatus || '',
+      leaseStart: property.leaseStart || '',
+      leaseEnd: property.leaseEnd || '',
+      monthlyRent: property.monthlyRent || '',
+      notes: property.notes || '',
+    });
+  }, [property]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const { data } = await axios.put(`${API}/UpdateProperty/${property.id}`, {
+        ...form,
+        monthlyRent: form.monthlyRent ? Number(form.monthlyRent) : null,
+      });
+      onSaved(data);
+      onClose();
+    } catch (e) {
+      alert('保存に失敗しました: ' + (e.response?.data || e.message));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!property) return null;
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>{property.propertyName}</DialogTitle>
+      <DialogContent>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+          <FormControl size="small" fullWidth>
+            <InputLabel>管理形態</InputLabel>
+            <Select value={form.managementType || ''} label="管理形態" onChange={e => setForm(p => ({ ...p, managementType: e.target.value }))}>
+              <MenuItem value="">未設定</MenuItem>
+              {MGMT_TYPES.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
+            </Select>
+          </FormControl>
+          <TextField size="small" label="オーナー名" value={form.ownerName || ''} onChange={e => setForm(p => ({ ...p, ownerName: e.target.value }))} fullWidth />
+          <TextField size="small" label="オーナー電話" value={form.ownerPhone || ''} onChange={e => setForm(p => ({ ...p, ownerPhone: e.target.value }))} fullWidth />
+          <Box sx={{ display: 'flex', gap: 1.5 }}>
+            <TextField size="small" label="賃貸開始日" type="date" value={form.leaseStart || ''} onChange={e => setForm(p => ({ ...p, leaseStart: e.target.value }))} InputLabelProps={{ shrink: true }} fullWidth />
+            <TextField size="small" label="賃貸終了日" type="date" value={form.leaseEnd || ''} onChange={e => setForm(p => ({ ...p, leaseEnd: e.target.value }))} InputLabelProps={{ shrink: true }} fullWidth />
+          </Box>
+          <TextField size="small" label="月額賃料 ($)" type="number" value={form.monthlyRent || ''} onChange={e => setForm(p => ({ ...p, monthlyRent: e.target.value }))} fullWidth />
+          <TextField size="small" label="メモ" value={form.notes || ''} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} multiline rows={3} fullWidth />
+        </Box>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>キャンセル</Button>
+        <Button variant="contained" onClick={handleSave} disabled={saving}>保存</Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+export function PropertiesView() {
+  const [properties, setProperties] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [filterMgmt, setFilterMgmt] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState(null);
+  const [exporting, setExporting] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data } = await axios.get(`${API}/GetProperties`);
+      setProperties(data);
+    } catch (e) {
+      console.error('GetProperties failed', e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleDelete = async (p) => {
+    if (!window.confirm(`「${p.propertyName}」を削除しますか？`)) return;
+    await axios.delete(`${API}/DeleteProperty/${p.id}`);
+    setProperties(prev => prev.filter(x => x.id !== p.id));
+  };
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const res = await axios.get(`${API}/ExportPropertiesExcel`, { responseType: 'blob' });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `properties_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('エクスポートに失敗しました');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const filtered = properties.filter(p => {
+    const q = search.toLowerCase();
+    const matchSearch = !q || (p.propertyName || '').toLowerCase().includes(q) || (p.ownerName || '').toLowerCase().includes(q);
+    const matchMgmt = !filterMgmt || p.managementType === filterMgmt;
+    const matchStatus = !filterStatus || p.tenantStatus === filterStatus;
+    return matchSearch && matchMgmt && matchStatus;
+  });
+
+  return (
+    <Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 1.5 }}>
+        <Typography variant="h5" fontWeight={600}>物件管理</Typography>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button variant="outlined" startIcon={<UploadFileIcon />} onClick={() => setImportOpen(true)}>
+            Appfolio インポート
+          </Button>
+          <Button variant="contained" startIcon={<DownloadIcon />} onClick={handleExport} disabled={exporting}>
+            {exporting ? 'エクスポート中...' : 'Excel エクスポート'}
+          </Button>
+        </Box>
+      </Box>
+
+      {/* Filters */}
+      <Box sx={{ display: 'flex', gap: 1.5, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+        <TextField
+          size="small"
+          placeholder="物件名・オーナー名で検索"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          sx={{ minWidth: 240 }}
+          InputProps={{
+            startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>,
+            endAdornment: search && (
+              <InputAdornment position="end">
+                <IconButton size="small" onClick={() => setSearch('')}><ClearIcon fontSize="small" /></IconButton>
+              </InputAdornment>
+            ),
+          }}
+        />
+        <FormControl size="small" sx={{ minWidth: 130 }}>
+          <InputLabel>管理形態</InputLabel>
+          <Select value={filterMgmt} label="管理形態" onChange={e => setFilterMgmt(e.target.value)}>
+            <MenuItem value="">すべて</MenuItem>
+            {MGMT_TYPES.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
+          </Select>
+        </FormControl>
+        <FormControl size="small" sx={{ minWidth: 130 }}>
+          <InputLabel>テナント状況</InputLabel>
+          <Select value={filterStatus} label="テナント状況" onChange={e => setFilterStatus(e.target.value)}>
+            <MenuItem value="">すべて</MenuItem>
+            <MenuItem value="Current">Current</MenuItem>
+            <MenuItem value="Notice">Notice</MenuItem>
+          </Select>
+        </FormControl>
+        <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto' }}>
+          {filtered.length} / {properties.length} 件
+        </Typography>
+      </Box>
+
+      {loading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>
+      ) : (
+        <TableContainer component={Paper} sx={{ maxHeight: 'calc(100vh - 280px)' }}>
+          <Table stickyHeader size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 700, minWidth: 220 }}>物件名</TableCell>
+                <TableCell sx={{ fontWeight: 700, width: 90 }}>管理形態</TableCell>
+                <TableCell sx={{ fontWeight: 700, minWidth: 180 }}>オーナー名</TableCell>
+                <TableCell sx={{ fontWeight: 700, width: 100 }}>テナント</TableCell>
+                <TableCell sx={{ fontWeight: 700, width: 110 }}>賃貸終了日</TableCell>
+                <TableCell sx={{ fontWeight: 700, width: 100 }} align="right">月額賃料</TableCell>
+                <TableCell sx={{ fontWeight: 700, width: 70 }} align="center">操作</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {filtered.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                    {properties.length === 0 ? 'データがありません。Appfolioからインポートしてください。' : '条件に一致する物件がありません。'}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filtered.map(p => (
+                  <TableRow key={p.id} hover>
+                    <TableCell>
+                      <Typography variant="body2" fontWeight={500}>{p.propertyName}</Typography>
+                      {p.notes && <Typography variant="caption" color="text.secondary">{p.notes}</Typography>}
+                    </TableCell>
+                    <TableCell>
+                      {p.managementType && (
+                        <Chip label={p.managementType} size="small" color={MGMT_COLORS[p.managementType] || 'default'} />
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2">{p.ownerName}</Typography>
+                      {p.ownerPhone && <Typography variant="caption" color="text.secondary">{p.ownerPhone}</Typography>}
+                    </TableCell>
+                    <TableCell>
+                      {p.tenantStatus && (
+                        <Chip label={p.tenantStatus} size="small"
+                          color={p.tenantStatus === 'Current' ? 'success' : 'warning'} variant="outlined" />
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2">{p.leaseEnd || '—'}</Typography>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Typography variant="body2">
+                        {p.monthlyRent ? `$${Number(p.monthlyRent).toLocaleString()}` : '—'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="center">
+                      <Tooltip title="編集">
+                        <IconButton size="small" onClick={() => setEditTarget(p)}><EditIcon fontSize="small" /></IconButton>
+                      </Tooltip>
+                      <Tooltip title="削除">
+                        <IconButton size="small" color="error" onClick={() => handleDelete(p)}><DeleteIcon fontSize="small" /></IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+
+      <ImportDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={load}
+      />
+      <EditDialog
+        property={editTarget}
+        open={!!editTarget}
+        onClose={() => setEditTarget(null)}
+        onSaved={updated => setProperties(prev => prev.map(p => p.id === updated.id ? updated : p))}
+      />
+    </Box>
+  );
+}

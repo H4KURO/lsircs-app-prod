@@ -1,7 +1,7 @@
 # lsir-cs アプリケーション仕様書
 
 > **メンテナンス注意**: このファイルはアプリ変更のたびに更新すること（CLAUDE.md 参照）。  
-> 最終更新: 2026-09-01（TaskDeadlineReminder: タスク期限Slack DM個別リマインド機能追加）
+> 最終更新: 2026-09-16（Appfolio物件管理機能追加: Properties Cosmos DBコレクション、インポート/エクスポートAPI、PropertiesView）
 
 ---
 
@@ -809,6 +809,7 @@ documentSettings: {
 | Customers | `/id` | CRM顧客データ（env: `COSMOS_CUSTOMERS_CONTAINER`） |
 | Projects | `/id` | プロジェクト台帳（env: `COSMOS_PROJECTS_CONTAINER`） |
 | TaskTemplates | `/id` | タスクテンプレート（Phase 2） |
+| Properties | `/id` | Appfolio物件データ（env: `COSMOS_PROPERTIES_CONTAINER`） |
 
 ---
 
@@ -894,6 +895,7 @@ git push origin main
 | `COSMOS_USERS_CONTAINER` | ユーザーコレクション名 |
 | `COSMOS_CUSTOMERS_CONTAINER` | 顧客（CRM）コレクション名 |
 | `COSMOS_PROJECTS_CONTAINER` | プロジェクト台帳コレクション名（Azure Portal の Advanced Edit JSON で設定） |
+| `COSMOS_PROPERTIES_CONTAINER` | 物件管理コレクション名（Appfolio連携） |
 | `SLACK_BOT_TOKEN` | Slack Bot トークン |
 | `SLACK_SIGNING_SECRET` | Slack 署名検証 |
 | `SLACK_CHANNEL_ID` | 通知先チャンネル ID |

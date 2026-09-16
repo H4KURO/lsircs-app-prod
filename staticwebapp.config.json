@@ -370,6 +370,29 @@
       "allowedRoles": ["anonymous"]
     },
     {
+      "route": "/api/AppfolioImport",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/GetProperties",
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/UpdateProperty/{id}",
+      "methods": ["PUT"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/DeleteProperty/{id}",
+      "methods": ["DELETE"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/ExportPropertiesExcel",
+      "allowedRoles": ["anonymous"]
+    },
+    {
       "route": "/api/AppendSheetRow",
       "methods": [
         "POST"
