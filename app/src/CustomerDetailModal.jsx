@@ -124,6 +124,8 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
         setSelectedFolderIdx(0);
         setBoxView('preview');
         setAddFolderOpen(false);
+        setNewFolderLabel('');
+        setNewFolderUrl('');
       } else {
         setForm(BLANK_FORM);
         setBuyerLinks([]);
@@ -640,7 +642,7 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
                         <Chip
                           key={i}
                           icon={<FolderIcon />}
-                          label={f.label || 'フォルダ'}
+                          label={f.label || `フォルダ ${i + 1}`}
                           size="small"
                           variant={selectedFolderIdx === i ? 'filled' : 'outlined'}
                           color={selectedFolderIdx === i ? 'primary' : 'default'}
@@ -701,7 +703,7 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
                           }}>
                             <FolderIcon sx={{ color: 'primary.main', fontSize: 18, flexShrink: 0 }} />
                             <Box sx={{ flex: 1, minWidth: 0 }}>
-                              <Typography variant="body2" fontWeight={500} noWrap>{f.label || 'フォルダ'}</Typography>
+                              <Typography variant="body2" fontWeight={500} noWrap>{f.label || `フォルダ ${i + 1}`}</Typography>
                               <Typography variant="caption" color="text.secondary" noWrap>{f.url}</Typography>
                             </Box>
                             <Button
@@ -720,9 +722,9 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
                 {addFolderOpen ? (
                   <Box sx={{ mt: 1.5, p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
                     <TextField
-                      size="small" label="フォルダ名" value={newFolderLabel}
+                      size="small" label="フォルダ名（任意）" value={newFolderLabel}
                       onChange={e => setNewFolderLabel(e.target.value)}
-                      fullWidth placeholder="例: 契約書類"
+                      fullWidth placeholder="空欄の場合は自動採番"
                     />
                     <TextField
                       size="small" label="Box URL" value={newFolderUrl}
@@ -734,7 +736,7 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
                         size="small" variant="contained" disableElevation
                         disabled={!newFolderUrl.trim()}
                         onClick={() => {
-                          const next = [...boxFolders, { label: newFolderLabel.trim() || 'フォルダ', url: newFolderUrl.trim() }];
+                          const next = [...boxFolders, { label: newFolderLabel.trim() || null, url: newFolderUrl.trim() }];
                           setBoxFolders(next);
                           setSelectedFolderIdx(next.length - 1);
                           setNewFolderLabel('');
