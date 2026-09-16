@@ -197,15 +197,29 @@ export function CRMView({ onNavigateToTask, onNavigateToBuyer }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [mergeOpen, setMergeOpen] = useState(false);
+  // propertyName → { managementType } lookup
+  const [propMap, setPropMap] = useState({});
 
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const res = await axios.get(`${API_URL}/GetCustomers`);
-      setCustomers(res.data || []);
-    } catch (err) {
-      setError(err.response?.data?.message || err.response?.data || err.message || '顧客データの取得に失敗しました');
+      const [custRes, propRes] = await Promise.allSettled([
+        axios.get(`${API_URL}/GetCustomers`),
+        axios.get(`${API_URL}/GetProperties`),
+      ]);
+      setCustomers(custRes.status === 'fulfilled' ? (custRes.value.data || []) : []);
+      if (propRes.status === 'fulfilled') {
+        const map = {};
+        for (const p of propRes.value.data || []) {
+          if (p.propertyName) map[p.propertyName] = { managementType: p.managementType };
+        }
+        setPropMap(map);
+      }
+      if (custRes.status === 'rejected') {
+        const err = custRes.reason;
+        setError(err.response?.data?.message || err.response?.data || err.message || '顧客データの取得に失敗しました');
+      }
     } finally {
       setLoading(false);
     }
@@ -214,6 +228,14 @@ export function CRMView({ onNavigateToTask, onNavigateToBuyer }) {
   useEffect(() => {
     fetchCustomers();
   }, [fetchCustomers]);
+
+  // Derive property info per customer from propMap
+  const getPropertyInfo = useCallback((customer) => {
+    const names = customer.linkedPropertyNames || [];
+    const count = names.length;
+    const types = [...new Set(names.map(n => propMap[n]?.managementType).filter(Boolean))];
+    return { count, types };
+  }, [propMap]);
 
   const filteredCustomers = useMemo(() => {
     let result = customers;
@@ -347,77 +369,82 @@ export function CRMView({ onNavigateToTask, onNavigateToBuyer }) {
                 <TableRow>
                   <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>氏名</TableCell>
                   <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>ステータス</TableCell>
-                  <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>会社</TableCell>
                   <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>担当者</TableCell>
-                  <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>次回フォロー</TableCell>
-                  <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>最終接触日</TableCell>
-                  <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>情報ソース</TableCell>
+                  <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>所有物件数</TableCell>
+                  <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>管理形態</TableCell>
                   <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>BL連携</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {filteredCustomers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} align="center" sx={{ color: 'text.secondary', py: 4 }}>
+                    <TableCell colSpan={6} align="center" sx={{ color: 'text.secondary', py: 4 }}>
                       {searchText || statusFilter !== 'すべて'
                         ? '該当する顧客が見つかりません'
                         : '顧客データがありません'}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredCustomers.map((customer) => (
-                    <TableRow
-                      key={customer.id}
-                      hover
-                      sx={{ cursor: 'pointer', '&:last-child td': { border: 0 } }}
-                      onClick={() => handleRowClick(customer)}
-                    >
-                      <TableCell sx={{ fontWeight: 500 }}>{customer.name}</TableCell>
-                      <TableCell>
-                        <Chip
-                          label={customer.status}
-                          color={getStatusColor(customer.status)}
-                          size="small"
-                        />
-                      </TableCell>
-                      <TableCell sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>
-                        {customer.company ?? '—'}
-                      </TableCell>
-                      <TableCell sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>
-                        {customer.assignedTo ?? '—'}
-                      </TableCell>
-                      <TableCell sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>
-                        {customer.nextFollowUpAt ?? '—'}
-                      </TableCell>
-                      <TableCell sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>
-                        {customer.lastContactedAt ?? '—'}
-                      </TableCell>
-                      <TableCell sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>
-                        {customer.source ?? '—'}
-                      </TableCell>
-                      <TableCell>
-                        {(() => {
-                          const links = customer.buyerLinks ?? (customer.buyerLink ? [customer.buyerLink] : []);
-                          if (links.length === 0) return <Typography sx={{ color: 'text.disabled', fontSize: '0.8rem' }}>—</Typography>;
-                          return (
-                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                              {links.map((lnk, i) => (
-                                <Chip
-                                  key={i}
-                                  icon={<LinkIcon sx={{ fontSize: '0.8rem !important' }} />}
-                                  label={lnk.displayName}
-                                  size="small"
-                                  color="info"
-                                  variant="outlined"
-                                  sx={{ fontSize: '0.7rem', maxWidth: 150 }}
-                                />
-                              ))}
+                  filteredCustomers.map((customer) => {
+                    const { count, types } = getPropertyInfo(customer);
+                    const links = customer.buyerLinks ?? (customer.buyerLink ? [customer.buyerLink] : []);
+                    return (
+                      <TableRow
+                        key={customer.id}
+                        hover
+                        sx={{ cursor: 'pointer', '&:last-child td': { border: 0 } }}
+                        onClick={() => handleRowClick(customer)}
+                      >
+                        <TableCell sx={{ fontWeight: 500 }}>{customer.name}</TableCell>
+                        <TableCell>
+                          <Chip
+                            label={customer.status}
+                            color={getStatusColor(customer.status)}
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>
+                          {customer.assignedTo || '—'}
+                        </TableCell>
+                        <TableCell sx={{ fontSize: '0.8rem' }}>
+                          {count > 0
+                            ? <Chip label={`${count}件`} size="small" variant="outlined" />
+                            : <Typography sx={{ color: 'text.disabled', fontSize: '0.8rem' }}>—</Typography>}
+                        </TableCell>
+                        <TableCell>
+                          {types.length > 0 ? (
+                            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                              {types.map((t) => {
+                                const colorMap = { PM: 'default', 'PCS A': 'success', 'PCS B': 'warning' };
+                                return <Chip key={t} label={t} size="small" color={colorMap[t] || 'default'} />;
+                              })}
                             </Box>
-                          );
-                        })()}
-                      </TableCell>
-                    </TableRow>
-                  ))
+                          ) : (
+                            <Typography sx={{ color: 'text.disabled', fontSize: '0.8rem' }}>—</Typography>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {links.length === 0
+                            ? <Typography sx={{ color: 'text.disabled', fontSize: '0.8rem' }}>—</Typography>
+                            : (
+                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                {links.map((lnk, i) => (
+                                  <Chip
+                                    key={i}
+                                    icon={<LinkIcon sx={{ fontSize: '0.8rem !important' }} />}
+                                    label={lnk.displayName}
+                                    size="small"
+                                    color="info"
+                                    variant="outlined"
+                                    sx={{ fontSize: '0.7rem', maxWidth: 150 }}
+                                  />
+                                ))}
+                              </Box>
+                            )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
