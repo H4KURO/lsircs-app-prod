@@ -42,7 +42,7 @@ app.http('AppfolioImport', {
 
       const container = propertiesContainer();
       const { resources: existing } = await container.items
-        .query('SELECT c.id, c.propertyName, c.notes, c.manualFields, c.createdAt FROM c')
+        .query('SELECT c.id, c.propertyName, c.buildingName, c.notes, c.manualFields, c.registrationDate, c.purchasePrice, c.createdAt FROM c')
         .fetchAll();
       const existingByName = new Map(existing.map(r => [r.propertyName, r]));
 
@@ -60,6 +60,8 @@ app.http('AppfolioImport', {
               // Preserve user-entered fields
               notes: existing.notes || null,
               manualFields: existing.manualFields || {},
+              registrationDate: existing.registrationDate || null,
+              purchasePrice: existing.purchasePrice || null,
               importedAt: now,
               importSource,
               updatedAt: now,

@@ -27,8 +27,11 @@ app.http('ExportPropertiesExcel', {
       const ws = wb.addWorksheet('Properties');
 
       const cols = [
+        { header: '建物名', key: 'buildingName', width: 30 },
         { header: '物件名', key: 'propertyName', width: 35 },
         { header: '管理形態', key: 'managementType', width: 12 },
+        { header: '登記日', key: 'registrationDate', width: 14 },
+        { header: '購入価格', key: 'purchasePrice', width: 14 },
         { header: 'オーナー名', key: 'ownerName', width: 35 },
         { header: 'オーナー電話', key: 'ownerPhone', width: 20 },
         { header: 'テナント状況', key: 'tenantStatus', width: 14 },
@@ -52,8 +55,11 @@ app.http('ExportPropertiesExcel', {
 
       for (const p of resources) {
         ws.addRow({
+          buildingName: p.buildingName || '',
           propertyName: p.propertyName || '',
           managementType: p.managementType || '',
+          registrationDate: p.registrationDate || '',
+          purchasePrice: p.purchasePrice || '',
           ownerName: p.ownerName || '',
           ownerPhone: p.ownerPhone || '',
           tenantStatus: p.tenantStatus || '',
@@ -67,8 +73,9 @@ app.http('ExportPropertiesExcel', {
         });
       }
 
-      // Monthly rent format
+      // Numeric formats
       ws.getColumn('monthlyRent').numFmt = '#,##0';
+      ws.getColumn('purchasePrice').numFmt = '#,##0';
 
       const buf = await wb.xlsx.writeBuffer();
       const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
