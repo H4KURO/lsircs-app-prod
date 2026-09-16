@@ -393,6 +393,16 @@
       "allowedRoles": ["anonymous"]
     },
     {
+      "route": "/api/SyncPropertiesToCRM",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/MergeCustomers",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
       "route": "/api/AppendSheetRow",
       "methods": [
         "POST"

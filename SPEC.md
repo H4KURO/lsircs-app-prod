@@ -1,7 +1,7 @@
 # lsir-cs アプリケーション仕様書
 
 > **メンテナンス注意**: このファイルはアプリ変更のたびに更新すること（CLAUDE.md 参照）。  
-> 最終更新: 2026-09-16（Appfolio物件管理機能追加: Properties Cosmos DBコレクション、インポート/エクスポートAPI、PropertiesView）
+> 最終更新: 2026-09-16（物件→CRM同期機能追加: SyncPropertiesToCRM / MergeCustomers API、CRMView名寄せUI）
 
 ---
 

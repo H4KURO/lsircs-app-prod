@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import {
   Box, Typography, Button, TextField, Select, MenuItem, FormControl, InputLabel,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
   Chip, CircularProgress, Alert, Dialog, DialogTitle, DialogContent,
   DialogActions, LinearProgress, InputAdornment, IconButton, Tooltip,
+  Divider, List, ListItem, ListItemText, RadioGroup, FormControlLabel, Radio,
 } from '@mui/material';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -12,6 +13,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ClearIcon from '@mui/icons-material/Clear';
+import SyncIcon from '@mui/icons-material/Sync';
 
 const API = '/api';
 const MGMT_TYPES = ['PM', 'PCS A', 'PCS B'];
@@ -181,6 +183,180 @@ function EditDialog({ property, open, onClose, onSaved }) {
   );
 }
 
+function SyncToCRMDialog({ open, onClose }) {
+  const [loading, setLoading] = useState(false);
+  const [analysis, setAnalysis] = useState(null);
+  // decisions: { ownerName → { action: 'link'|'create'|'skip', customerId? } }
+  const [decisions, setDecisions] = useState({});
+  const [executing, setExecuting] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const handleAnalyze = async () => {
+    setLoading(true);
+    setResult(null);
+    try {
+      const { data } = await axios.post(`${API}/SyncPropertiesToCRM`, { dryRun: true });
+      setAnalysis(data.analysis);
+      // Init decisions
+      const init = {};
+      for (const item of data.analysis) {
+        if (item.type === 'exact') init[item.owner.ownerName] = { action: 'link', customerId: item.customer.id };
+        else if (item.type === 'new') init[item.owner.ownerName] = { action: 'create' };
+        else init[item.owner.ownerName] = { action: 'skip' }; // fuzzy: default skip until user picks
+      }
+      setDecisions(init);
+    } catch (e) {
+      setResult({ ok: false, error: e.response?.data || e.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExecute = async () => {
+    setExecuting(true);
+    try {
+      const mappings = Object.entries(decisions).map(([ownerName, d]) => ({ ownerName, ...d }));
+      const { data } = await axios.post(`${API}/SyncPropertiesToCRM`, { dryRun: false, mappings });
+      setResult({ ok: true, results: data.results });
+    } catch (e) {
+      setResult({ ok: false, error: e.response?.data || e.message });
+    } finally {
+      setExecuting(false);
+    }
+  };
+
+  const handleClose = () => {
+    setAnalysis(null);
+    setDecisions({});
+    setResult(null);
+    onClose();
+  };
+
+  const setDecision = (ownerName, action, customerId) =>
+    setDecisions(prev => ({ ...prev, [ownerName]: { action, customerId } }));
+
+  const exact = analysis?.filter(x => x.type === 'exact') || [];
+  const fuzzy = analysis?.filter(x => x.type === 'fuzzy') || [];
+  const newOnes = analysis?.filter(x => x.type === 'new') || [];
+
+  return (
+    <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
+      <DialogTitle>CRM同期 — オーナー情報をCRMに反映</DialogTitle>
+      <DialogContent dividers>
+        {!analysis && !loading && !result && (
+          <Typography color="text.secondary">
+            Appfolio物件データのオーナー情報とCRM顧客リストを照合します。
+            「分析開始」を押してください。
+          </Typography>
+        )}
+        {loading && <LinearProgress sx={{ my: 2 }} />}
+        {result && !result.ok && <Alert severity="error">{result.error}</Alert>}
+        {result?.ok && (
+          <Alert severity="success">
+            完了: {result.results.filter(r => r.action === 'created').length}件新規作成、
+            {result.results.filter(r => r.action === 'linked').length}件リンク済み、
+            {result.results.filter(r => r.action === 'skipped').length}件スキップ
+          </Alert>
+        )}
+
+        {analysis && !result && (
+          <Box>
+            {/* 完全一致 */}
+            {exact.length > 0 && (
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="subtitle2" color="success.main" sx={{ mb: 1 }}>
+                  完全一致 ({exact.length}件) — 自動リンク
+                </Typography>
+                <List dense disablePadding>
+                  {exact.map(item => (
+                    <ListItem key={item.owner.ownerName} sx={{ pl: 0 }}>
+                      <ListItemText
+                        primary={item.owner.ownerName}
+                        secondary={`CRM: ${item.customer.name} / 物件: ${item.owner.propertyNames.join(', ')}`}
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+                <Divider sx={{ mt: 1 }} />
+              </Box>
+            )}
+
+            {/* 類似名（表記ゆれ候補） */}
+            {fuzzy.length > 0 && (
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="subtitle2" color="warning.main" sx={{ mb: 1 }}>
+                  類似名あり — 要確認 ({fuzzy.length}件)
+                </Typography>
+                {fuzzy.map(item => (
+                  <Paper key={item.owner.ownerName} variant="outlined" sx={{ p: 1.5, mb: 1 }}>
+                    <Typography variant="body2" fontWeight={600}>{item.owner.ownerName}</Typography>
+                    <Typography variant="caption" color="text.secondary">物件: {item.owner.propertyNames.join(', ')}</Typography>
+                    <RadioGroup
+                      value={decisions[item.owner.ownerName]?.action === 'link'
+                        ? decisions[item.owner.ownerName]?.customerId
+                        : decisions[item.owner.ownerName]?.action || 'skip'}
+                      onChange={e => {
+                        const val = e.target.value;
+                        if (val === 'create') setDecision(item.owner.ownerName, 'create', null);
+                        else if (val === 'skip') setDecision(item.owner.ownerName, 'skip', null);
+                        else setDecision(item.owner.ownerName, 'link', val);
+                      }}
+                    >
+                      {item.candidates.map(({ customer, score }) => (
+                        <FormControlLabel
+                          key={customer.id}
+                          value={customer.id}
+                          control={<Radio size="small" />}
+                          label={`${customer.name} (類似度 ${Math.round(score * 100)}%)`}
+                        />
+                      ))}
+                      <FormControlLabel value="create" control={<Radio size="small" />} label="新規顧客として作成" />
+                      <FormControlLabel value="skip" control={<Radio size="small" />} label="スキップ" />
+                    </RadioGroup>
+                  </Paper>
+                ))}
+                <Divider sx={{ mt: 1 }} />
+              </Box>
+            )}
+
+            {/* 新規 */}
+            {newOnes.length > 0 && (
+              <Box>
+                <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>
+                  新規作成 ({newOnes.length}件)
+                </Typography>
+                <List dense disablePadding>
+                  {newOnes.map(item => (
+                    <ListItem key={item.owner.ownerName} sx={{ pl: 0 }}>
+                      <ListItemText
+                        primary={item.owner.ownerName}
+                        secondary={`物件: ${item.owner.propertyNames.join(', ')}`}
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              </Box>
+            )}
+          </Box>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={handleClose}>閉じる</Button>
+        {!analysis && !result && (
+          <Button variant="outlined" onClick={handleAnalyze} disabled={loading}>
+            分析開始
+          </Button>
+        )}
+        {analysis && !result && (
+          <Button variant="contained" onClick={handleExecute} disabled={executing}>
+            {executing ? '同期中...' : '同期実行'}
+          </Button>
+        )}
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 export function PropertiesView() {
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -188,6 +364,7 @@ export function PropertiesView() {
   const [filterMgmt, setFilterMgmt] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [importOpen, setImportOpen] = useState(false);
+  const [syncOpen, setSyncOpen] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [exporting, setExporting] = useState(false);
 
@@ -243,6 +420,9 @@ export function PropertiesView() {
         <Box sx={{ display: 'flex', gap: 1 }}>
           <Button variant="outlined" startIcon={<UploadFileIcon />} onClick={() => setImportOpen(true)}>
             Appfolio インポート
+          </Button>
+          <Button variant="outlined" startIcon={<SyncIcon />} onClick={() => setSyncOpen(true)}>
+            CRMに同期
           </Button>
           <Button variant="contained" startIcon={<DownloadIcon />} onClick={handleExport} disabled={exporting}>
             {exporting ? 'エクスポート中...' : 'Excel エクスポート'}
@@ -360,6 +540,10 @@ export function PropertiesView() {
         open={importOpen}
         onClose={() => setImportOpen(false)}
         onImported={load}
+      />
+      <SyncToCRMDialog
+        open={syncOpen}
+        onClose={() => setSyncOpen(false)}
       />
       <EditDialog
         property={editTarget}
