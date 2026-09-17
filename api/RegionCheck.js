@@ -1,5 +1,6 @@
 const { app } = require('@azure/functions');
 const https = require('https');
+const { requireAuth } = require('./authUtils');
 
 function getEnvRegion() {
   return (
@@ -33,6 +34,8 @@ app.http('RegionCheck', {
   authLevel: 'anonymous',
   route: 'region-check',
   handler: async (request, context) => {
+    const auth = requireAuth(request);
+    if (!auth.ok) return auth.response;
     const region = getEnvRegion();
     const publicIp = await fetchPublicIp();
     context.log('RegionCheck', { region, publicIp });

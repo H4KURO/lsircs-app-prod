@@ -76,7 +76,7 @@ app.http('TaskDeadlineReminder', {
   route: 'TaskDeadlineReminder',
   handler: async (request, context) => {
     const secret = request.headers.get('x-n8n-secret-key');
-    if (n8nSecretKey && secret !== n8nSecretKey) {
+    if (!n8nSecretKey || secret !== n8nSecretKey) {
       return { status: 401, body: 'Unauthorized' };
     }
 

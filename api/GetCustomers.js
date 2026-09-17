@@ -1,5 +1,6 @@
 const { app } = require('@azure/functions');
 const { getNamedContainer } = require('./cosmosClient');
+const { requireAllowedUser } = require('./authUtils');
 
 const customersContainer = () =>
   getNamedContainer('Customers', ['COSMOS_CUSTOMERS_CONTAINER']);
@@ -8,6 +9,8 @@ app.http('GetCustomers', {
   methods: ['GET'],
   authLevel: 'anonymous',
   handler: async (request, context) => {
+    const auth = await requireAllowedUser(request);
+    if (!auth.ok) return auth.response;
     try {
       const container = customersContainer();
       const { resources } = await container.items
