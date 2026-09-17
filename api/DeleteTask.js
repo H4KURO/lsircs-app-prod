@@ -1,6 +1,7 @@
 const { app } = require('@azure/functions');
 const { getNamedContainer } = require('./cosmosClient');
 const { deleteAttachments } = require('./propertyPhotoStorage');
+const { requireAllowedUser } = require('./authUtils');
 
 const tasksContainer = () =>
   getNamedContainer('Tasks', ['COSMOS_TASKS_CONTAINER', 'CosmosTasksContainer']);
@@ -10,6 +11,8 @@ app.http('DeleteTask', {
   authLevel: 'anonymous',
   route: 'DeleteTask/{id}',
   handler: async (request, context) => {
+    const auth = await requireAllowedUser(request);
+    if (!auth.ok) return auth.response;
     try {
       const id = request.params?.id;
       if (!id) {

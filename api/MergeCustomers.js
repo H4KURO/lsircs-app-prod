@@ -6,7 +6,7 @@ const customersContainer = () => getNamedContainer('Customers', ['COSMOS_CUSTOME
 function parseClientPrincipal(request) {
   const header = request.headers.get('x-ms-client-principal');
   if (!header) return null;
-  try { return JSON.parse(Buffer.from(header, 'base64').toString('ascii')); } catch { return null; }
+  try { return JSON.parse(Buffer.from(header, 'base64').toString('utf-8')); } catch { return null; }
 }
 
 // Merge secondary into primary: fill empty fields, combine arrays, then delete secondary

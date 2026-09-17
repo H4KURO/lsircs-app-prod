@@ -1,5 +1,6 @@
 const { app } = require('@azure/functions');
 const { getNamedContainer } = require('./cosmosClient');
+const { requireAllowedUser } = require('./authUtils');
 
 const propertiesContainer = () =>
   getNamedContainer('Properties', ['COSMOS_PROPERTIES_CONTAINER']);
@@ -9,6 +10,8 @@ app.http('DeleteProperty', {
   authLevel: 'anonymous',
   route: 'DeleteProperty/{id}',
   handler: async (request, context) => {
+    const auth = await requireAllowedUser(request);
+    if (!auth.ok) return auth.response;
     try {
       const id = request.params?.id;
       const container = propertiesContainer();

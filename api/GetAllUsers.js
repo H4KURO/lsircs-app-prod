@@ -1,5 +1,6 @@
 const { app } = require('@azure/functions');
 const { ensureNamedContainer } = require('./cosmosClient');
+const { requireAuth } = require('./authUtils');
 
 const USER_CONTAINER_KEYS = ['COSMOS_USERS_CONTAINER', 'COSMOS_USER_CONTAINER', 'CosmosUsersContainer'];
 const USER_PARTITION_KEY = '/id';
@@ -19,6 +20,8 @@ app.http('GetAllUsers', {
   methods: ['GET'],
   authLevel: 'anonymous',
   handler: async (request, context) => {
+    const auth = requireAuth(request);
+    if (!auth.ok) return auth.response;
     try {
       // ホワイトリスト（isAllowed !== false）のメールアドレスを取得
       let allowedEmails = null;

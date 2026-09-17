@@ -4,6 +4,7 @@ const { ensureAssigneesOnTask } = require('./assigneeUtils');
 const { normalizeSubtasksInput } = require('./subtaskUtils');
 const { attachAttachmentUrls } = require('./propertyPhotoStorage');
 const { notifyDeadlineReminders } = require('./slackClient');
+const { requireAllowedUser } = require('./authUtils');
 
 const n8nSecretKey = process.env.N8N_SECRET_KEY;
 
@@ -59,6 +60,8 @@ app.http('GetTasks', {
     }
 
     // GET → normal task fetching
+    const auth = await requireAllowedUser(request);
+    if (!auth.ok) return auth.response;
     try {
       const container = tasksContainer();
       const { resources } = await container.items.readAll().fetchAll();

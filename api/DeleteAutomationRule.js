@@ -13,7 +13,7 @@ function parseClientPrincipal(request) {
     return null;
   }
   try {
-    return JSON.parse(Buffer.from(header, 'base64').toString('ascii'));
+    return JSON.parse(Buffer.from(header, 'base64').toString('utf-8'));
   } catch (error) {
     return null;
   }
