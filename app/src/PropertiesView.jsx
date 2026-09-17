@@ -122,21 +122,28 @@ function ImportDialog({ open, onClose, onImported }) {
 function EditDialog({ property, open, onClose, onSaved }) {
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
+  const [activityLog, setActivityLog] = useState([]);
+  const [newActivity, setNewActivity] = useState('');
+  const [savingActivity, setSavingActivity] = useState(false);
 
   useEffect(() => {
-    if (property) setForm({
-      buildingName: property.buildingName || (property.propertyName?.includes('#') ? property.propertyName.split('#')[0].trim() : property.propertyName) || '',
-      managementType: property.managementType || '',
-      ownerName: property.ownerName || '',
-      ownerPhone: property.ownerPhone || '',
-      registrationDate: property.registrationDate || '',
-      purchasePrice: property.purchasePrice || '',
-      tenantStatus: property.tenantStatus || '',
-      leaseStart: property.leaseStart || '',
-      leaseEnd: property.leaseEnd || '',
-      monthlyRent: property.monthlyRent || '',
-      notes: property.notes || '',
-    });
+    if (property) {
+      setForm({
+        buildingName: property.buildingName || (property.propertyName?.includes('#') ? property.propertyName.split('#')[0].trim() : property.propertyName) || '',
+        managementType: property.managementType || '',
+        ownerName: property.ownerName || '',
+        ownerPhone: property.ownerPhone || '',
+        registrationDate: property.registrationDate || '',
+        purchasePrice: property.purchasePrice || '',
+        tenantStatus: property.tenantStatus || '',
+        leaseStart: property.leaseStart || '',
+        leaseEnd: property.leaseEnd || '',
+        monthlyRent: property.monthlyRent || '',
+        notes: property.notes || '',
+      });
+      setActivityLog(Array.isArray(property.activityLog) ? property.activityLog : []);
+      setNewActivity('');
+    }
   }, [property]);
 
   const handleSave = async () => {
@@ -153,6 +160,24 @@ function EditDialog({ property, open, onClose, onSaved }) {
       alert('保存に失敗しました: ' + (e.response?.data || e.message));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleAddActivity = async () => {
+    if (!newActivity.trim()) return;
+    setSavingActivity(true);
+    try {
+      const { data } = await axios.post(`${API}/AddPropertyActivity`, {
+        propertyId: property.id,
+        content: newActivity.trim(),
+      });
+      setActivityLog(Array.isArray(data.activityLog) ? data.activityLog : []);
+      setNewActivity('');
+      onSaved(data);
+    } catch (e) {
+      alert('活動記録の追加に失敗しました: ' + (e.response?.data || e.message));
+    } finally {
+      setSavingActivity(false);
     }
   };
 
@@ -184,6 +209,41 @@ function EditDialog({ property, open, onClose, onSaved }) {
           </Box>
           <TextField size="small" label="月額賃料 ($)" type="number" value={form.monthlyRent || ''} onChange={e => setForm(p => ({ ...p, monthlyRent: e.target.value }))} fullWidth />
           <TextField size="small" label="メモ" value={form.notes || ''} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} multiline rows={3} fullWidth />
+
+          {/* 活動履歴 */}
+          <Box sx={{ pt: 0.5 }}>
+            <Divider sx={{ mb: 1.5 }} />
+            <Typography variant="body2" fontWeight={600} sx={{ mb: 1 }}>活動履歴</Typography>
+            <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+              <TextField
+                size="small"
+                placeholder="内覧・修繕・連絡内容などを記録…"
+                value={newActivity}
+                onChange={e => setNewActivity(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddActivity(); } }}
+                multiline
+                rows={2}
+                fullWidth
+              />
+              <Button size="small" variant="outlined" onClick={handleAddActivity} disabled={savingActivity || !newActivity.trim()} sx={{ alignSelf: 'flex-end', whiteSpace: 'nowrap' }}>
+                追加
+              </Button>
+            </Box>
+            {activityLog.length > 0 ? (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, maxHeight: 220, overflowY: 'auto' }}>
+                {activityLog.map((entry) => (
+                  <Box key={entry.id} sx={{ borderLeft: '3px solid', borderColor: 'primary.main', pl: 1.5, py: 0.5 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      {entry.createdAt ? new Date(entry.createdAt).toLocaleString('ja-JP') : ''}{entry.author ? ` · ${entry.author}` : ''}
+                    </Typography>
+                    <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', mt: 0.25 }}>{entry.content}</Typography>
+                  </Box>
+                ))}
+              </Box>
+            ) : (
+              <Typography variant="body2" color="text.disabled">記録はありません</Typography>
+            )}
+          </Box>
         </Box>
       </DialogContent>
       <DialogActions>
