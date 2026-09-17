@@ -74,6 +74,7 @@ app.http('CreateTask', {
         attachments: [],
         conversationId: payload?.conversationId ?? null,
         customerId: payload?.customerId ?? null,
+        propertyId: payload?.propertyId ?? null,
         emailNotes: [],
         createdAt: now,
         createdById: clientPrincipal.userId,

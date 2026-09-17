@@ -1,7 +1,7 @@
 # lsir-cs アプリケーション仕様書
 
 > **メンテナンス注意**: このファイルはアプリ変更のたびに更新すること（CLAUDE.md 参照）。  
-> 最終更新: 2026-09-16（物件管理に建物名・登記日・購入価格フィールド追加）
+> 最終更新: 2026-09-17（タスクへの propertyId 追加・物件ページにタスクセクション・オーナーページに物件別タスクフィルター追加）
 
 ---
 
@@ -305,7 +305,10 @@ ZOHO・Appfolio・WP等の分散した顧客情報を一元管理するCRM機能
 **機能**:
 - 顧客一覧（テキスト検索・ステータスフィルター）
 - 顧客作成・編集・削除
-- タスクとの紐づけ（`TaskDetailModal` に顧客選択欄）
+- タスクとの紐づけ: 顧客の所有物件（`linkedProperties`）に紐づくタスク（`propertyId` 一致）を「関連タスク」セクションに表示
+  - デフォルト: 全所有物件のタスクを一覧（物件名バッジ付き）
+  - 物件フィルターチップで特定物件のみ絞り込み可能
+  - 複数物件がある場合はタスク追加時に対象物件を選択
 - 顧客詳細モーダルの「タスクを開く」ボタンはSPA遷移（`onNavigateToTask` コールバック経由）でタスク詳細モーダルを直接開く
 - 顧客情報更新時にDXチームへSlack通知（`SLACK_DX_CHANNEL_ID`）
 
@@ -435,6 +438,8 @@ Google Sheets / Box ドキュメントを iframe で埋め込み閲覧・編集�
   url: string | null,          // 関連URL（Additional Info）
   phoneNumber: string | null,  // 電話番号（Additional Info）
   numericValue: number | null, // 数値・金額・面積等（Additional Info）
+  customerId: string | null,  // 顧客（オーナー）ID との紐づけ
+  propertyId: string | null,  // 物件ID との紐づけ（物件ページ・オーナーページのタスクセクションで使用）
   createdAt: string,
   lastUpdatedAt: string,
   lastUpdatedById: string,
