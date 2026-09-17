@@ -77,7 +77,11 @@ app.http('GetTasks', {
         }),
       );
 
-      return { status: 200, jsonBody: normalizedTasks };
+      const propertyId = new URL(request.url).searchParams.get('propertyId');
+      const result = propertyId
+        ? normalizedTasks.filter((t) => t.propertyId === propertyId)
+        : normalizedTasks;
+      return { status: 200, jsonBody: result };
     } catch (error) {
       const message = error.message || 'Error fetching tasks from the database.';
       if (message.includes('Resource NotFound')) {

@@ -94,11 +94,38 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskStatus, setNewTaskStatus] = useState('Started');
   const [newTaskDeadline, setNewTaskDeadline] = useState('');
+  const [newTaskPropertyId, setNewTaskPropertyId] = useState('');
   const [savingTask, setSavingTask] = useState(false);
+  const [selectedPropertyId, setSelectedPropertyId] = useState(null);
 
-  const linkedTasks = useMemo(
-    () => (customer ? allTasks.filter((t) => t.customerId === customer.id) : []),
-    [allTasks, customer],
+  const linkedPropertyIds = useMemo(
+    () => new Set(linkedProperties.map((p) => p.id)),
+    [linkedProperties],
+  );
+
+  const propertyById = useMemo(
+    () => Object.fromEntries(linkedProperties.map((p) => [p.id, p])),
+    [linkedProperties],
+  );
+
+  const linkedPropertyTasks = useMemo(
+    () => allTasks.filter((t) => t.propertyId && linkedPropertyIds.has(t.propertyId)),
+    [allTasks, linkedPropertyIds],
+  );
+
+  const displayedTasks = useMemo(
+    () => selectedPropertyId
+      ? linkedPropertyTasks.filter((t) => t.propertyId === selectedPropertyId)
+      : linkedPropertyTasks,
+    [linkedPropertyTasks, selectedPropertyId],
+  );
+
+  const taskCountByProperty = useMemo(
+    () => linkedProperties.reduce((acc, p) => {
+      acc[p.id] = linkedPropertyTasks.filter((t) => t.propertyId === p.id).length;
+      return acc;
+    }, {}),
+    [linkedProperties, linkedPropertyTasks],
   );
 
   useEffect(() => {
@@ -136,6 +163,12 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
         setBuyerLinks([]);
         setBoxFolders([]);
       }
+      setSelectedPropertyId(null);
+      setNewTaskPropertyId('');
+      setAddTaskOpen(false);
+      setNewTaskTitle('');
+      setNewTaskStatus('Started');
+      setNewTaskDeadline('');
       setError('');
       if (isEdit) {
         setLoadingTasks(true);
@@ -194,18 +227,26 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
 
   const handleAddTask = async () => {
     if (!newTaskTitle.trim()) return;
+    const targetPropertyId = selectedPropertyId
+      || (linkedProperties.length === 1 ? linkedProperties[0].id : newTaskPropertyId);
+    if (!targetPropertyId) {
+      alert('物件を選択してください。');
+      return;
+    }
     setSavingTask(true);
     try {
       const res = await axios.post(`${API_URL}/CreateTask`, {
         title: newTaskTitle.trim(),
         status: newTaskStatus,
         deadline: newTaskDeadline || null,
+        propertyId: targetPropertyId,
         customerId: customer.id,
       });
       setAllTasks((prev) => [...prev, res.data]);
       setNewTaskTitle('');
       setNewTaskStatus('Started');
       setNewTaskDeadline('');
+      setNewTaskPropertyId('');
       setAddTaskOpen(false);
     } catch {
       alert('タスクの作成に失敗しました。');
@@ -422,7 +463,7 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
             />
           </Grid>
 
-          {/* 関連タスク */}
+          {/* 関連タスク（物件別） */}
           {isEdit && (
             <Grid item xs={12}>
               <Divider sx={{ my: 0.5 }} />
@@ -432,8 +473,8 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
                   <Typography variant="body2" fontWeight={600}>
                     関連タスク
                   </Typography>
-                  {linkedTasks.length > 0 && (
-                    <Chip label={linkedTasks.length} size="small" />
+                  {linkedPropertyTasks.length > 0 && (
+                    <Chip label={linkedPropertyTasks.length} size="small" />
                   )}
                   <Box sx={{ flexGrow: 1 }} />
                   <Tooltip title="タスクを追加">
@@ -442,6 +483,30 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
                     </IconButton>
                   </Tooltip>
                 </Box>
+
+                {/* 物件フィルターチップ */}
+                {linkedProperties.length > 0 && (
+                  <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', mb: 1.5 }}>
+                    <Chip
+                      label={`全物件 (${linkedPropertyTasks.length})`}
+                      size="small"
+                      variant={selectedPropertyId === null ? 'filled' : 'outlined'}
+                      color={selectedPropertyId === null ? 'primary' : 'default'}
+                      onClick={() => setSelectedPropertyId(null)}
+                    />
+                    {linkedProperties.map((p) => (
+                      <Chip
+                        key={p.id}
+                        label={`${p.propertyName} (${taskCountByProperty[p.id] || 0})`}
+                        size="small"
+                        variant={selectedPropertyId === p.id ? 'filled' : 'outlined'}
+                        color={selectedPropertyId === p.id ? 'primary' : 'default'}
+                        onClick={() => setSelectedPropertyId(p.id)}
+                      />
+                    ))}
+                  </Box>
+                )}
+
                 {addTaskOpen && (
                   <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1.5, mb: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
                     <TextField
@@ -452,6 +517,17 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
                       onChange={(e) => setNewTaskTitle(e.target.value)}
                       autoFocus
                     />
+                    {/* 物件セレクター（全物件モードかつ複数物件の場合のみ） */}
+                    {!selectedPropertyId && linkedProperties.length > 1 && (
+                      <FormControl size="small" fullWidth>
+                        <InputLabel>物件</InputLabel>
+                        <Select label="物件" value={newTaskPropertyId} onChange={(e) => setNewTaskPropertyId(e.target.value)}>
+                          {linkedProperties.map((p) => (
+                            <MenuItem key={p.id} value={p.id}>{p.propertyName}</MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    )}
                     <Box sx={{ display: 'flex', gap: 1 }}>
                       <FormControl size="small" sx={{ minWidth: 140 }}>
                         <InputLabel>ステータス</InputLabel>
@@ -473,17 +549,24 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
                     </Box>
                     <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
                       <Button size="small" onClick={() => setAddTaskOpen(false)}>キャンセル</Button>
-                      <Button size="small" variant="contained" onClick={handleAddTask} disabled={savingTask || !newTaskTitle.trim()}>
+                      <Button
+                        size="small" variant="contained"
+                        onClick={handleAddTask}
+                        disabled={savingTask || !newTaskTitle.trim() || (!selectedPropertyId && linkedProperties.length > 1 && !newTaskPropertyId)}
+                      >
                         {savingTask ? '作成中…' : '追加'}
                       </Button>
                     </Box>
                   </Box>
                 )}
+
                 {loadingTasks ? (
                   <CircularProgress size={20} />
-                ) : linkedTasks.length === 0 ? (
+                ) : displayedTasks.length === 0 ? (
                   <Typography variant="body2" color="text.disabled" sx={{ pl: 0.5 }}>
-                    紐づいているタスクはありません
+                    {linkedProperties.length === 0
+                      ? '所有物件が紐づいていません（CRM同期後に表示されます）'
+                      : 'タスクはありません'}
                   </Typography>
                 ) : (
                   <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
@@ -491,6 +574,7 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
                       <TableHead>
                         <TableRow>
                           <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>タイトル</TableCell>
+                          {!selectedPropertyId && <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>物件</TableCell>}
                           <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>ステータス</TableCell>
                           <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>担当者</TableCell>
                           <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>期限</TableCell>
@@ -498,11 +582,16 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {linkedTasks.map((task) => (
+                        {displayedTasks.map((task) => (
                           <TableRow key={task.id}>
-                            <TableCell sx={{ fontSize: '0.8rem', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <TableCell sx={{ fontSize: '0.8rem', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {task.title}
                             </TableCell>
+                            {!selectedPropertyId && (
+                              <TableCell sx={{ fontSize: '0.75rem', color: 'text.secondary', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {propertyById[task.propertyId]?.propertyName || '—'}
+                              </TableCell>
+                            )}
                             <TableCell>
                               <Chip
                                 label={task.status}

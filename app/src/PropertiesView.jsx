@@ -14,6 +14,9 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ClearIcon from '@mui/icons-material/Clear';
 import SyncIcon from '@mui/icons-material/Sync';
+import TaskAltIcon from '@mui/icons-material/TaskAlt';
+import AddIcon from '@mui/icons-material/Add';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 
 const API = '/api';
 const MGMT_TYPES = ['PM', 'PCS A', 'PCS B'];
@@ -122,9 +125,13 @@ function ImportDialog({ open, onClose, onImported }) {
 function EditDialog({ property, open, onClose, onSaved }) {
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
-  const [activityLog, setActivityLog] = useState([]);
-  const [newActivity, setNewActivity] = useState('');
-  const [savingActivity, setSavingActivity] = useState(false);
+  const [propertyTasks, setPropertyTasks] = useState([]);
+  const [loadingTasks, setLoadingTasks] = useState(false);
+  const [addTaskOpen, setAddTaskOpen] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskStatus, setNewTaskStatus] = useState('Started');
+  const [newTaskDeadline, setNewTaskDeadline] = useState('');
+  const [savingTask, setSavingTask] = useState(false);
 
   useEffect(() => {
     if (property) {
@@ -141,8 +148,16 @@ function EditDialog({ property, open, onClose, onSaved }) {
         monthlyRent: property.monthlyRent || '',
         notes: property.notes || '',
       });
-      setActivityLog(Array.isArray(property.activityLog) ? property.activityLog : []);
-      setNewActivity('');
+      setPropertyTasks([]);
+      setAddTaskOpen(false);
+      setNewTaskTitle('');
+      setNewTaskStatus('Started');
+      setNewTaskDeadline('');
+      setLoadingTasks(true);
+      axios.get(`${API}/GetTasks?propertyId=${property.id}`)
+        .then((res) => setPropertyTasks(Array.isArray(res.data) ? res.data : []))
+        .catch(() => {})
+        .finally(() => setLoadingTasks(false));
     }
   }, [property]);
 
@@ -163,21 +178,25 @@ function EditDialog({ property, open, onClose, onSaved }) {
     }
   };
 
-  const handleAddActivity = async () => {
-    if (!newActivity.trim()) return;
-    setSavingActivity(true);
+  const handleAddTask = async () => {
+    if (!newTaskTitle.trim()) return;
+    setSavingTask(true);
     try {
-      const { data } = await axios.post(`${API}/AddPropertyActivity`, {
+      const res = await axios.post(`${API}/CreateTask`, {
+        title: newTaskTitle.trim(),
+        status: newTaskStatus,
+        deadline: newTaskDeadline || null,
         propertyId: property.id,
-        content: newActivity.trim(),
       });
-      setActivityLog(Array.isArray(data.activityLog) ? data.activityLog : []);
-      setNewActivity('');
-      onSaved(data);
-    } catch (e) {
-      alert('活動記録の追加に失敗しました: ' + (e.response?.data || e.message));
+      setPropertyTasks((prev) => [...prev, res.data]);
+      setNewTaskTitle('');
+      setNewTaskStatus('Started');
+      setNewTaskDeadline('');
+      setAddTaskOpen(false);
+    } catch {
+      alert('タスクの作成に失敗しました。');
     } finally {
-      setSavingActivity(false);
+      setSavingTask(false);
     }
   };
 
@@ -210,38 +229,93 @@ function EditDialog({ property, open, onClose, onSaved }) {
           <TextField size="small" label="月額賃料 ($)" type="number" value={form.monthlyRent || ''} onChange={e => setForm(p => ({ ...p, monthlyRent: e.target.value }))} fullWidth />
           <TextField size="small" label="メモ" value={form.notes || ''} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} multiline rows={3} fullWidth />
 
-          {/* 活動履歴 */}
+          {/* タスク */}
           <Box sx={{ pt: 0.5 }}>
             <Divider sx={{ mb: 1.5 }} />
-            <Typography variant="body2" fontWeight={600} sx={{ mb: 1 }}>活動履歴</Typography>
-            <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
-              <TextField
-                size="small"
-                placeholder="内覧・修繕・連絡内容などを記録…"
-                value={newActivity}
-                onChange={e => setNewActivity(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddActivity(); } }}
-                multiline
-                rows={2}
-                fullWidth
-              />
-              <Button size="small" variant="outlined" onClick={handleAddActivity} disabled={savingActivity || !newActivity.trim()} sx={{ alignSelf: 'flex-end', whiteSpace: 'nowrap' }}>
-                追加
-              </Button>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <TaskAltIcon fontSize="small" color="action" />
+              <Typography variant="body2" fontWeight={600}>タスク</Typography>
+              {propertyTasks.length > 0 && <Chip label={propertyTasks.length} size="small" />}
+              <Box sx={{ flexGrow: 1 }} />
+              <Tooltip title="タスクを追加">
+                <IconButton size="small" onClick={() => setAddTaskOpen(true)}>
+                  <AddIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
             </Box>
-            {activityLog.length > 0 ? (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, maxHeight: 220, overflowY: 'auto' }}>
-                {activityLog.map((entry) => (
-                  <Box key={entry.id} sx={{ borderLeft: '3px solid', borderColor: 'primary.main', pl: 1.5, py: 0.5 }}>
-                    <Typography variant="caption" color="text.secondary">
-                      {entry.createdAt ? new Date(entry.createdAt).toLocaleString('ja-JP') : ''}{entry.author ? ` · ${entry.author}` : ''}
-                    </Typography>
-                    <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', mt: 0.25 }}>{entry.content}</Typography>
-                  </Box>
-                ))}
+            {addTaskOpen && (
+              <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1.5, mb: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <TextField
+                  label="タスクタイトル" size="small" fullWidth
+                  value={newTaskTitle}
+                  onChange={(e) => setNewTaskTitle(e.target.value)}
+                  autoFocus
+                />
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <FormControl size="small" sx={{ minWidth: 140 }}>
+                    <InputLabel>ステータス</InputLabel>
+                    <Select label="ステータス" value={newTaskStatus} onChange={(e) => setNewTaskStatus(e.target.value)}>
+                      {['Memo','Started','WaitingEstimate','Inprogress','WaitingOwnerApproval','WaitingCompletionReport','DoneWithoutReport','Done'].map((s) => (
+                        <MenuItem key={s} value={s}>{s}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <TextField
+                    label="期限" type="date" size="small"
+                    value={newTaskDeadline}
+                    onChange={(e) => setNewTaskDeadline(e.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                    sx={{ flex: 1 }}
+                  />
+                </Box>
+                <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                  <Button size="small" onClick={() => setAddTaskOpen(false)}>キャンセル</Button>
+                  <Button size="small" variant="contained" onClick={handleAddTask} disabled={savingTask || !newTaskTitle.trim()}>
+                    {savingTask ? '作成中…' : '追加'}
+                  </Button>
+                </Box>
               </Box>
+            )}
+            {loadingTasks ? (
+              <CircularProgress size={20} />
+            ) : propertyTasks.length === 0 ? (
+              <Typography variant="body2" color="text.disabled">タスクはありません</Typography>
             ) : (
-              <Typography variant="body2" color="text.disabled">記録はありません</Typography>
+              <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>タイトル</TableCell>
+                      <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>ステータス</TableCell>
+                      <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>担当者</TableCell>
+                      <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>期限</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {propertyTasks.map((task) => (
+                      <TableRow key={task.id}>
+                        <TableCell sx={{ fontSize: '0.8rem', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {task.title}
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={task.status}
+                            size="small"
+                            color={task.status === 'Done' ? 'success' : task.status === 'Inprogress' ? 'warning' : 'default'}
+                            sx={{ fontSize: '0.65rem', height: 18 }}
+                          />
+                        </TableCell>
+                        <TableCell sx={{ fontSize: '0.8rem', color: 'text.secondary' }}>
+                          {Array.isArray(task.assignees) && task.assignees.length > 0 ? task.assignees.join(', ') : '—'}
+                        </TableCell>
+                        <TableCell sx={{ fontSize: '0.8rem', color: 'text.secondary', whiteSpace: 'nowrap' }}>
+                          {task.deadline ? task.deadline.split('T')[0] : '—'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
             )}
           </Box>
         </Box>
