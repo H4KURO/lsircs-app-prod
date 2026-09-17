@@ -90,6 +90,11 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
   const [addFolderOpen, setAddFolderOpen] = useState(false);
   const [newFolderLabel, setNewFolderLabel] = useState('');
   const [newFolderUrl, setNewFolderUrl] = useState('');
+  const [addTaskOpen, setAddTaskOpen] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskStatus, setNewTaskStatus] = useState('Started');
+  const [newTaskDeadline, setNewTaskDeadline] = useState('');
+  const [savingTask, setSavingTask] = useState(false);
 
   const linkedTasks = useMemo(
     () => (customer ? allTasks.filter((t) => t.customerId === customer.id) : []),
@@ -184,6 +189,28 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
       setError(err.response?.data?.message || err.response?.data || err.message || '保存に失敗しました');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleAddTask = async () => {
+    if (!newTaskTitle.trim()) return;
+    setSavingTask(true);
+    try {
+      const res = await axios.post(`${API_URL}/CreateTask`, {
+        title: newTaskTitle.trim(),
+        status: newTaskStatus,
+        deadline: newTaskDeadline || null,
+        customerId: customer.id,
+      });
+      setAllTasks((prev) => [...prev, res.data]);
+      setNewTaskTitle('');
+      setNewTaskStatus('Started');
+      setNewTaskDeadline('');
+      setAddTaskOpen(false);
+    } catch {
+      alert('タスクの作成に失敗しました。');
+    } finally {
+      setSavingTask(false);
     }
   };
 
@@ -408,7 +435,50 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
                   {linkedTasks.length > 0 && (
                     <Chip label={linkedTasks.length} size="small" />
                   )}
+                  <Box sx={{ flexGrow: 1 }} />
+                  <Tooltip title="タスクを追加">
+                    <IconButton size="small" onClick={() => setAddTaskOpen(true)}>
+                      <AddIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
                 </Box>
+                {addTaskOpen && (
+                  <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1.5, mb: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <TextField
+                      label="タスクタイトル"
+                      size="small"
+                      fullWidth
+                      value={newTaskTitle}
+                      onChange={(e) => setNewTaskTitle(e.target.value)}
+                      autoFocus
+                    />
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <FormControl size="small" sx={{ minWidth: 140 }}>
+                        <InputLabel>ステータス</InputLabel>
+                        <Select label="ステータス" value={newTaskStatus} onChange={(e) => setNewTaskStatus(e.target.value)}>
+                          {['Memo','Started','WaitingEstimate','Inprogress','WaitingOwnerApproval','WaitingCompletionReport','DoneWithoutReport','Done'].map((s) => (
+                            <MenuItem key={s} value={s}>{s}</MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                      <TextField
+                        label="期限"
+                        type="date"
+                        size="small"
+                        value={newTaskDeadline}
+                        onChange={(e) => setNewTaskDeadline(e.target.value)}
+                        InputLabelProps={{ shrink: true }}
+                        sx={{ flex: 1 }}
+                      />
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                      <Button size="small" onClick={() => setAddTaskOpen(false)}>キャンセル</Button>
+                      <Button size="small" variant="contained" onClick={handleAddTask} disabled={savingTask || !newTaskTitle.trim()}>
+                        {savingTask ? '作成中…' : '追加'}
+                      </Button>
+                    </Box>
+                  </Box>
+                )}
                 {loadingTasks ? (
                   <CircularProgress size={20} />
                 ) : linkedTasks.length === 0 ? (

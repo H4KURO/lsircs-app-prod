@@ -17,13 +17,18 @@ const STATUS_ALIASES = new Map([
   ['started', 'Started'],
   ['start', 'Started'],
   ['todo', 'Started'],
+  ['着手前', 'Started'],
   ['inprogress', 'Inprogress'],
   ['in-progress', 'Inprogress'],
   ['progress', 'Inprogress'],
   ['doing', 'Inprogress'],
+  ['進行中', 'Inprogress'],
   ['done', 'Done'],
   ['complete', 'Done'],
   ['completed', 'Done'],
+  ['完了', 'Done'],
+  ['memo', 'Memo'],
+  ['メモ', 'Memo'],
 ]);
 
 const PRIORITY_ALIASES = new Map([
@@ -388,11 +393,40 @@ const handleUpdateCommand = async (payload, command, context) => {
   });
 };
 
+const handleListCommand = async (payload, command, context) => {
+  try {
+    const container = tasksContainer();
+    const { resources } = await container.items
+      .query({
+        query: 'SELECT c.id, c.title, c.status, c.assignees, c.deadline FROM c WHERE c.status != "Done" ORDER BY c.createdAt DESC OFFSET 0 LIMIT 10',
+      })
+      .fetchAll();
+
+    if (resources.length === 0) {
+      return slackMessage('未完了のタスクはありません。');
+    }
+
+    const lines = resources.map((t) => {
+      const assignee = Array.isArray(t.assignees) && t.assignees.length > 0 ? t.assignees[0] : '未割当';
+      const deadline = t.deadline ? ` 期限:${t.deadline.split('T')[0]}` : '';
+      return `• [${t.status}] ${t.title} — ${assignee}${deadline} (ID: \`${t.id.slice(0, 8)}\`)`;
+    });
+
+    return slackMessage(`*未完了タスク（最新10件）*\n${lines.join('\n')}`);
+  } catch (error) {
+    context.log('SlackCommand list failed', error);
+    return slackMessage('タスク一覧の取得に失敗しました。');
+  }
+};
+
 const helpMessage = () => slackMessage(
-  'Task command usage:\n' +
-    '• `/task add Task title | description=Optional details | status=Started | assignees=Alice,Bob`\n' +
-    '• `/task update TASK_ID | status=Done | assignees=Charlie`\n' +
-    'Available fields: status, priority, assignees, tags, category, deadline (YYYY-MM-DD), description.',
+  '*タスクコマンドの使い方:*\n' +
+    '• `/task add タイトル | description=詳細 | status=Started | assignees=名前1,名前2 | deadline=2025-12-31`\n' +
+    '• `/task update タスクID | status=Done | assignees=名前`\n' +
+    '• `/task list` — 未完了タスクを最新10件表示\n' +
+    '• `/task help` — このヘルプを表示\n\n' +
+    '*ステータス:* Memo / Started（着手前）/ Inprogress（進行中）/ Done（完了）など\n' +
+    '*日本語ステータス対応:* メモ, 着手前, 進行中, 完了',
 );
 
 app.http('SlackCommand', {
@@ -431,10 +465,12 @@ app.http('SlackCommand', {
           return await handleAddCommand(payload, command, context);
         case 'update':
           return await handleUpdateCommand(payload, command, context);
+        case 'list':
+          return await handleListCommand(payload, command, context);
         case 'help':
           return helpMessage();
         default:
-          return slackMessage('Supported actions are `add`, `update`, and `help`.');
+          return slackMessage('使用可能なアクション: `add`（作成）, `update`（更新）, `list`（一覧）, `help`（ヘルプ）');
       }
     } catch (error) {
       context.log('Slack command handling failed', error);

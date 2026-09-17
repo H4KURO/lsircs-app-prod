@@ -73,6 +73,7 @@ app.http('CreateTask', {
         subtasks: normalizeSubtasksInput(payload?.subtasks),
         attachments: [],
         conversationId: payload?.conversationId ?? null,
+        customerId: payload?.customerId ?? null,
         emailNotes: [],
         createdAt: now,
         createdById: clientPrincipal.userId,

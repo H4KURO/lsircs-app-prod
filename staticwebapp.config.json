@@ -126,6 +126,21 @@
       ]
     },
     {
+      "route": "/api/BulkUpdateTasks",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/BulkDeleteTasks",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/AddPropertyActivity",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
       "route": "/api/GetBuyersList",
       "allowedRoles": [
         "anonymous"

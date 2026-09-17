@@ -688,6 +688,8 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   const [kanbanGroupBy, setKanbanGroupBy] = useState('status');
   const [kanbanPanelTask, setKanbanPanelTask] = useState(null);
+  const [selectedTaskIds, setSelectedTaskIds] = useState(new Set());
+  const [bulkStatusOpen, setBulkStatusOpen] = useState(false);
 
   const handleToggleSubtaskExpand = useCallback((taskId) => {
     if (!taskId) return;
@@ -1261,6 +1263,27 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
     axios.delete(`${API_URL}/DeleteTask/${taskId}`).then(() => {
       setTasks((prev) => prev.filter((task) => task.id !== taskId));
     });
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedTaskIds.size === 0) return;
+    if (!window.confirm(`選択した ${selectedTaskIds.size} 件のタスクを削除しますか？`)) return;
+    const ids = [...selectedTaskIds];
+    axios.post(`${API_URL}/BulkDeleteTasks`, { ids }).then(() => {
+      setTasks((prev) => prev.filter((t) => !ids.includes(t.id)));
+      setSelectedTaskIds(new Set());
+    }).catch(() => alert('削除に失敗しました。'));
+  };
+
+  const handleBulkStatusChange = (newStatus) => {
+    if (selectedTaskIds.size === 0) return;
+    const ids = [...selectedTaskIds];
+    axios.post(`${API_URL}/BulkUpdateTasks`, { ids, field: 'status', value: newStatus }).then((res) => {
+      const updatedMap = new Map(res.data.tasks.map((t) => [t.id, t]));
+      setTasks((prev) => prev.map((t) => updatedMap.has(t.id) ? updatedMap.get(t.id) : t));
+      setSelectedTaskIds(new Set());
+      setBulkStatusOpen(false);
+    }).catch(() => alert('ステータス更新に失敗しました。'));
   };
 
   const handleDragEnd = useCallback(({ active, over }) => {
@@ -1985,10 +2008,54 @@ const renderListLayout = () => {
       );
     }
 
+    const allListTaskIds = allTasks.map((t) => t.id);
+    const allChecked = allListTaskIds.length > 0 && allListTaskIds.every((id) => selectedTaskIds.has(id));
+    const someChecked = !allChecked && allListTaskIds.some((id) => selectedTaskIds.has(id));
+
     return (
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 380px' }, gap: 2, alignItems: 'start' }}>
         {/* Left: status-grouped list */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {/* Bulk action bar */}
+          <Paper variant="outlined" sx={{ px: 2, py: 1, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            <Checkbox
+              size="small"
+              checked={allChecked}
+              indeterminate={someChecked}
+              onChange={(e) => {
+                if (e.target.checked) {
+                  setSelectedTaskIds(new Set(allListTaskIds));
+                } else {
+                  setSelectedTaskIds(new Set());
+                }
+              }}
+            />
+            <Typography variant="body2" sx={{ flexGrow: 1 }}>
+              {selectedTaskIds.size > 0 ? `${selectedTaskIds.size} 件選択中` : '全選択'}
+            </Typography>
+            {selectedTaskIds.size > 0 && (
+              <>
+                <Box sx={{ position: 'relative' }}>
+                  <Button size="small" variant="outlined" onClick={() => setBulkStatusOpen((v) => !v)}>
+                    ステータス変更
+                  </Button>
+                  {bulkStatusOpen && (
+                    <Paper elevation={4} sx={{ position: 'absolute', zIndex: 1400, top: '110%', left: 0, minWidth: 180, py: 0.5 }}>
+                      {STATUS_DEFINITIONS.map((s) => (
+                        <MenuItem key={s.value} dense onClick={() => handleBulkStatusChange(s.value)}>
+                          <CircleIcon sx={{ color: getStatusColor(s.value), fontSize: '0.75rem', mr: 1 }} />
+                          {s.label}
+                        </MenuItem>
+                      ))}
+                    </Paper>
+                  )}
+                </Box>
+                <Button size="small" variant="outlined" color="error" startIcon={<DeleteIcon />} onClick={handleBulkDelete}>
+                  削除
+                </Button>
+              </>
+            )}
+          </Paper>
           {statusSections.map((section) => (
             <Paper key={section.key} variant="outlined" sx={{ overflow: 'hidden' }}>
               <Box sx={{ px: 2, py: 1.25, bgcolor: 'action.hover', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1998,6 +2065,7 @@ const renderListLayout = () => {
               {(() => {
                 const renderListRow = (task) => {
                   const isSelected = listPanelTask?.id === task.id;
+                  const isBulkChecked = selectedTaskIds.has(task.id);
                   return (
                     <Box
                       key={task.id}
@@ -2005,13 +2073,26 @@ const renderListLayout = () => {
                       sx={{
                         px: 2, py: 1.25,
                         cursor: 'pointer',
-                        bgcolor: isSelected ? 'primary.main' : 'transparent',
+                        bgcolor: isSelected ? 'primary.main' : isBulkChecked ? 'action.selected' : 'transparent',
                         color: isSelected ? 'primary.contrastText' : 'inherit',
                         display: 'flex', alignItems: 'center', gap: 1.5,
                         '&:hover': { bgcolor: isSelected ? 'primary.dark' : 'action.hover' },
                         transition: 'background 0.12s',
                       }}
                     >
+                      <Checkbox
+                        size="small"
+                        checked={isBulkChecked}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => {
+                          setSelectedTaskIds((prev) => {
+                            const next = new Set(prev);
+                            e.target.checked ? next.add(task.id) : next.delete(task.id);
+                            return next;
+                          });
+                        }}
+                        sx={{ p: 0, mr: -0.5, color: isSelected ? 'rgba(255,255,255,0.7)' : undefined }}
+                      />
                       <CircleIcon sx={{ color: isSelected ? 'rgba(255,255,255,0.6)' : getStatusColor(task.status), fontSize: '0.75rem', flexShrink: 0 }} />
                       <Box sx={{ minWidth: 0, flexGrow: 1 }}>
                         <Typography variant="body2" noWrap sx={{ fontWeight: 500 }}>
