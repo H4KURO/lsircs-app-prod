@@ -27,6 +27,7 @@ import { ProjectsView } from "./ProjectsView";
 import { GlobalSearch } from "./GlobalSearch";
 import { DocumentGenerationView } from "./DocumentGenerationView";
 import { PropertiesView } from "./PropertiesView";
+import { AssetManagementView } from "./AssetManagementView";
 
 // MUI icons
 import DashboardIcon from "@mui/icons-material/Dashboard";
@@ -43,6 +44,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import LogoutIcon from "@mui/icons-material/Logout";
 import MicrosoftIcon from "@mui/icons-material/Microsoft";
 import ApartmentIcon from "@mui/icons-material/Apartment";
+import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 
 const RAIL_WIDTH = 56;
 const RAIL_BG = "#001731";
@@ -59,6 +61,7 @@ const ALLOWED_VIEWS = new Set([
   "crm",
   "projects",
   "documents",
+  "assets",
 ]);
 
 const parseInitialLocation = () => {
@@ -294,6 +297,7 @@ function App() {
       case "whitelist":  return accessStatus.isAdmin ? <WhitelistView currentUser={user} /> : <AccessDeniedView userEmail={user.userDetails} />;
       case "documents":  return <DocumentGenerationView />;
       case "properties": return <PropertiesView />;
+      case "assets":     return accessStatus.isAdmin ? <AssetManagementView /> : <AccessDeniedView userEmail={user.userDetails} />;
       default:           return <DashboardView user={user} />;
     }
   };
@@ -385,6 +389,15 @@ function App() {
               label="アクセス管理"
               active={currentView === "whitelist"}
               onClick={() => handleViewChange("whitelist")}
+            />
+          )}
+
+          {user && accessStatus?.isAdmin && (
+            <RailItem
+              icon={<AccountBalanceIcon sx={{ fontSize: 20 }} />}
+              label="資産管理（テスト環境）"
+              active={currentView === "assets"}
+              onClick={() => handleViewChange("assets")}
             />
           )}
 
