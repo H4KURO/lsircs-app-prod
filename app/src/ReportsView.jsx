@@ -108,8 +108,18 @@ function ReportTab({ reportMeta }) {
       setTabs(fetchedTabs);
       return fetchedTabs;
     } catch (e) {
+      const statusCode = e.response?.status;
       const msg = e.response?.data || e.message || 'タブの取得に失敗しました';
-      setTabsError(typeof msg === 'string' ? msg : 'タブの取得に失敗しました。スプレッドシートIDを確認してください。');
+      const msgStr = typeof msg === 'string' ? msg : JSON.stringify(msg);
+      if (statusCode === 401) {
+        setTabsError('スプレッドシートがサービスアカウント (lsircs-sheets-sa@lsircs-app.iam.gserviceaccount.com) に共有されていません。Google Sheetsの「共有」でこのメールアドレスを追加してください。');
+      } else if (statusCode === 403) {
+        setTabsError('アクセス拒否: スプレッドシートをサービスアカウント (lsircs-sheets-sa@lsircs-app.iam.gserviceaccount.com) に共有してください。');
+      } else if (statusCode === 404) {
+        setTabsError('スプレッドシートが見つかりません。Spreadsheet IDを確認してください。');
+      } else {
+        setTabsError(msgStr || 'タブの取得に失敗しました。スプレッドシートIDを確認してください。');
+      }
       setTabs([]);
       return [];
     } finally {
