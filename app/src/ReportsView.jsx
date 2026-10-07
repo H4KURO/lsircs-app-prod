@@ -3,10 +3,6 @@ import {
   Box,
   Typography,
   TextField,
-  MenuItem,
-  Select,
-  FormControl,
-  InputLabel,
   Button,
   Alert,
   Accordion,
@@ -18,13 +14,17 @@ import {
   Chip,
   Tabs,
   Tab,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
+import Autocomplete from '@mui/material/Autocomplete';
 import {
   ExpandMore as ExpandMoreIcon,
   Settings as SettingsIcon,
   OpenInNew as OpenInNewIcon,
   CloudUpload as CloudUploadIcon,
   CloudDownload as CloudDownloadIcon,
+  Refresh as RefreshIcon,
 } from '@mui/icons-material';
 import axios from 'axios';
 import GoogleSheetEditor from './GoogleSheetEditor';
@@ -58,6 +58,7 @@ function ReportTab({ reportMeta }) {
   });
   const [tabs, setTabs] = useState([]);
   const [loadingTabs, setLoadingTabs] = useState(false);
+  const [tabsError, setTabsError] = useState('');
   const [savingConfig, setSavingConfig] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState(null);
@@ -85,23 +86,26 @@ function ReportTab({ reportMeta }) {
     loadConfig();
   }, [reportMeta.key, reportMeta.defaultHeaderRow]);
 
-  useEffect(() => {
-    if (!config.spreadsheetId) {
+  const loadTabs = async (spreadsheetId) => {
+    if (!spreadsheetId) { setTabs([]); return; }
+    setLoadingTabs(true);
+    setTabsError('');
+    try {
+      const res = await axios.get(`${API}/GetSheetTabs?spreadsheetId=${encodeURIComponent(spreadsheetId)}`);
+      setTabs(res.data.tabs || []);
+    } catch (e) {
+      const msg = e.response?.data || e.message || 'タブの取得に失敗しました';
+      setTabsError(typeof msg === 'string' ? msg : 'タブの取得に失敗しました。スプレッドシートIDを確認してください。');
       setTabs([]);
-      return;
+    } finally {
+      setLoadingTabs(false);
     }
-    const loadTabs = async () => {
-      setLoadingTabs(true);
-      try {
-        const res = await axios.get(`${API}/GetSheetTabs?spreadsheetId=${encodeURIComponent(config.spreadsheetId)}`);
-        setTabs(res.data.tabs || []);
-      } catch (e) {
-        setTabs([]);
-      } finally {
-        setLoadingTabs(false);
-      }
-    };
-    loadTabs();
+  };
+
+  useEffect(() => {
+    if (config.spreadsheetId) loadTabs(config.spreadsheetId);
+    else setTabs([]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.spreadsheetId]);
 
   const showSnackbar = (message, severity = 'success') => {
@@ -182,20 +186,57 @@ function ReportTab({ reportMeta }) {
               size="small"
               helperText="例: https://docs.google.com/spreadsheets/d/【ここ】/edit"
             />
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-              <FormControl size="small" sx={{ minWidth: 240 }}>
-                <InputLabel>シートタブ（期間）</InputLabel>
-                <Select
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, minWidth: 240 }}>
+                <Autocomplete
+                  freeSolo
+                  options={tabs}
                   value={config.sheetTab}
-                  onChange={(e) => setConfig((p) => ({ ...p, sheetTab: e.target.value }))}
-                  label="シートタブ（期間）"
-                  disabled={loadingTabs || !config.spreadsheetId}
-                >
-                  {tabs.map((t) => (
-                    <MenuItem key={t} value={t}>{t}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+                  onInputChange={(_, val) => setConfig((p) => ({ ...p, sheetTab: val }))}
+                  onChange={(_, val) => setConfig((p) => ({ ...p, sheetTab: val || '' }))}
+                  disabled={!config.spreadsheetId}
+                  size="small"
+                  sx={{ flex: 1 }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="シートタブ（期間）"
+                      placeholder="例: 9.26.26 - 10.09.26"
+                      helperText={
+                        tabsError
+                          ? tabsError
+                          : tabs.length > 0
+                            ? `${tabs.length}件取得済み`
+                            : config.spreadsheetId
+                              ? '手動で入力することもできます'
+                              : ''
+                      }
+                      error={!!tabsError}
+                      InputProps={{
+                        ...params.InputProps,
+                        endAdornment: (
+                          <>
+                            {loadingTabs && <CircularProgress size={14} sx={{ mr: 1 }} />}
+                            {params.InputProps.endAdornment}
+                          </>
+                        ),
+                      }}
+                    />
+                  )}
+                />
+                <Tooltip title="タブ一覧を再取得">
+                  <span>
+                    <IconButton
+                      size="small"
+                      onClick={() => loadTabs(config.spreadsheetId)}
+                      disabled={!config.spreadsheetId || loadingTabs}
+                      sx={{ mt: 0.5 }}
+                    >
+                      <RefreshIcon sx={{ fontSize: 18 }} />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              </Box>
               <TextField
                 label="ヘッダー行"
                 type="number"
