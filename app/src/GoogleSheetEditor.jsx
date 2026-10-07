@@ -36,7 +36,7 @@ import axios from 'axios';
  *   spreadsheetId  - Google Spreadsheet の ID (URL の /d/{ID}/ 部分)
  *   sheetTab       - シートタブ名 (省略可: 省略時は最初のシート)
  */
-export default function GoogleSheetEditor({ spreadsheetId, sheetTab }) {
+export default function GoogleSheetEditor({ spreadsheetId, sheetTab, headerRow = 1 }) {
   const [headers, setHeaders] = useState([]);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -66,6 +66,7 @@ export default function GoogleSheetEditor({ spreadsheetId, sheetTab }) {
     try {
       const params = new URLSearchParams({ spreadsheetId });
       if (sheetTab) params.set('sheetTab', sheetTab);
+      if (headerRow && headerRow > 1) params.set('headerRow', String(headerRow));
       const response = await axios.get(`/api/GetSheetData?${params.toString()}`);
       setHeaders(response.data.headers || []);
       setRows(response.data.rows || []);

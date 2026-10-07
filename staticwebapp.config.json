@@ -443,6 +443,29 @@
       "allowedRoles": [
         "anonymous"
       ]
+    },
+    {
+      "route": "/api/GetSheetTabs",
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/GetReportConfig",
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/SaveReportConfig",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/SyncReportToSheet",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/SyncReportFromSheet",
+      "methods": ["POST"],
+      "allowedRoles": ["anonymous"]
     }
   ],
   "navigationFallback": {
