@@ -37,12 +37,22 @@ app.http('GetSheetData', {
         return { status: 200, jsonBody: { headers: [], rows: [] } };
       }
 
-      const headers = allRows[0];
-      const dataRows = allRows.slice(1);
+      const headerRow = Math.max(1, parseInt(request.query.get('headerRow') || '1', 10));
+      if (allRows.length < headerRow) {
+        return { status: 200, jsonBody: { headers: [], rows: [] } };
+      }
 
-      // _rowIndex is 1-based (header = row 1, data starts at row 2)
+      const rawHeaders = allRows[headerRow - 1];
+      // Trim trailing empty header columns
+      let lastNonEmpty = rawHeaders.length - 1;
+      while (lastNonEmpty >= 0 && !rawHeaders[lastNonEmpty]) lastNonEmpty--;
+      const headers = rawHeaders.slice(0, lastNonEmpty + 1);
+
+      const dataRows = allRows.slice(headerRow);
+
+      // _rowIndex is 1-based actual sheet row number
       const rows = dataRows.map((row, i) => {
-        const obj = { _rowIndex: i + 2 };
+        const obj = { _rowIndex: i + headerRow + 1 };
         headers.forEach((header, colIdx) => {
           obj[header] = row[colIdx] !== undefined ? row[colIdx] : '';
         });

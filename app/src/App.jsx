@@ -27,6 +27,7 @@ import { ProjectsView } from "./ProjectsView";
 import { GlobalSearch } from "./GlobalSearch";
 import { DocumentGenerationView } from "./DocumentGenerationView";
 import { PropertiesView } from "./PropertiesView";
+import ReportsView from "./ReportsView";
 
 // MUI icons
 import DashboardIcon from "@mui/icons-material/Dashboard";
@@ -43,6 +44,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import LogoutIcon from "@mui/icons-material/Logout";
 import MicrosoftIcon from "@mui/icons-material/Microsoft";
 import ApartmentIcon from "@mui/icons-material/Apartment";
+import SummarizeIcon from "@mui/icons-material/Summarize";
 
 const RAIL_WIDTH = 56;
 const RAIL_BG = "#001731";
@@ -59,6 +61,8 @@ const ALLOWED_VIEWS = new Set([
   "crm",
   "projects",
   "documents",
+  "properties",
+  "reports",
 ]);
 
 const parseInitialLocation = () => {
@@ -245,6 +249,7 @@ function App() {
     { view: "spreadsheet", label: "スプレッドシート", icon: <TableViewIcon sx={{ fontSize: 20 }} /> },
     { view: "documents", label: "文書生成",           icon: <ArticleIcon sx={{ fontSize: 20 }} /> },
     { view: "properties", label: "物件管理",          icon: <ApartmentIcon sx={{ fontSize: 20 }} /> },
+    { view: "reports",    label: "レポート管理",       icon: <SummarizeIcon sx={{ fontSize: 20 }} /> },
   ], [t]);
 
   const renderView = () => {
@@ -294,6 +299,7 @@ function App() {
       case "whitelist":  return accessStatus.isAdmin ? <WhitelistView currentUser={user} /> : <AccessDeniedView userEmail={user.userDetails} />;
       case "documents":  return <DocumentGenerationView />;
       case "properties": return <PropertiesView />;
+      case "reports":    return <ReportsView />;
       default:           return <DashboardView user={user} />;
     }
   };

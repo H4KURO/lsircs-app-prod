@@ -1,7 +1,7 @@
 # lsir-cs アプリケーション仕様書
 
 > **メンテナンス注意**: このファイルはアプリ変更のたびに更新すること（CLAUDE.md 参照）。  
-> 最終更新: 2026-09-17（タスクへの propertyId 追加・物件ページにタスクセクション・オーナーページに物件別タスクフィルター追加）
+> 最終更新: 2026-10-07（レポート管理画面追加・空室管理レポート・Lease Renewal Report の Google Sheets 双方向同期）
 
 ---
 
@@ -406,6 +406,37 @@ Google Sheets / Box ドキュメントを iframe で埋め込み閲覧・編集�
 - ユーザー追加（メールアドレス必須、名前任意）
 - 管理者権限の付与/剥奪（トグルスイッチ）
 - ユーザー削除
+
+---
+
+### 5.10 レポート管理 (`ReportsView`)
+
+Google Sheets の既存レポートと双方向同期する画面。
+
+**タブ構成:**
+
+| タブ | レポート種別 | デフォルトヘッダー行 |
+|---|---|---|
+| 空室管理レポート | `vacancy` | 4行目 |
+| Lease Renewal Report | `leaseRenewal` | 2行目 |
+
+**各タブの機能:**
+- **設定セクション（アコーディオン）**: Spreadsheet ID・シートタブ（ドロップダウン）・ヘッダー行を設定して保存（Projects コンテナに `report-config-{type}` ドキュメントとして保存）
+- **App → Sheet 同期**: アプリのプロパティデータをシートに反映（空室管理: Status ≠ Current の物件、Lease Renewal: 12ヶ月以内に期限切れの物件）
+- **Sheet → App 同期**: シートのデータをアプリのプロパティに取り込み
+- **シートエディタ**: `GoogleSheetEditor` コンポーネントで直接編集
+
+**マッチングキー:**
+- 空室管理: シートの `Property` 列 + `Unit` 列 → アプリの `propertyName`（例: "Windward Acres" + "#D309" → "Windward Acres #D309"）
+- Lease Renewal: シートの `Property` 列 → アプリの `propertyName`（完全一致 → 前方一致でフォールバック）
+
+**App → Sheet で更新する列:**
+- 空室管理: Status（tenantStatus）、MO Date（vacancyReportData.moDate）、Owner's Name（ownerName）、Approved Rent（monthlyRent、新規追加時のみ）
+- Lease Renewal: Tenant（tenantName）、Lease Expires（leaseEnd）、Current Rent（monthlyRent）
+
+**Sheet → App で取り込む列:**
+- 空室管理: Status→tenantStatus、MO Date/On Market Date/MI Date/MLS/Approved Rent/Description/Showing/Inquiry/Application→vacancyReportData
+- Lease Renewal: Tenant→tenantName、New Rent/Owner's decision/Tenant's Decision/Signed agreement/New Lease Term/MO Date/Report to Owner/Memo→leaseRenewalData
 
 ---
 
@@ -844,8 +875,11 @@ documentSettings: {
 ### 10.3 Google Sheets 連携
 
 - バイヤーリスト / Xld / Commission データを Google Sheets で管理
+- 空室管理レポート・Lease Renewal Report との双方向同期（`ReportsView`）
 - `sheetsClient.js` がサービスアカウント JSON で認証
-- `GetSheetData` / `AppendSheetRow` / `UpdateSheetRow` / `DeleteSheetRow` で操作
+- `GetSheetData`（`headerRow` パラメータ対応）/ `GetSheetTabs` / `AppendSheetRow` / `UpdateSheetRow` / `DeleteSheetRow` で操作
+- レポート用新規API: `GetReportConfig` / `SaveReportConfig` / `SyncReportToSheet` / `SyncReportFromSheet`
+- レポート設定は Projects コンテナに `id = report-config-{reportType}` で保存（`{ spreadsheetId, sheetTab, headerRow }`）
 
 **マルチスプレッドシート対応**:
 - `sheetsClient.js` の `getSheetValuesById(spreadsheetId, range)` 関数により任意のスプレッドシートIDを指定可能
