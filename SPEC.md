@@ -1,7 +1,7 @@
 # lsir-cs アプリケーション仕様書
 
 > **メンテナンス注意**: このファイルはアプリ変更のたびに更新すること（CLAUDE.md 参照）。  
-> 最終更新: 2026-10-07（レポート管理画面追加・空室管理レポート・Lease Renewal Report の Google Sheets 双方向同期）
+> 最終更新: 2026-10-09（契約管理画面追加・Google Sheets 連携 Phase 1・タスク登録連携）
 
 ---
 
@@ -161,6 +161,30 @@ lsircs-app-prod/
 | 設定 | `settings` | `SettingsView` | カテゴリ・自動化ルール管理 |
 | プロフィール | `profile` | `ProfileView` | 表示名変更 |
 | ホワイトリスト | `whitelist` | `WhitelistView` | アクセス管理（管理者のみ） |
+| 文書生成 | `documents` | `DocumentGenerationView` | PDF・Excel 文書生成 |
+| 物件管理 | `properties` | `PropertiesView` | 物件台帳管理 |
+| レポート管理 | `reports` | `ReportsView` | 空室・Lease Renewal Google Sheets 同期 |
+| 契約管理 | `contracts` | `ContractManagementView` | Google Sheets 連携 Phase 1・タスク登録連携 |
+
+---
+
+### 5.10 契約管理 (`ContractManagementView`)
+
+**概要**: Asia TM 向けの契約管理機能。Phase 1 では Google Sheets をデータソースとして使用。
+
+**主な機能**:
+- 1つの Google Spreadsheet を設定（各プロジェクトがタブに対応）
+- タブ一覧をプロジェクトタブとして表示（TSR, TGMO, OBS, UAEの物件等）
+- 購入者リストをテーブル形式で表示・検索
+- 行クリックで詳細パネルを表示（全フィールド + Sheetsリンク）
+- 「Taskとして登録」ボタンで中間金支払いをタスク化 → 既存のダッシュボード・カレンダーで管理可能
+- Phase 2 では Cosmos DB に移行予定
+
+**設定保存**: `contract-config` ドキュメントを Cosmos DB Projects コンテナに保存
+
+**統計バー**: 総契約数・今月の支払期日・期限超過・残代金完了（Sheets から動的計算）
+
+**カラム自動検出**: ID, 担当, Tower, Unit, 購入金額, 月次支払日, 残代金期日, ステータス を列名で自動マッピング
 
 ---
 
