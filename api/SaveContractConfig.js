@@ -9,13 +9,14 @@ app.http('SaveContractConfig', {
   handler: async (request, context) => {
     try {
       const body = await request.json();
-      const { spreadsheetId } = body;
+      const { spreadsheetId, headerRow } = body;
 
       const container = projectsContainer();
       const id = 'contract-config';
       const doc = {
         id,
         spreadsheetId: spreadsheetId || '',
+        headerRow: headerRow || 1,
         updatedAt: new Date().toISOString(),
       };
       await container.items.upsert(doc);

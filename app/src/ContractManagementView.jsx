@@ -68,6 +68,8 @@ function formatPrice(val) {
 export default function ContractManagementView() {
   const [spreadsheetId, setSpreadsheetId] = useState('');
   const [savedSpreadsheetId, setSavedSpreadsheetId] = useState('');
+  const [formHeaderRow, setFormHeaderRow] = useState(1);
+  const [savedHeaderRow, setSavedHeaderRow] = useState(1);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [configLoaded, setConfigLoaded] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
@@ -98,8 +100,11 @@ export default function ContractManagementView() {
   useEffect(() => {
     axios.get(`${API}/GetContractConfig`).then((res) => {
       if (res.data?.spreadsheetId) {
+        const hr = res.data.headerRow || 1;
         setSavedSpreadsheetId(res.data.spreadsheetId);
         setSpreadsheetId(res.data.spreadsheetId);
+        setSavedHeaderRow(hr);
+        setFormHeaderRow(hr);
         fetchTabs(res.data.spreadsheetId);
       }
     }).catch(() => {}).finally(() => setConfigLoaded(true));
@@ -142,9 +147,11 @@ export default function ContractManagementView() {
     setHeaders([]);
     setSelectedRow(null);
     setPanelOpen(false);
-    axios.get(`${API}/GetSheetData?spreadsheetId=${encodeURIComponent(savedSpreadsheetId)}&sheetTab=${encodeURIComponent(currentTab)}&headerRow=1`)
+    axios.get(`${API}/GetSheetData?spreadsheetId=${encodeURIComponent(savedSpreadsheetId)}&sheetTab=${encodeURIComponent(currentTab)}&headerRow=${savedHeaderRow}`)
       .then((res) => {
-        setHeaders(res.data.headers || []);
+        // Filter out empty or _rowIndex pseudo-headers
+        const allHeaders = res.data.headers || [];
+        setHeaders(allHeaders.filter((h) => h && h !== '_rowIndex'));
         setRows(res.data.rows || []);
       })
       .catch((e) => {
@@ -152,7 +159,7 @@ export default function ContractManagementView() {
         setRowsError(typeof msg === 'string' ? msg : JSON.stringify(msg));
       })
       .finally(() => setLoadingRows(false));
-  }, [savedSpreadsheetId, currentTab]);
+  }, [savedSpreadsheetId, currentTab, savedHeaderRow]);
 
   const cols = useMemo(() => detectColumns(headers), [headers]);
 
@@ -188,8 +195,9 @@ export default function ContractManagementView() {
   const handleSaveConfig = async () => {
     setSavingConfig(true);
     try {
-      await axios.post(`${API}/SaveContractConfig`, { spreadsheetId });
+      await axios.post(`${API}/SaveContractConfig`, { spreadsheetId, headerRow: formHeaderRow });
       setSavedSpreadsheetId(spreadsheetId);
+      setSavedHeaderRow(formHeaderRow);
       setSettingsOpen(false);
       setActiveTab(0);
       await fetchTabs(spreadsheetId);
@@ -303,8 +311,18 @@ export default function ContractManagementView() {
                 onChange={(e) => setSpreadsheetId(e.target.value.trim())}
                 placeholder="GoogleスプレッドシートURL中の /d/{ID}/ 部分"
                 size="small"
-                sx={{ flex: 1, minWidth: 320 }}
+                sx={{ flex: 1, minWidth: 280 }}
                 helperText="契約管理用Googleスプレッドシートのシートタブ（TSR, TGMO等）を読み込みます"
+              />
+              <TextField
+                label="ヘッダー行"
+                type="number"
+                value={formHeaderRow}
+                onChange={(e) => setFormHeaderRow(Math.max(1, Number(e.target.value) || 1))}
+                size="small"
+                sx={{ width: 110 }}
+                inputProps={{ min: 1 }}
+                helperText="列名が何行目か（シートにより1〜6程度）"
               />
               <Button
                 variant="contained"
@@ -411,7 +429,7 @@ export default function ContractManagementView() {
                     if (tabName && savedSpreadsheetId) {
                       setLoadingRows(true);
                       setRows([]);
-                      axios.get(`${API}/GetSheetData?spreadsheetId=${encodeURIComponent(savedSpreadsheetId)}&sheetTab=${encodeURIComponent(tabName)}&headerRow=1`)
+                      axios.get(`${API}/GetSheetData?spreadsheetId=${encodeURIComponent(savedSpreadsheetId)}&sheetTab=${encodeURIComponent(tabName)}&headerRow=${savedHeaderRow}`)
                         .then((res) => { setHeaders(res.data.headers || []); setRows(res.data.rows || []); })
                         .catch((e) => { const msg = e.response?.data || e.message; setRowsError(typeof msg === 'string' ? msg : 'データの取得に失敗しました'); })
                         .finally(() => setLoadingRows(false));
