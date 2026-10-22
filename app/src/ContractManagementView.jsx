@@ -453,24 +453,19 @@ export default function ContractManagementView() {
                 <Table size="small" stickyHeader>
                   <TableHead>
                     <TableRow>
-                      {cols.id >= 0 && <TableCell sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>ID</TableCell>}
-                      <TableCell sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase' }}>購入者名</TableCell>
-                      {cols.sales >= 0 && <TableCell sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase' }}>担当</TableCell>}
-                      {(cols.tower >= 0 || cols.unit >= 0) && <TableCell sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase' }}>Tower / Unit</TableCell>}
-                      {cols.price >= 0 && <TableCell sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase' }}>購入金額</TableCell>}
-                      {cols.monthly >= 0 && <TableCell sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase' }}>月次支払日</TableCell>}
-                      {cols.finalDue >= 0 && <TableCell sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase' }}>残代金期日</TableCell>}
-                      {cols.status >= 0 && <TableCell sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase' }}>ステータス</TableCell>}
+                      {headers.map((h) => (
+                        <TableCell
+                          key={h}
+                          sx={{ fontWeight: 700, fontSize: 11, whiteSpace: 'nowrap', bgcolor: 'background.paper' }}
+                        >
+                          {h}
+                        </TableCell>
+                      ))}
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {filteredRows.map((row, idx) => {
                       const isSelected = selectedRow === row;
-                      const nameJp = cellVal(row, headers, cols.nameJp);
-                      const nameEn = cellVal(row, headers, cols.nameEn);
-                      const tower = cellVal(row, headers, cols.tower);
-                      const unit = cellVal(row, headers, cols.unit);
-                      const status = cellVal(row, headers, cols.status);
                       return (
                         <TableRow
                           key={idx}
@@ -479,50 +474,24 @@ export default function ContractManagementView() {
                           onClick={() => handleRowClick(row)}
                           sx={{ cursor: 'pointer' }}
                         >
-                          {cols.id >= 0 && (
-                            <TableCell sx={{ fontVariantNumeric: 'tabular-nums', color: 'text.secondary', fontSize: 12 }}>
-                              {cellVal(row, headers, cols.id)}
-                            </TableCell>
-                          )}
-                          <TableCell>
-                            <Typography variant="body2" fontWeight={500}>{nameJp || nameEn || '—'}</Typography>
-                            {nameJp && nameEn && (
-                              <Typography variant="caption" color="text.secondary">{nameEn}</Typography>
-                            )}
-                          </TableCell>
-                          {cols.sales >= 0 && (
-                            <TableCell sx={{ fontSize: 12 }}>{cellVal(row, headers, cols.sales)}</TableCell>
-                          )}
-                          {(cols.tower >= 0 || cols.unit >= 0) && (
-                            <TableCell>
-                              <Typography variant="body2" fontWeight={600} color="primary.main" sx={{ fontSize: 12 }}>
-                                {[tower, unit].filter(Boolean).join(' / ') || '—'}
-                              </Typography>
-                            </TableCell>
-                          )}
-                          {cols.price >= 0 && (
-                            <TableCell sx={{ fontVariantNumeric: 'tabular-nums', fontSize: 12, whiteSpace: 'nowrap' }}>
-                              {formatPrice(cellVal(row, headers, cols.price))}
-                            </TableCell>
-                          )}
-                          {cols.monthly >= 0 && (
-                            <TableCell sx={{ fontSize: 12, whiteSpace: 'nowrap' }}>{cellVal(row, headers, cols.monthly)}</TableCell>
-                          )}
-                          {cols.finalDue >= 0 && (
-                            <TableCell sx={{ fontSize: 12, whiteSpace: 'nowrap' }}>{cellVal(row, headers, cols.finalDue)}</TableCell>
-                          )}
-                          {cols.status >= 0 && (
-                            <TableCell>
-                              {status ? (
-                                <Chip
-                                  label={status}
-                                  size="small"
-                                  color={statusColor(status)}
-                                  variant="outlined"
-                                />
-                              ) : '—'}
-                            </TableCell>
-                          )}
+                          {headers.map((h, hi) => {
+                            const val = row[h] ?? '';
+                            const isPrice = cols.price >= 0 && hi === cols.price;
+                            const isStatus = cols.status >= 0 && hi === cols.status;
+                            return (
+                              <TableCell key={h} sx={{ fontSize: 12, whiteSpace: 'nowrap', maxWidth: 200 }}>
+                                {isStatus && val ? (
+                                  <Chip label={val} size="small" color={statusColor(val)} variant="outlined" />
+                                ) : isPrice && val ? (
+                                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>{formatPrice(val)}</span>
+                                ) : (
+                                  <span title={String(val)} style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 180 }}>
+                                    {val !== '' && val != null ? String(val) : ''}
+                                  </span>
+                                )}
+                              </TableCell>
+                            );
+                          })}
                         </TableRow>
                       );
                     })}
