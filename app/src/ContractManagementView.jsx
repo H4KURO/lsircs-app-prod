@@ -104,6 +104,7 @@ export default function ContractManagementView() {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null); // { totalImported, results, importedAt }
   const [importSelectedTabs, setImportSelectedTabs] = useState({}); // { tabName: boolean }
+  const [importTabHeaderRows, setImportTabHeaderRows] = useState({}); // { tabName: number } — editable per-tab headerRow for import
 
   // Load config on mount
   useEffect(() => {
@@ -217,7 +218,12 @@ export default function ContractManagementView() {
     setImporting(true);
     setImportResult(null);
     try {
-      const res = await axios.post(`${API}/ImportContractData`, { tabNames: selectedTabNames });
+      const res = await axios.post(`${API}/ImportContractData`, {
+        tabNames: selectedTabNames,
+        tabHeaderRows: importTabHeaderRows,
+      });
+      // Reflect saved headerRows back to local state
+      setTabHeaderRows((prev) => ({ ...prev, ...importTabHeaderRows }));
       setImportResult(res.data);
     } catch (e) {
       const msg = e.response?.data || e.message || 'インポートに失敗しました';
@@ -385,9 +391,14 @@ export default function ContractManagementView() {
                   onClick={() => {
                     setImportResult(null);
                     // Initialize all loaded tabs as selected
-                    const init = {};
-                    tabs.forEach((t) => { init[t] = true; });
-                    setImportSelectedTabs(init);
+                    const initSel = {};
+                    const initHr = {};
+                    tabs.forEach((t) => {
+                      initSel[t] = true;
+                      initHr[t] = tabHeaderRows[t] ?? 1;
+                    });
+                    setImportSelectedTabs(initSel);
+                    setImportTabHeaderRows(initHr);
                     setImportDialogOpen(true);
                   }}
                   size="small"
@@ -661,20 +672,39 @@ export default function ContractManagementView() {
                   setImportSelectedTabs(none);
                 }}>すべて解除</Button>
               </Box>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                 {Object.keys(importSelectedTabs).map((t) => (
-                  <FormControlLabel
-                    key={t}
-                    control={
-                      <Checkbox
-                        size="small"
-                        checked={importSelectedTabs[t] ?? false}
-                        onChange={(e) => setImportSelectedTabs((prev) => ({ ...prev, [t]: e.target.checked }))}
-                      />
-                    }
-                    label={<Typography variant="body2">{t}</Typography>}
-                    sx={{ mr: 1 }}
-                  />
+                  <Box key={t} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          size="small"
+                          checked={importSelectedTabs[t] ?? false}
+                          onChange={(e) => setImportSelectedTabs((prev) => ({ ...prev, [t]: e.target.checked }))}
+                        />
+                      }
+                      label={<Typography variant="body2" sx={{ minWidth: 100 }}>{t}</Typography>}
+                      sx={{ mr: 0, flexShrink: 0 }}
+                    />
+                    <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>ヘッダー行:</Typography>
+                    <TextField
+                      type="number"
+                      size="small"
+                      value={importTabHeaderRows[t] ?? 1}
+                      onChange={(e) => setImportTabHeaderRows((prev) => ({
+                        ...prev,
+                        [t]: Math.max(1, Number(e.target.value) || 1),
+                      }))}
+                      inputProps={{ min: 1 }}
+                      disabled={!importSelectedTabs[t]}
+                      sx={{ width: 70 }}
+                    />
+                    {(importTabHeaderRows[t] ?? 1) > 1 && (
+                      <Typography variant="caption" color="text.secondary">
+                        （{importTabHeaderRows[t]}行目を列名として使用）
+                      </Typography>
+                    )}
+                  </Box>
                 ))}
               </Box>
             </>
