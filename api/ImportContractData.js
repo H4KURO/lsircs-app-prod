@@ -78,10 +78,13 @@ app.http('ImportContractData', {
       // Merge: request body tabHeaderRows override saved config values
       const effectiveHeaderRows = { ...tabHeaderRows, ...(body.tabHeaderRows || {}) };
 
+      // Strip Cosmos DB system fields before upsert to avoid conflicts
+      const { _etag, _rid, _self, _attachments, _ts, ...cleanConfig } = config;
+
       // Persist any overrides back to config so they are remembered for next time
       if (Object.keys(body.tabHeaderRows || {}).length > 0) {
         await cfgContainer.items.upsert({
-          ...config,
+          ...cleanConfig,
           tabHeaderRows: effectiveHeaderRows,
           updatedAt: now,
         });
@@ -134,7 +137,8 @@ app.http('ImportContractData', {
 
       // Update contract-config with last import timestamp
       await cfgContainer.items.upsert({
-        ...config,
+        ...cleanConfig,
+        tabHeaderRows: effectiveHeaderRows,
         lastImportedAt: now,
         updatedAt: now,
       });
