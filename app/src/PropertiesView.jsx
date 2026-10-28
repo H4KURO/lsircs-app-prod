@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import {
   Box, Typography, Button, TextField, Select, MenuItem, FormControl, InputLabel,
@@ -6,6 +6,7 @@ import {
   Chip, CircularProgress, Alert, Dialog, DialogTitle, DialogContent,
   DialogActions, LinearProgress, InputAdornment, IconButton, Tooltip,
   Divider, List, ListItem, ListItemText, RadioGroup, FormControlLabel, Radio,
+  Tabs, Tab, Checkbox, Accordion, AccordionSummary, AccordionDetails,
 } from '@mui/material';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -17,6 +18,8 @@ import SyncIcon from '@mui/icons-material/Sync';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import AddIcon from '@mui/icons-material/Add';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
 const API = '/api';
 const MGMT_TYPES = ['PM', 'PCS A', 'PCS B'];
@@ -502,6 +505,330 @@ function SyncToCRMDialog({ open, onClose }) {
   );
 }
 
+const SHEET_SYSTEM_FIELDS = new Set([
+  'id', '_rowIndex', '_spreadsheetId', 'importSource', 'sheetTab',
+  'propertyName', 'importedAt', 'updatedAt', '_etag', '_rid', '_self',
+  '_attachments', '_ts',
+]);
+
+function SheetsImportDialog({ open, onClose, onImported }) {
+  const [spreadsheetId, setSpreadsheetId] = useState('');
+  const [savedSpreadsheetId, setSavedSpreadsheetId] = useState('');
+  const [tabs, setTabs] = useState([]);
+  const [loadingTabs, setLoadingTabs] = useState(false);
+  const [tabsError, setTabsError] = useState('');
+  const [tabHeaderRows, setTabHeaderRows] = useState({});
+  const [importSelectedTabs, setImportSelectedTabs] = useState({});
+  const [importTabHeaderRows, setImportTabHeaderRows] = useState({});
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
+  const [savingConfig, setSavingConfig] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    axios.get(`${API}/GetContractConfig`).then((res) => {
+      if (res.data?.spreadsheetId) {
+        setSavedSpreadsheetId(res.data.spreadsheetId);
+        setSpreadsheetId(res.data.spreadsheetId);
+        setTabHeaderRows(res.data.tabHeaderRows || {});
+        fetchTabs(res.data.spreadsheetId);
+      }
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const fetchTabs = async (sid) => {
+    if (!sid) return;
+    setLoadingTabs(true);
+    setTabsError('');
+    try {
+      const res = await axios.get(`${API}/GetSheetTabs?spreadsheetId=${encodeURIComponent(sid)}`);
+      const fetched = res.data.tabs || [];
+      setTabs(fetched);
+      const init = {};
+      fetched.forEach((t) => { init[t] = true; });
+      setImportSelectedTabs(init);
+    } catch (e) {
+      setTabsError(e.response?.data || e.message || 'タブの取得に失敗しました');
+      setTabs([]);
+    } finally {
+      setLoadingTabs(false);
+    }
+  };
+
+  const handleSaveConfig = async () => {
+    setSavingConfig(true);
+    try {
+      await axios.post(`${API}/SaveContractConfig`, { spreadsheetId });
+      setSavedSpreadsheetId(spreadsheetId);
+      await fetchTabs(spreadsheetId);
+    } catch {
+      alert('設定の保存に失敗しました');
+    } finally {
+      setSavingConfig(false);
+    }
+  };
+
+  const handleImport = async () => {
+    const selectedTabNames = Object.entries(importSelectedTabs)
+      .filter(([, v]) => v).map(([k]) => k);
+    if (selectedTabNames.length === 0) return;
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const res = await axios.post(`${API}/ImportContractData`, {
+        tabNames: selectedTabNames,
+        tabHeaderRows: importTabHeaderRows,
+      });
+      setImportResult(res.data);
+      if (res.data?.success) onImported();
+    } catch (e) {
+      const msg = e.response?.data || e.message || 'インポートに失敗しました';
+      setImportResult({ success: false, error: typeof msg === 'string' ? msg : JSON.stringify(msg) });
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleClose = () => {
+    setImportResult(null);
+    onClose();
+  };
+
+  const allSelected = tabs.length > 0 && tabs.every((t) => importSelectedTabs[t]);
+  const toggleAll = () => {
+    const next = !allSelected;
+    const init = {};
+    tabs.forEach((t) => { init[t] = next; });
+    setImportSelectedTabs(init);
+  };
+
+  return (
+    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+      <DialogTitle>Sheets インポート（海外物件）</DialogTitle>
+      <DialogContent>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Google Sheets から物件データを物件管理にインポートします。
+        </Typography>
+
+        {/* Spreadsheet ID */}
+        <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+          <TextField
+            size="small" label="スプレッドシート ID" fullWidth
+            value={spreadsheetId}
+            onChange={(e) => setSpreadsheetId(e.target.value)}
+          />
+          <Button
+            variant="outlined" size="small" sx={{ flexShrink: 0 }}
+            onClick={handleSaveConfig}
+            disabled={savingConfig || !spreadsheetId}
+          >
+            {savingConfig ? '保存中...' : '保存'}
+          </Button>
+        </Box>
+
+        {/* Tab selection */}
+        {loadingTabs && <LinearProgress sx={{ mb: 1 }} />}
+        {tabsError && <Alert severity="error" sx={{ mb: 1 }}>{tabsError}</Alert>}
+        {tabs.length > 0 && (
+          <Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+              <FormControlLabel
+                control={<Checkbox size="small" checked={allSelected} onChange={toggleAll} />}
+                label={<Typography variant="body2" fontWeight={600}>タブ選択（全 {tabs.length}件）</Typography>}
+              />
+            </Box>
+            <Box sx={{ maxHeight: 240, overflowY: 'auto', border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1 }}>
+              {tabs.map((tab) => (
+                <Box key={tab} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                  <Checkbox
+                    size="small"
+                    checked={!!importSelectedTabs[tab]}
+                    onChange={(e) => setImportSelectedTabs((prev) => ({ ...prev, [tab]: e.target.checked }))}
+                  />
+                  <Typography variant="body2" sx={{ flex: 1 }}>{tab}</Typography>
+                  <TextField
+                    size="small" type="number" label="ヘッダー行"
+                    value={importTabHeaderRows[tab] ?? tabHeaderRows[tab] ?? 1}
+                    onChange={(e) => setImportTabHeaderRows((prev) => ({ ...prev, [tab]: Number(e.target.value) }))}
+                    sx={{ width: 90 }}
+                    inputProps={{ min: 1 }}
+                  />
+                </Box>
+              ))}
+            </Box>
+          </Box>
+        )}
+
+        {importing && <LinearProgress sx={{ mt: 2 }} />}
+        {importResult && (
+          <Box sx={{ mt: 2 }}>
+            {importResult.success ? (
+              <Alert severity="success">
+                インポート完了: 合計 {importResult.totalImported} 件
+              </Alert>
+            ) : (
+              <Alert severity="error">{importResult.error || 'インポートに失敗しました'}</Alert>
+            )}
+            {importResult.results && (
+              <Box sx={{ mt: 1 }}>
+                {importResult.results.map((r) => (
+                  <Typography key={r.tab} variant="caption" display="block" color={r.error ? 'error.main' : 'text.secondary'}>
+                    {r.tab}: {r.error ? `エラー — ${r.error}` : `${r.imported}件インポート, ${r.skipped}件スキップ`}
+                  </Typography>
+                ))}
+              </Box>
+            )}
+          </Box>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={handleClose}>閉じる</Button>
+        <Button
+          variant="contained"
+          startIcon={<CloudDownloadIcon />}
+          onClick={handleImport}
+          disabled={importing || !savedSpreadsheetId || Object.values(importSelectedTabs).every((v) => !v)}
+        >
+          {importing ? 'インポート中...' : 'インポート実行'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+function SheetsPropertiesTab({ properties, onImportOpen, onDelete }) {
+  const [selectedTab, setSelectedTab] = useState('');
+  const [search, setSearch] = useState('');
+
+  const sheetTabs = useMemo(
+    () => [...new Set(properties.map((p) => p.sheetTab).filter(Boolean))].sort(),
+    [properties],
+  );
+
+  useEffect(() => {
+    if (sheetTabs.length > 0 && !sheetTabs.includes(selectedTab)) {
+      setSelectedTab(sheetTabs[0]);
+    }
+  }, [sheetTabs, selectedTab]);
+
+  const tabProperties = useMemo(
+    () => properties.filter((p) => p.sheetTab === selectedTab),
+    [properties, selectedTab],
+  );
+
+  const columns = useMemo(() => {
+    const keys = new Set();
+    tabProperties.slice(0, 20).forEach((p) => {
+      Object.keys(p).forEach((k) => { if (!SHEET_SYSTEM_FIELDS.has(k)) keys.add(k); });
+    });
+    return [...keys];
+  }, [tabProperties]);
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return tabProperties;
+    const q = search.toLowerCase();
+    return tabProperties.filter((p) =>
+      columns.some((c) => String(p[c] ?? '').toLowerCase().includes(q)),
+    );
+  }, [tabProperties, columns, search]);
+
+  if (properties.length === 0) {
+    return (
+      <Box sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
+        <Typography variant="body1">データがありません。</Typography>
+        <Button variant="outlined" startIcon={<CloudDownloadIcon />} sx={{ mt: 2 }} onClick={onImportOpen}>
+          Sheets からインポート
+        </Button>
+      </Box>
+    );
+  }
+
+  return (
+    <Box>
+      {/* Tab selector */}
+      <Box sx={{ display: 'flex', gap: 1.5, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+        <FormControl size="small" sx={{ minWidth: 180 }}>
+          <InputLabel>プロジェクト（シートタブ）</InputLabel>
+          <Select
+            value={selectedTab}
+            label="プロジェクト（シートタブ）"
+            onChange={(e) => setSelectedTab(e.target.value)}
+          >
+            {sheetTabs.map((t) => (
+              <MenuItem key={t} value={t}>
+                {t} ({properties.filter((p) => p.sheetTab === t).length}件)
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        <TextField
+          size="small"
+          placeholder="検索"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          sx={{ minWidth: 200 }}
+          InputProps={{
+            startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>,
+            endAdornment: search && (
+              <InputAdornment position="end">
+                <IconButton size="small" onClick={() => setSearch('')}><ClearIcon fontSize="small" /></IconButton>
+              </InputAdornment>
+            ),
+          }}
+        />
+        <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto' }}>
+          {filtered.length} / {tabProperties.length} 件
+        </Typography>
+      </Box>
+
+      {/* Dynamic table */}
+      <TableContainer component={Paper} sx={{ maxHeight: 'calc(100vh - 320px)' }}>
+        <Table stickyHeader size="small">
+          <TableHead>
+            <TableRow>
+              {columns.map((col) => (
+                <TableCell key={col} sx={{ fontWeight: 700, whiteSpace: 'nowrap', minWidth: 100 }}>
+                  {col}
+                </TableCell>
+              ))}
+              <TableCell sx={{ fontWeight: 700, width: 60 }} align="center">操作</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {filtered.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={columns.length + 1} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                  条件に一致するデータがありません。
+                </TableCell>
+              </TableRow>
+            ) : (
+              filtered.map((p) => (
+                <TableRow key={p.id} hover>
+                  {columns.map((col) => (
+                    <TableCell key={col} sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <Tooltip title={p[col] || ''} placement="top">
+                        <span>{p[col] || '—'}</span>
+                      </Tooltip>
+                    </TableCell>
+                  ))}
+                  <TableCell align="center">
+                    <Tooltip title="削除">
+                      <IconButton size="small" color="error" onClick={() => onDelete(p)}>
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Box>
+  );
+}
+
 export function PropertiesView() {
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -512,6 +839,8 @@ export function PropertiesView() {
   const [syncOpen, setSyncOpen] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [exporting, setExporting] = useState(false);
+  const [activeView, setActiveView] = useState('appfolio');
+  const [sheetsImportOpen, setSheetsImportOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -550,7 +879,10 @@ export function PropertiesView() {
     }
   };
 
-  const filtered = properties.filter(p => {
+  const appfolioProperties = properties.filter((p) => p.importSource !== 'sheets');
+  const sheetsProperties = properties.filter((p) => p.importSource === 'sheets');
+
+  const filtered = appfolioProperties.filter(p => {
     const q = search.toLowerCase();
     const matchSearch = !q || (p.propertyName || '').toLowerCase().includes(q) || (p.ownerName || '').toLowerCase().includes(q);
     const matchMgmt = !filterMgmt || p.managementType === filterMgmt;
@@ -560,125 +892,148 @@ export function PropertiesView() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 1.5 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1.5 }}>
         <Typography variant="h5" fontWeight={600}>物件管理</Typography>
         <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button variant="outlined" startIcon={<UploadFileIcon />} onClick={() => setImportOpen(true)}>
-            Appfolio インポート
-          </Button>
-          <Button variant="outlined" startIcon={<SyncIcon />} onClick={() => setSyncOpen(true)}>
-            CRMに同期
-          </Button>
-          <Button variant="contained" startIcon={<DownloadIcon />} onClick={handleExport} disabled={exporting}>
-            {exporting ? 'エクスポート中...' : 'Excel エクスポート'}
-          </Button>
+          {activeView === 'appfolio' && (
+            <>
+              <Button variant="outlined" startIcon={<UploadFileIcon />} onClick={() => setImportOpen(true)}>
+                Appfolio インポート
+              </Button>
+              <Button variant="outlined" startIcon={<SyncIcon />} onClick={() => setSyncOpen(true)}>
+                CRMに同期
+              </Button>
+              <Button variant="contained" startIcon={<DownloadIcon />} onClick={handleExport} disabled={exporting}>
+                {exporting ? 'エクスポート中...' : 'Excel エクスポート'}
+              </Button>
+            </>
+          )}
+          {activeView === 'sheets' && (
+            <Button variant="contained" startIcon={<CloudDownloadIcon />} onClick={() => setSheetsImportOpen(true)}>
+              Sheets からインポート
+            </Button>
+          )}
         </Box>
       </Box>
 
-      {/* Filters */}
-      <Box sx={{ display: 'flex', gap: 1.5, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-        <TextField
-          size="small"
-          placeholder="物件名・オーナー名で検索"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          sx={{ minWidth: 240 }}
-          InputProps={{
-            startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>,
-            endAdornment: search && (
-              <InputAdornment position="end">
-                <IconButton size="small" onClick={() => setSearch('')}><ClearIcon fontSize="small" /></IconButton>
-              </InputAdornment>
-            ),
-          }}
-        />
-        <FormControl size="small" sx={{ minWidth: 130 }}>
-          <InputLabel>管理形態</InputLabel>
-          <Select value={filterMgmt} label="管理形態" onChange={e => setFilterMgmt(e.target.value)}>
-            <MenuItem value="">すべて</MenuItem>
-            {MGMT_TYPES.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
-          </Select>
-        </FormControl>
-        <FormControl size="small" sx={{ minWidth: 130 }}>
-          <InputLabel>テナント状況</InputLabel>
-          <Select value={filterStatus} label="テナント状況" onChange={e => setFilterStatus(e.target.value)}>
-            <MenuItem value="">すべて</MenuItem>
-            <MenuItem value="Current">Current</MenuItem>
-            <MenuItem value="Notice">Notice</MenuItem>
-          </Select>
-        </FormControl>
-        <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto' }}>
-          {filtered.length} / {properties.length} 件
-        </Typography>
-      </Box>
+      {/* View tabs */}
+      <Tabs value={activeView} onChange={(_, v) => setActiveView(v)} sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
+        <Tab label={`Appfolio (${appfolioProperties.length}件)`} value="appfolio" />
+        <Tab label={`海外物件 / Sheets (${sheetsProperties.length}件)`} value="sheets" />
+      </Tabs>
 
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>
-      ) : (
-        <TableContainer component={Paper} sx={{ maxHeight: 'calc(100vh - 280px)' }}>
-          <Table stickyHeader size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 700, minWidth: 220 }}>物件名</TableCell>
-                <TableCell sx={{ fontWeight: 700, width: 90 }}>管理形態</TableCell>
-                <TableCell sx={{ fontWeight: 700, minWidth: 180 }}>オーナー名</TableCell>
-                <TableCell sx={{ fontWeight: 700, width: 100 }}>テナント</TableCell>
-                <TableCell sx={{ fontWeight: 700, width: 110 }}>賃貸終了日</TableCell>
-                <TableCell sx={{ fontWeight: 700, width: 100 }} align="right">月額賃料</TableCell>
-                <TableCell sx={{ fontWeight: 700, width: 70 }} align="center">操作</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filtered.length === 0 ? (
+      ) : activeView === 'appfolio' ? (
+        <>
+          {/* Filters */}
+          <Box sx={{ display: 'flex', gap: 1.5, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+            <TextField
+              size="small"
+              placeholder="物件名・オーナー名で検索"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              sx={{ minWidth: 240 }}
+              InputProps={{
+                startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>,
+                endAdornment: search && (
+                  <InputAdornment position="end">
+                    <IconButton size="small" onClick={() => setSearch('')}><ClearIcon fontSize="small" /></IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <FormControl size="small" sx={{ minWidth: 130 }}>
+              <InputLabel>管理形態</InputLabel>
+              <Select value={filterMgmt} label="管理形態" onChange={e => setFilterMgmt(e.target.value)}>
+                <MenuItem value="">すべて</MenuItem>
+                {MGMT_TYPES.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: 130 }}>
+              <InputLabel>テナント状況</InputLabel>
+              <Select value={filterStatus} label="テナント状況" onChange={e => setFilterStatus(e.target.value)}>
+                <MenuItem value="">すべて</MenuItem>
+                <MenuItem value="Current">Current</MenuItem>
+                <MenuItem value="Notice">Notice</MenuItem>
+              </Select>
+            </FormControl>
+            <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto' }}>
+              {filtered.length} / {appfolioProperties.length} 件
+            </Typography>
+          </Box>
+
+          <TableContainer component={Paper} sx={{ maxHeight: 'calc(100vh - 320px)' }}>
+            <Table stickyHeader size="small">
+              <TableHead>
                 <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 4, color: 'text.secondary' }}>
-                    {properties.length === 0 ? 'データがありません。Appfolioからインポートしてください。' : '条件に一致する物件がありません。'}
-                  </TableCell>
+                  <TableCell sx={{ fontWeight: 700, minWidth: 220 }}>物件名</TableCell>
+                  <TableCell sx={{ fontWeight: 700, width: 90 }}>管理形態</TableCell>
+                  <TableCell sx={{ fontWeight: 700, minWidth: 180 }}>オーナー名</TableCell>
+                  <TableCell sx={{ fontWeight: 700, width: 100 }}>テナント</TableCell>
+                  <TableCell sx={{ fontWeight: 700, width: 110 }}>賃貸終了日</TableCell>
+                  <TableCell sx={{ fontWeight: 700, width: 100 }} align="right">月額賃料</TableCell>
+                  <TableCell sx={{ fontWeight: 700, width: 70 }} align="center">操作</TableCell>
                 </TableRow>
-              ) : (
-                filtered.map(p => (
-                  <TableRow key={p.id} hover>
-                    <TableCell>
-                      <Typography variant="body2" fontWeight={500}>{p.propertyName}</Typography>
-                      {p.notes && <Typography variant="caption" color="text.secondary">{p.notes}</Typography>}
-                    </TableCell>
-                    <TableCell>
-                      {p.managementType && (
-                        <Chip label={p.managementType} size="small" color={MGMT_COLORS[p.managementType] || 'default'} />
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">{p.ownerName}</Typography>
-                      {p.ownerPhone && <Typography variant="caption" color="text.secondary">{p.ownerPhone}</Typography>}
-                    </TableCell>
-                    <TableCell>
-                      {p.tenantStatus && (
-                        <Chip label={p.tenantStatus} size="small"
-                          color={p.tenantStatus === 'Current' ? 'success' : 'warning'} variant="outlined" />
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">{p.leaseEnd || '—'}</Typography>
-                    </TableCell>
-                    <TableCell align="right">
-                      <Typography variant="body2">
-                        {p.monthlyRent ? `$${Number(p.monthlyRent).toLocaleString()}` : '—'}
-                      </Typography>
-                    </TableCell>
-                    <TableCell align="center">
-                      <Tooltip title="編集">
-                        <IconButton size="small" onClick={() => setEditTarget(p)}><EditIcon fontSize="small" /></IconButton>
-                      </Tooltip>
-                      <Tooltip title="削除">
-                        <IconButton size="small" color="error" onClick={() => handleDelete(p)}><DeleteIcon fontSize="small" /></IconButton>
-                      </Tooltip>
+              </TableHead>
+              <TableBody>
+                {filtered.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                      {appfolioProperties.length === 0 ? 'データがありません。Appfolioからインポートしてください。' : '条件に一致する物件がありません。'}
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
+                ) : (
+                  filtered.map(p => (
+                    <TableRow key={p.id} hover>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight={500}>{p.propertyName}</Typography>
+                        {p.notes && <Typography variant="caption" color="text.secondary">{p.notes}</Typography>}
+                      </TableCell>
+                      <TableCell>
+                        {p.managementType && (
+                          <Chip label={p.managementType} size="small" color={MGMT_COLORS[p.managementType] || 'default'} />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">{p.ownerName}</Typography>
+                        {p.ownerPhone && <Typography variant="caption" color="text.secondary">{p.ownerPhone}</Typography>}
+                      </TableCell>
+                      <TableCell>
+                        {p.tenantStatus && (
+                          <Chip label={p.tenantStatus} size="small"
+                            color={p.tenantStatus === 'Current' ? 'success' : 'warning'} variant="outlined" />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">{p.leaseEnd || '—'}</Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography variant="body2">
+                          {p.monthlyRent ? `$${Number(p.monthlyRent).toLocaleString()}` : '—'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Tooltip title="編集">
+                          <IconButton size="small" onClick={() => setEditTarget(p)}><EditIcon fontSize="small" /></IconButton>
+                        </Tooltip>
+                        <Tooltip title="削除">
+                          <IconButton size="small" color="error" onClick={() => handleDelete(p)}><DeleteIcon fontSize="small" /></IconButton>
+                        </Tooltip>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </>
+      ) : (
+        <SheetsPropertiesTab
+          properties={sheetsProperties}
+          onImportOpen={() => setSheetsImportOpen(true)}
+          onDelete={handleDelete}
+        />
       )}
 
       <ImportDialog
@@ -695,6 +1050,11 @@ export function PropertiesView() {
         open={!!editTarget}
         onClose={() => setEditTarget(null)}
         onSaved={updated => setProperties(prev => prev.map(p => p.id === updated.id ? updated : p))}
+      />
+      <SheetsImportDialog
+        open={sheetsImportOpen}
+        onClose={() => setSheetsImportOpen(false)}
+        onImported={() => { load(); setSheetsImportOpen(false); }}
       />
     </Box>
   );
