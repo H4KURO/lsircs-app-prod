@@ -1,7 +1,7 @@
 # lsir-cs アプリケーション仕様書
 
 > **メンテナンス注意**: このファイルはアプリ変更のたびに更新すること（CLAUDE.md 参照）。  
-> 最終更新: 2026-10-28（契約管理・SheetsからCosmosDBへのインポート機能追加）
+> 最終更新: 2026-10-28（契約管理・Phase 2移行: CosmosDBからの読み込みに切り替え）
 
 ---
 
@@ -190,7 +190,9 @@ lsircs-app-prod/
 
 **カラム自動検出**: ID, 担当, Tower, Unit, 購入金額, 月次支払日, 残代金期日, ステータス を列名で自動マッピング
 
-**インポート機能（Phase 2 移行）**: 設定セクション内「インポート実行」ボタンで全タブを一括でCosmosDB `Contracts` コンテナに保存。ドキュメント id は `{タブ名}-{行番号}`、パーティションキーは `/projectTab`。再実行は差分上書き（upsert）。
+**データソース（Phase 2）**: CosmosDB `Contracts` コンテナから読み込み。`GetContracts` API (`GET /api/GetContracts?projectTab=`) で取得。システムフィールドを除いた列を自動的に表示。
+
+**インポート機能**: 設定セクション内「インポート実行」ボタンで対象タブを選択しSheetsからCosmosDBに一括upsert。ドキュメント id は `{タブ名}-{行番号}`、パーティションキーは `/projectTab`。再実行は差分上書き（upsert）。
 
 ---
 
