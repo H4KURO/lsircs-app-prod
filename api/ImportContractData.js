@@ -30,41 +30,46 @@ app.http('ImportContractData', {
   methods: ['POST'],
   authLevel: 'anonymous',
   handler: async (request, context) => {
-    // DEBUG: verify handler is reachable - remove after confirming
-    return { status: 200, jsonBody: { debug: 'handler_reached', ts: new Date().toISOString() } };
-    // eslint-disable-next-line no-unreachable
+    let _step = 0;
     try {
       // Load contract config
+      _step = 1;
       const cfgContainer = projectsContainer();
       let config;
       try {
         const { resource } = await cfgContainer.item('contract-config', 'contract-config').read();
         config = resource;
       } catch (e) {
-        return { status: 400, body: '契約管理の設定が見つかりません。先にスプレッドシートIDを設定してください。' };
+        return { status: 200, jsonBody: { success: false, error: '設定が見つかりません: ' + e.message, step: _step } };
       }
 
+      _step = 2;
       if (!config?.spreadsheetId) {
-        return { status: 400, body: 'スプレッドシートIDが設定されていません。' };
+        return { status: 200, jsonBody: { success: false, error: 'スプレッドシートIDが設定されていません', step: _step } };
       }
 
+      _step = 3;
       const { spreadsheetId, tabHeaderRows = {} } = config;
 
       // Get tab list from the spreadsheet
       const sheets = getSheetsClient();
+      _step = 4;
       const metaRes = await sheets.spreadsheets.get({
         spreadsheetId,
         fields: 'sheets.properties.title',
       });
       const allTabNames = (metaRes.data.sheets || []).map((s) => s.properties.title);
 
+      _step = 5;
       if (allTabNames.length === 0) {
-        return { status: 400, body: 'スプレッドシートにタブが見つかりませんでした。' };
+        return { status: 200, jsonBody: { success: false, error: 'タブが見つかりません', step: _step } };
       }
 
       // Optional filter: only import specified tabs + per-tab headerRow override from request
+      _step = 6;
       let body = {};
-      try { body = await request.json(); } catch { /* no body */ }
+      try { body = await request.json(); } catch (_e) { body = { _parseError: _e?.message }; }
+      _step = 7;
       const selectedTabs = Array.isArray(body.tabNames) && body.tabNames.length > 0
         ? body.tabNames
         : null;
@@ -73,9 +78,10 @@ app.http('ImportContractData', {
         : allTabNames;
 
       if (tabNames.length === 0) {
-        return { status: 400, body: '指定されたタブがスプレッドシートに存在しません。' };
+        return { status: 200, jsonBody: { success: false, error: '指定されたタブが存在しません', step: _step } };
       }
 
+      _step = 8;
       const now = new Date().toISOString();
 
       // Merge: request body tabHeaderRows override saved config values
@@ -84,6 +90,7 @@ app.http('ImportContractData', {
       // Strip Cosmos DB system fields before upsert to avoid conflicts
       const { _etag, _rid, _self, _attachments, _ts, ...cleanConfig } = config;
 
+      _step = 9;
       // Persist any overrides back to config so they are remembered for next time
       if (Object.keys(body.tabHeaderRows || {}).length > 0) {
         await cfgContainer.items.upsert({
@@ -93,11 +100,13 @@ app.http('ImportContractData', {
         });
       }
 
+      _step = 10;
       // Ensure Contracts container exists (auto-creates if missing)
       const contractsContainer = await ensureNamedContainer('Contracts', {
         overrideKeys: ['COSMOS_CONTRACTS_CONTAINER'],
         partitionKey: '/projectTab',
       });
+      _step = 11;
       const results = [];
 
       for (const tabName of tabNames) {
@@ -151,12 +160,11 @@ app.http('ImportContractData', {
         jsonBody: { success: true, totalImported, results, importedAt: now },
       };
     } catch (error) {
-      const msg = error.message || error.toString();
-      context.log('ImportContractData failed', msg, error.stack);
-      // Return 200 so Azure SWA doesn't mask the error body as "Backend call failure"
+      const msg = (error && error.message) ? error.message : String(error);
+      context.log('ImportContractData failed at step', _step, msg);
       return {
         status: 200,
-        jsonBody: { success: false, error: `インポートに失敗しました: ${msg}` },
+        jsonBody: { success: false, error: `[step${_step}] ${msg}`, step: _step },
       };
     }
   },
