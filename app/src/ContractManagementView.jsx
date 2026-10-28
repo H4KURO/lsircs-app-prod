@@ -4,13 +4,17 @@ import {
   AccordionDetails, CircularProgress, Chip, Tabs, Tab, Table, TableHead,
   TableRow, TableCell, TableBody, InputAdornment, Drawer, IconButton,
   Divider, Dialog, DialogTitle, DialogContent, DialogActions,
-  MenuItem, Select, FormControl, InputLabel, Snackbar,
+  MenuItem, Select, FormControl, InputLabel, Snackbar, List, ListItem,
+  ListItemText, Checkbox, FormControlLabel,
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon, Settings as SettingsIcon,
   OpenInNew as OpenInNewIcon, Search as SearchIcon,
   Close as CloseIcon, Assignment as AssignmentIcon,
   Info as InfoIcon, Refresh as RefreshIcon,
+  CloudDownload as CloudDownloadIcon,
+  CheckCircle as CheckCircleIcon,
+  Error as ErrorIcon,
 } from '@mui/icons-material';
 import axios from 'axios';
 
@@ -97,6 +101,12 @@ export default function ContractManagementView() {
   const [taskDesc, setTaskDesc] = useState('');
   const [creatingTask, setCreatingTask] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+
+  // Import state
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null); // { totalImported, results, importedAt }
+  const [importSelectedTabs, setImportSelectedTabs] = useState({}); // { tabName: boolean }
 
   // Load config on mount
   useEffect(() => {
@@ -211,6 +221,24 @@ export default function ContractManagementView() {
       setSnackbar({ open: true, message: '設定の保存に失敗しました', severity: 'error' });
     } finally {
       setSavingConfig(false);
+    }
+  };
+
+  const handleImport = async () => {
+    const selectedTabNames = Object.entries(importSelectedTabs)
+      .filter(([, v]) => v)
+      .map(([k]) => k);
+    if (selectedTabNames.length === 0) return;
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const res = await axios.post(`${API}/ImportContractData`, { tabNames: selectedTabNames });
+      setImportResult(res.data);
+    } catch (e) {
+      const msg = e.response?.data || e.message || 'インポートに失敗しました';
+      setImportResult({ error: typeof msg === 'string' ? msg : JSON.stringify(msg) });
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -365,6 +393,33 @@ export default function ContractManagementView() {
                 </Button>
               )}
             </Box>
+            {savedSpreadsheetId && (
+              <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                <Box>
+                  <Typography variant="subtitle2" gutterBottom>SheetsデータをAzureにインポート</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    全タブの現在のデータをCosmosDBに一括保存します。再実行すると差分を上書き更新します。
+                  </Typography>
+                </Box>
+                <Button
+                  variant="contained"
+                  color="secondary"
+                  startIcon={<CloudDownloadIcon />}
+                  onClick={() => {
+                    setImportResult(null);
+                    // Initialize all loaded tabs as selected
+                    const init = {};
+                    tabs.forEach((t) => { init[t] = true; });
+                    setImportSelectedTabs(init);
+                    setImportDialogOpen(true);
+                  }}
+                  size="small"
+                  sx={{ whiteSpace: 'nowrap' }}
+                >
+                  インポート実行
+                </Button>
+              </Box>
+            )}
           </AccordionDetails>
         </Accordion>
 
@@ -641,6 +696,101 @@ export default function ContractManagementView() {
           </Box>
         )}
       </Drawer>
+
+      {/* Import Dialog */}
+      <Dialog open={importDialogOpen} onClose={() => !importing && setImportDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>SheetsデータをAzureにインポート</DialogTitle>
+        <DialogContent sx={{ pt: '8px !important' }}>
+          {!importResult && !importing && (
+            <>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                選択したタブのデータをCosmosDBに保存します。既存データは行番号をキーとして上書きされます。
+              </Alert>
+              <Typography variant="subtitle2" sx={{ mb: 0.5 }}>インポートするタブを選択</Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
+                <Button size="small" variant="text" onClick={() => {
+                  const all = {};
+                  Object.keys(importSelectedTabs).forEach((t) => { all[t] = true; });
+                  setImportSelectedTabs(all);
+                }}>すべて選択</Button>
+                <Button size="small" variant="text" onClick={() => {
+                  const none = {};
+                  Object.keys(importSelectedTabs).forEach((t) => { none[t] = false; });
+                  setImportSelectedTabs(none);
+                }}>すべて解除</Button>
+              </Box>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0 }}>
+                {Object.keys(importSelectedTabs).map((t) => (
+                  <FormControlLabel
+                    key={t}
+                    control={
+                      <Checkbox
+                        size="small"
+                        checked={importSelectedTabs[t] ?? false}
+                        onChange={(e) => setImportSelectedTabs((prev) => ({ ...prev, [t]: e.target.checked }))}
+                      />
+                    }
+                    label={<Typography variant="body2">{t}</Typography>}
+                    sx={{ mr: 1 }}
+                  />
+                ))}
+              </Box>
+            </>
+          )}
+          {importing && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 2 }}>
+              <CircularProgress size={24} />
+              <Typography variant="body2">インポート中… タブごとに順番に処理しています</Typography>
+            </Box>
+          )}
+          {importResult?.error && (
+            <Alert severity="error">{importResult.error}</Alert>
+          )}
+          {importResult && !importResult.error && (
+            <Box>
+              <Alert severity="success" sx={{ mb: 2 }}>
+                合計 <strong>{importResult.totalImported}</strong> 件をインポートしました
+              </Alert>
+              <List dense disablePadding>
+                {importResult.results.map((r) => (
+                  <ListItem key={r.tab} disableGutters sx={{ py: 0.25 }}>
+                    {r.error ? (
+                      <ErrorIcon fontSize="small" color="error" sx={{ mr: 1, flexShrink: 0 }} />
+                    ) : (
+                      <CheckCircleIcon fontSize="small" color="success" sx={{ mr: 1, flexShrink: 0 }} />
+                    )}
+                    <ListItemText
+                      primary={r.tab}
+                      secondary={r.error || `${r.imported} 件インポート${r.skipped > 0 ? `・${r.skipped} 件スキップ（空行）` : ''}`}
+                      primaryTypographyProps={{ variant: 'body2', fontWeight: 600 }}
+                      secondaryTypographyProps={{ variant: 'caption', color: r.error ? 'error' : 'text.secondary' }}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setImportDialogOpen(false)} disabled={importing}>閉じる</Button>
+          {!importResult && (
+            <Button
+              variant="contained"
+              color="secondary"
+              onClick={handleImport}
+              disabled={importing || Object.values(importSelectedTabs).every((v) => !v)}
+              startIcon={<CloudDownloadIcon />}
+            >
+              {importing ? 'インポート中...' : `実行（${Object.values(importSelectedTabs).filter(Boolean).length}タブ）`}
+            </Button>
+          )}
+          {importResult && !importResult.error && (
+            <Button variant="outlined" onClick={handleImport} disabled={importing} startIcon={<RefreshIcon />}>
+              再実行
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
 
       {/* Task Creation Dialog */}
       <Dialog open={taskDialogOpen} onClose={() => setTaskDialogOpen(false)} maxWidth="sm" fullWidth>
