@@ -9,14 +9,25 @@ app.http('SaveContractConfig', {
   handler: async (request, context) => {
     try {
       const body = await request.json();
-      const { spreadsheetId, headerRow } = body;
+      const { spreadsheetId, tabHeaderRows } = body;
 
       const container = projectsContainer();
       const id = 'contract-config';
+
+      // Merge tabHeaderRows with existing config to avoid overwriting other tabs
+      let existing = {};
+      try {
+        const { resource } = await container.item(id, id).read();
+        existing = resource || {};
+      } catch (e) {
+        // Not found — start fresh
+      }
+
       const doc = {
+        ...existing,
         id,
-        spreadsheetId: spreadsheetId || '',
-        headerRow: headerRow || 1,
+        spreadsheetId: spreadsheetId !== undefined ? (spreadsheetId || '') : (existing.spreadsheetId || ''),
+        tabHeaderRows: { ...(existing.tabHeaderRows || {}), ...(tabHeaderRows || {}) },
         updatedAt: new Date().toISOString(),
       };
       await container.items.upsert(doc);

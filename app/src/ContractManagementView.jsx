@@ -16,7 +16,6 @@ import axios from 'axios';
 
 const API = '/api';
 
-// Try to identify column index by common name patterns
 function findCol(headers, patterns) {
   if (!headers) return -1;
   for (const h of headers) {
@@ -47,8 +46,7 @@ function detectColumns(headers) {
 
 function cellVal(row, headers, colIdx) {
   if (colIdx < 0 || colIdx >= headers.length) return '';
-  const key = headers[colIdx];
-  return row[key] ?? '';
+  return row[headers[colIdx]] ?? '';
 }
 
 function statusColor(status) {
@@ -68,11 +66,15 @@ function formatPrice(val) {
 export default function ContractManagementView() {
   const [spreadsheetId, setSpreadsheetId] = useState('');
   const [savedSpreadsheetId, setSavedSpreadsheetId] = useState('');
-  const [formHeaderRow, setFormHeaderRow] = useState(1);
-  const [savedHeaderRow, setSavedHeaderRow] = useState(1);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [configLoaded, setConfigLoaded] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
+
+  // Per-tab headerRow settings: { "TSR": 6, "TGMO": 3, ... }
+  const [tabHeaderRows, setTabHeaderRows] = useState({});
+  // Current tab's input field value
+  const [tabHeaderRowInput, setTabHeaderRowInput] = useState(1);
+  const [savingTabHeaderRow, setSavingTabHeaderRow] = useState(false);
 
   const [tabs, setTabs] = useState([]);
   const [loadingTabs, setLoadingTabs] = useState(false);
@@ -100,11 +102,10 @@ export default function ContractManagementView() {
   useEffect(() => {
     axios.get(`${API}/GetContractConfig`).then((res) => {
       if (res.data?.spreadsheetId) {
-        const hr = res.data.headerRow || 1;
+        const thr = res.data.tabHeaderRows || {};
         setSavedSpreadsheetId(res.data.spreadsheetId);
         setSpreadsheetId(res.data.spreadsheetId);
-        setSavedHeaderRow(hr);
-        setFormHeaderRow(hr);
+        setTabHeaderRows(thr);
         fetchTabs(res.data.spreadsheetId);
       }
     }).catch(() => {}).finally(() => setConfigLoaded(true));
@@ -138,18 +139,26 @@ export default function ContractManagementView() {
 
   const currentTab = tabs[activeTab];
 
-  // Load rows when tab changes
+  // Sync input field when switching tabs
+  useEffect(() => {
+    if (currentTab) {
+      setTabHeaderRowInput(tabHeaderRows[currentTab] ?? 1);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTab]);
+
+  // Load rows when tab or its headerRow changes
   useEffect(() => {
     if (!savedSpreadsheetId || !currentTab) return;
+    const hr = tabHeaderRows[currentTab] ?? 1;
     setLoadingRows(true);
     setRowsError('');
     setRows([]);
     setHeaders([]);
     setSelectedRow(null);
     setPanelOpen(false);
-    axios.get(`${API}/GetSheetData?spreadsheetId=${encodeURIComponent(savedSpreadsheetId)}&sheetTab=${encodeURIComponent(currentTab)}&headerRow=${savedHeaderRow}`)
+    axios.get(`${API}/GetSheetData?spreadsheetId=${encodeURIComponent(savedSpreadsheetId)}&sheetTab=${encodeURIComponent(currentTab)}&headerRow=${hr}`)
       .then((res) => {
-        // Filter out empty or _rowIndex pseudo-headers
         const allHeaders = res.data.headers || [];
         setHeaders(allHeaders.filter((h) => h && h !== '_rowIndex'));
         setRows(res.data.rows || []);
@@ -159,7 +168,9 @@ export default function ContractManagementView() {
         setRowsError(typeof msg === 'string' ? msg : JSON.stringify(msg));
       })
       .finally(() => setLoadingRows(false));
-  }, [savedSpreadsheetId, currentTab, savedHeaderRow]);
+  // tabHeaderRows[currentTab] is a primitive (number|undefined), safe as dep
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedSpreadsheetId, currentTab, tabHeaderRows[currentTab]]);
 
   const cols = useMemo(() => detectColumns(headers), [headers]);
 
@@ -171,7 +182,6 @@ export default function ContractManagementView() {
     );
   }, [rows, headers, search]);
 
-  // Stats
   const stats = useMemo(() => {
     const total = rows.length;
     const now = new Date();
@@ -179,25 +189,21 @@ export default function ContractManagementView() {
     let dueThisMonth = 0;
     let overdue = 0;
     let completed = 0;
-
     rows.forEach((r) => {
       const statusVal = cols.status >= 0 ? String(r[headers[cols.status]] ?? '').toLowerCase() : '';
       if (statusVal === 'done' || statusVal === '完了' || statusVal === '済') completed++;
       if (statusVal === 'overdue' || statusVal === '超過') overdue++;
-
       const finalDue = cols.finalDue >= 0 ? String(r[headers[cols.finalDue]] ?? '') : '';
       if (finalDue.startsWith(currentMonth)) dueThisMonth++;
     });
-
     return { total, dueThisMonth, overdue, completed };
   }, [rows, headers, cols]);
 
   const handleSaveConfig = async () => {
     setSavingConfig(true);
     try {
-      await axios.post(`${API}/SaveContractConfig`, { spreadsheetId, headerRow: formHeaderRow });
+      await axios.post(`${API}/SaveContractConfig`, { spreadsheetId });
       setSavedSpreadsheetId(spreadsheetId);
-      setSavedHeaderRow(formHeaderRow);
       setSettingsOpen(false);
       setActiveTab(0);
       await fetchTabs(spreadsheetId);
@@ -208,11 +214,25 @@ export default function ContractManagementView() {
     }
   };
 
+  const handleApplyTabHeaderRow = async () => {
+    if (!currentTab) return;
+    setSavingTabHeaderRow(true);
+    const newVal = Math.max(1, tabHeaderRowInput || 1);
+    const updated = { ...tabHeaderRows, [currentTab]: newVal };
+    try {
+      await axios.post(`${API}/SaveContractConfig`, { tabHeaderRows: { [currentTab]: newVal } });
+      setTabHeaderRows(updated);
+      // Data reload happens via useEffect watching tabHeaderRows[currentTab]
+    } catch {
+      setSnackbar({ open: true, message: 'ヘッダー行の保存に失敗しました', severity: 'error' });
+    } finally {
+      setSavingTabHeaderRow(false);
+    }
+  };
+
   const handleRowClick = (row) => {
     setSelectedRow(row);
     setPanelOpen(true);
-
-    // Pre-fill task dialog
     const name = cols.nameJp >= 0 ? row[headers[cols.nameJp]] : (cols.nameEn >= 0 ? row[headers[cols.nameEn]] : '');
     const unit = cols.unit >= 0 ? row[headers[cols.unit]] : '';
     const tab = currentTab || '';
@@ -250,6 +270,8 @@ export default function ContractManagementView() {
     ? `https://docs.google.com/spreadsheets/d/${savedSpreadsheetId}`
     : null;
 
+  const currentHeaderRow = tabHeaderRows[currentTab] ?? 1;
+
   if (!configLoaded) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
@@ -273,7 +295,6 @@ export default function ContractManagementView() {
           />
         </Box>
 
-        {/* Project tabs */}
         {tabs.length > 0 && (
           <Tabs
             value={activeTab}
@@ -283,7 +304,15 @@ export default function ContractManagementView() {
             sx={{ mt: 1 }}
           >
             {tabs.map((t) => (
-              <Tab key={t} label={t} sx={{ minWidth: 80, fontSize: 13 }} />
+              <Tab
+                key={t}
+                label={
+                  tabHeaderRows[t] && tabHeaderRows[t] !== 1
+                    ? `${t} (行${tabHeaderRows[t]})`
+                    : t
+                }
+                sx={{ minWidth: 80, fontSize: 13 }}
+              />
             ))}
           </Tabs>
         )}
@@ -314,16 +343,6 @@ export default function ContractManagementView() {
                 sx={{ flex: 1, minWidth: 280 }}
                 helperText="契約管理用Googleスプレッドシートのシートタブ（TSR, TGMO等）を読み込みます"
               />
-              <TextField
-                label="ヘッダー行"
-                type="number"
-                value={formHeaderRow}
-                onChange={(e) => setFormHeaderRow(Math.max(1, Number(e.target.value) || 1))}
-                size="small"
-                sx={{ width: 110 }}
-                inputProps={{ min: 1 }}
-                helperText="列名が何行目か（シートにより1〜6程度）"
-              />
               <Button
                 variant="contained"
                 onClick={handleSaveConfig}
@@ -349,7 +368,6 @@ export default function ContractManagementView() {
           </AccordionDetails>
         </Accordion>
 
-        {/* Errors */}
         {tabsError && <Alert severity="error">{tabsError}</Alert>}
         {rowsError && <Alert severity="error">{rowsError}</Alert>}
 
@@ -359,7 +377,6 @@ export default function ContractManagementView() {
           </Alert>
         )}
 
-        {/* Phase annotations */}
         {savedSpreadsheetId && (
           <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
             <Alert severity="warning" icon={false} sx={{ flex: 1, minWidth: 220, py: 0.5 }}>
@@ -377,7 +394,6 @@ export default function ContractManagementView() {
           </Box>
         )}
 
-        {/* Stats */}
         {savedSpreadsheetId && tabs.length > 0 && (
           <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
             {[
@@ -401,36 +417,62 @@ export default function ContractManagementView() {
           </Box>
         )}
 
-        {/* Table */}
         {savedSpreadsheetId && tabs.length > 0 && (
           <Box sx={{ bgcolor: 'background.paper', border: 1, borderColor: 'divider', borderRadius: 2, overflow: 'hidden', flex: 1 }}>
             {/* Toolbar */}
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, py: 1, borderBottom: 1, borderColor: 'divider' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, py: 1, borderBottom: 1, borderColor: 'divider', flexWrap: 'wrap', gap: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                 <TextField
                   size="small"
                   placeholder="購入者名・Unitで検索…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
-                  sx={{ width: 240 }}
+                  sx={{ width: 220 }}
                 />
                 {loadingRows && <CircularProgress size={16} />}
                 {!loadingRows && rows.length > 0 && (
                   <Chip label={`${filteredRows.length} / ${rows.length} 件`} size="small" variant="outlined" />
                 )}
+
+                {/* Per-tab header row control */}
+                {currentTab && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 1 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+                      ヘッダー行:
+                    </Typography>
+                    <TextField
+                      type="number"
+                      value={tabHeaderRowInput}
+                      onChange={(e) => setTabHeaderRowInput(Math.max(1, Number(e.target.value) || 1))}
+                      size="small"
+                      inputProps={{ min: 1 }}
+                      sx={{ width: 64 }}
+                    />
+                    <Button
+                      size="small"
+                      variant={tabHeaderRowInput !== currentHeaderRow ? 'contained' : 'outlined'}
+                      onClick={handleApplyTabHeaderRow}
+                      disabled={savingTabHeaderRow}
+                      sx={{ whiteSpace: 'nowrap', minWidth: 52 }}
+                    >
+                      {savingTabHeaderRow ? '…' : '適用'}
+                    </Button>
+                  </Box>
+                )}
               </Box>
+
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <Button
                   size="small"
                   startIcon={<RefreshIcon />}
                   onClick={() => {
-                    const tabName = tabs[activeTab];
-                    if (tabName && savedSpreadsheetId) {
+                    if (currentTab && savedSpreadsheetId) {
+                      const hr = tabHeaderRows[currentTab] ?? 1;
                       setLoadingRows(true);
                       setRows([]);
-                      axios.get(`${API}/GetSheetData?spreadsheetId=${encodeURIComponent(savedSpreadsheetId)}&sheetTab=${encodeURIComponent(tabName)}&headerRow=${savedHeaderRow}`)
-                        .then((res) => { setHeaders(res.data.headers || []); setRows(res.data.rows || []); })
+                      axios.get(`${API}/GetSheetData?spreadsheetId=${encodeURIComponent(savedSpreadsheetId)}&sheetTab=${encodeURIComponent(currentTab)}&headerRow=${hr}`)
+                        .then((res) => { setHeaders(res.data.headers?.filter((h) => h && h !== '_rowIndex') || []); setRows(res.data.rows || []); })
                         .catch((e) => { const msg = e.response?.data || e.message; setRowsError(typeof msg === 'string' ? msg : 'データの取得に失敗しました'); })
                         .finally(() => setLoadingRows(false));
                     }
@@ -526,16 +568,10 @@ export default function ContractManagementView() {
         anchor="right"
         open={panelOpen}
         onClose={() => setPanelOpen(false)}
-        sx={{
-          '& .MuiDrawer-paper': {
-            width: 400,
-            p: 0,
-          },
-        }}
+        sx={{ '& .MuiDrawer-paper': { width: 400, p: 0 } }}
       >
         {selectedRow && (
           <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            {/* Panel Header */}
             <Box sx={{ px: 2.5, py: 2, borderBottom: 1, borderColor: 'divider', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
               <Box>
                 <Typography variant="subtitle1" fontWeight={700}>
@@ -552,9 +588,7 @@ export default function ContractManagementView() {
               </IconButton>
             </Box>
 
-            {/* Panel Body */}
             <Box sx={{ flex: 1, overflow: 'auto', px: 2.5, py: 2 }}>
-              {/* Contract info */}
               <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: '0.08em' }}>
                 契約情報
               </Typography>
@@ -573,7 +607,6 @@ export default function ContractManagementView() {
 
               <Divider sx={{ my: 1.5 }} />
 
-              {/* Task note */}
               <Box sx={{ bgcolor: 'primary.50', border: 1, borderColor: 'primary.200', borderRadius: 1.5, p: 1.5, display: 'flex', gap: 1 }}>
                 <AssignmentIcon fontSize="small" color="primary" sx={{ flexShrink: 0, mt: 0.2 }} />
                 <Typography variant="caption" color="primary.main">
@@ -582,7 +615,6 @@ export default function ContractManagementView() {
               </Box>
             </Box>
 
-            {/* Panel Actions */}
             <Box sx={{ px: 2.5, py: 1.5, borderTop: 1, borderColor: 'divider', display: 'flex', gap: 1 }}>
               <Button
                 variant="contained"
@@ -663,7 +695,6 @@ export default function ContractManagementView() {
         </DialogActions>
       </Dialog>
 
-      {/* Snackbar */}
       <Snackbar
         open={snackbar.open}
         autoHideDuration={4000}
