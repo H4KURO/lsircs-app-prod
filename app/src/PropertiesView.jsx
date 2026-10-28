@@ -918,8 +918,8 @@ export function PropertiesView() {
 
       {/* View tabs */}
       <Tabs value={activeView} onChange={(_, v) => setActiveView(v)} sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
-        <Tab label={`Appfolio (${appfolioProperties.length}件)`} value="appfolio" />
-        <Tab label={`海外物件 / Sheets (${sheetsProperties.length}件)`} value="sheets" />
+        <Tab label={`ハワイ (${appfolioProperties.length}件)`} value="appfolio" />
+        <Tab label={`アジア (${sheetsProperties.length}件)`} value="sheets" />
       </Tabs>
 
       {loading ? (
