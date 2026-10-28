@@ -74,11 +74,8 @@ export default function ContractManagementView() {
   const [configLoaded, setConfigLoaded] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
 
-  // Per-tab headerRow settings: { "TSR": 6, "TGMO": 3, ... }
+  // Per-tab headerRow settings (used for import only): { "TSR": 6, "TGMO": 3, ... }
   const [tabHeaderRows, setTabHeaderRows] = useState({});
-  // Current tab's input field value
-  const [tabHeaderRowInput, setTabHeaderRowInput] = useState(1);
-  const [savingTabHeaderRow, setSavingTabHeaderRow] = useState(false);
 
   const [tabs, setTabs] = useState([]);
   const [loadingTabs, setLoadingTabs] = useState(false);
@@ -149,38 +146,26 @@ export default function ContractManagementView() {
 
   const currentTab = tabs[activeTab];
 
-  // Sync input field when switching tabs
-  useEffect(() => {
-    if (currentTab) {
-      setTabHeaderRowInput(tabHeaderRows[currentTab] ?? 1);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTab]);
-
-  // Load rows when tab or its headerRow changes
+  // Load rows from Cosmos DB when tab changes
   useEffect(() => {
     if (!savedSpreadsheetId || !currentTab) return;
-    const hr = tabHeaderRows[currentTab] ?? 1;
     setLoadingRows(true);
     setRowsError('');
     setRows([]);
     setHeaders([]);
     setSelectedRow(null);
     setPanelOpen(false);
-    axios.get(`${API}/GetSheetData?spreadsheetId=${encodeURIComponent(savedSpreadsheetId)}&sheetTab=${encodeURIComponent(currentTab)}&headerRow=${hr}`)
+    axios.get(`${API}/GetContracts?projectTab=${encodeURIComponent(currentTab)}`)
       .then((res) => {
-        const allHeaders = res.data.headers || [];
-        setHeaders(allHeaders.filter((h) => h && h !== '_rowIndex'));
-        setRows(res.data.rows || []);
+        setHeaders(res.data.headers || []);
+        setRows(res.data.items || []);
       })
       .catch((e) => {
         const msg = e.response?.data || e.message || 'データの取得に失敗しました';
         setRowsError(typeof msg === 'string' ? msg : JSON.stringify(msg));
       })
       .finally(() => setLoadingRows(false));
-  // tabHeaderRows[currentTab] is a primitive (number|undefined), safe as dep
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [savedSpreadsheetId, currentTab, tabHeaderRows[currentTab]]);
+  }, [savedSpreadsheetId, currentTab]);
 
   const cols = useMemo(() => detectColumns(headers), [headers]);
 
@@ -242,20 +227,14 @@ export default function ContractManagementView() {
     }
   };
 
-  const handleApplyTabHeaderRow = async () => {
-    if (!currentTab) return;
-    setSavingTabHeaderRow(true);
-    const newVal = Math.max(1, tabHeaderRowInput || 1);
-    const updated = { ...tabHeaderRows, [currentTab]: newVal };
-    try {
-      await axios.post(`${API}/SaveContractConfig`, { tabHeaderRows: { [currentTab]: newVal } });
-      setTabHeaderRows(updated);
-      // Data reload happens via useEffect watching tabHeaderRows[currentTab]
-    } catch {
-      setSnackbar({ open: true, message: 'ヘッダー行の保存に失敗しました', severity: 'error' });
-    } finally {
-      setSavingTabHeaderRow(false);
-    }
+  const handleRefreshFromDB = () => {
+    if (!currentTab || !savedSpreadsheetId) return;
+    setLoadingRows(true);
+    setRows([]);
+    axios.get(`${API}/GetContracts?projectTab=${encodeURIComponent(currentTab)}`)
+      .then((res) => { setHeaders(res.data.headers || []); setRows(res.data.items || []); })
+      .catch((e) => { const msg = e.response?.data || e.message; setRowsError(typeof msg === 'string' ? msg : 'データの取得に失敗しました'); })
+      .finally(() => setLoadingRows(false));
   };
 
   const handleRowClick = (row) => {
@@ -298,8 +277,6 @@ export default function ContractManagementView() {
     ? `https://docs.google.com/spreadsheets/d/${savedSpreadsheetId}`
     : null;
 
-  const currentHeaderRow = tabHeaderRows[currentTab] ?? 1;
-
   if (!configLoaded) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
@@ -315,9 +292,9 @@ export default function ContractManagementView() {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
           <Typography variant="h6" fontWeight={700}>契約管理</Typography>
           <Chip
-            label="Phase 1 – Google Sheets 連携中"
+            label="CosmosDB 連携中"
             size="small"
-            color="warning"
+            color="success"
             variant="outlined"
             icon={<InfoIcon sx={{ fontSize: '14px !important' }} />}
           />
@@ -434,13 +411,13 @@ export default function ContractManagementView() {
 
         {savedSpreadsheetId && (
           <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
-            <Alert severity="warning" icon={false} sx={{ flex: 1, minWidth: 220, py: 0.5 }}>
-              <Typography variant="caption" fontWeight={700} display="block">📄 Phase 1（現在）</Typography>
-              <Typography variant="caption">データはGoogle Sheetsから取得。表示・検索・ステータス確認に特化。シートへの直リンクで編集も可能。</Typography>
+            <Alert severity="success" icon={false} sx={{ flex: 1, minWidth: 220, py: 0.5 }}>
+              <Typography variant="caption" fontWeight={700} display="block">🗄️ Phase 2（現在）</Typography>
+              <Typography variant="caption">データはCosmosDBから取得。高速検索・安定稼働。設定アコーディオンからSheetsを再インポート可能。</Typography>
             </Alert>
             <Alert severity="info" icon={false} sx={{ flex: 1, minWidth: 220, py: 0.5 }}>
-              <Typography variant="caption" fontWeight={700} display="block">🗄️ Phase 2（将来）</Typography>
-              <Typography variant="caption">Cosmos DBに移行後はアプリ内で直接CRUD。Google Sheetsは不要またはオプションの出力先に。</Typography>
+              <Typography variant="caption" fontWeight={700} display="block">✏️ 次のステップ</Typography>
+              <Typography variant="caption">アプリ内でのCRUD（新規追加・編集・削除）を実装予定。Google Sheetsは読み取り専用アーカイブへ。</Typography>
             </Alert>
             <Alert severity="info" icon={<AssignmentIcon fontSize="small" />} sx={{ flex: 1, minWidth: 220, py: 0.5 }}>
               <Typography variant="caption" fontWeight={700} display="block">💡 中間金カレンダー → Tasks</Typography>
@@ -490,48 +467,13 @@ export default function ContractManagementView() {
                   <Chip label={`${filteredRows.length} / ${rows.length} 件`} size="small" variant="outlined" />
                 )}
 
-                {/* Per-tab header row control */}
-                {currentTab && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 1 }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
-                      ヘッダー行:
-                    </Typography>
-                    <TextField
-                      type="number"
-                      value={tabHeaderRowInput}
-                      onChange={(e) => setTabHeaderRowInput(Math.max(1, Number(e.target.value) || 1))}
-                      size="small"
-                      inputProps={{ min: 1 }}
-                      sx={{ width: 64 }}
-                    />
-                    <Button
-                      size="small"
-                      variant={tabHeaderRowInput !== currentHeaderRow ? 'contained' : 'outlined'}
-                      onClick={handleApplyTabHeaderRow}
-                      disabled={savingTabHeaderRow}
-                      sx={{ whiteSpace: 'nowrap', minWidth: 52 }}
-                    >
-                      {savingTabHeaderRow ? '…' : '適用'}
-                    </Button>
-                  </Box>
-                )}
               </Box>
 
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <Button
                   size="small"
                   startIcon={<RefreshIcon />}
-                  onClick={() => {
-                    if (currentTab && savedSpreadsheetId) {
-                      const hr = tabHeaderRows[currentTab] ?? 1;
-                      setLoadingRows(true);
-                      setRows([]);
-                      axios.get(`${API}/GetSheetData?spreadsheetId=${encodeURIComponent(savedSpreadsheetId)}&sheetTab=${encodeURIComponent(currentTab)}&headerRow=${hr}`)
-                        .then((res) => { setHeaders(res.data.headers?.filter((h) => h && h !== '_rowIndex') || []); setRows(res.data.rows || []); })
-                        .catch((e) => { const msg = e.response?.data || e.message; setRowsError(typeof msg === 'string' ? msg : 'データの取得に失敗しました'); })
-                        .finally(() => setLoadingRows(false));
-                    }
-                  }}
+                  onClick={handleRefreshFromDB}
                   variant="outlined"
                 >
                   再読み込み
