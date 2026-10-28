@@ -59,7 +59,7 @@ app.http('ImportContractData', {
         return { status: 400, body: 'スプレッドシートにタブが見つかりませんでした。' };
       }
 
-      // Optional filter: only import specified tabs
+      // Optional filter: only import specified tabs + per-tab headerRow override from request
       let body = {};
       try { body = await request.json(); } catch { /* no body */ }
       const selectedTabs = Array.isArray(body.tabNames) && body.tabNames.length > 0
@@ -73,17 +73,29 @@ app.http('ImportContractData', {
         return { status: 400, body: '指定されたタブがスプレッドシートに存在しません。' };
       }
 
+      const now = new Date().toISOString();
+
+      // Merge: request body tabHeaderRows override saved config values
+      const effectiveHeaderRows = { ...tabHeaderRows, ...(body.tabHeaderRows || {}) };
+
+      // Persist any overrides back to config so they are remembered for next time
+      if (Object.keys(body.tabHeaderRows || {}).length > 0) {
+        await cfgContainer.items.upsert({
+          ...config,
+          tabHeaderRows: effectiveHeaderRows,
+          updatedAt: now,
+        });
+      }
+
       // Ensure Contracts container exists (auto-creates if missing)
       const contractsContainer = await ensureNamedContainer('Contracts', {
         overrideKeys: ['COSMOS_CONTRACTS_CONTAINER'],
         partitionKey: '/projectTab',
       });
-
-      const now = new Date().toISOString();
       const results = [];
 
       for (const tabName of tabNames) {
-        const headerRow = Math.max(1, tabHeaderRows[tabName] || 1);
+        const headerRow = Math.max(1, effectiveHeaderRows[tabName] || 1);
         try {
           const { headers, rows } = await fetchTabRows(sheets, spreadsheetId, tabName, headerRow);
 
