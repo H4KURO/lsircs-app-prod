@@ -5,7 +5,7 @@ import {
   TableRow, TableCell, TableBody, InputAdornment, Drawer, IconButton,
   Divider, Dialog, DialogTitle, DialogContent, DialogActions,
   MenuItem, Select, FormControl, InputLabel, Snackbar, List, ListItem,
-  ListItemText,
+  ListItemText, Checkbox, FormControlLabel,
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon, Settings as SettingsIcon,
@@ -106,6 +106,7 @@ export default function ContractManagementView() {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null); // { totalImported, results, importedAt }
+  const [importSelectedTabs, setImportSelectedTabs] = useState({}); // { tabName: boolean }
 
   // Load config on mount
   useEffect(() => {
@@ -224,10 +225,14 @@ export default function ContractManagementView() {
   };
 
   const handleImport = async () => {
+    const selectedTabNames = Object.entries(importSelectedTabs)
+      .filter(([, v]) => v)
+      .map(([k]) => k);
+    if (selectedTabNames.length === 0) return;
     setImporting(true);
     setImportResult(null);
     try {
-      const res = await axios.post(`${API}/ImportContractData`);
+      const res = await axios.post(`${API}/ImportContractData`, { tabNames: selectedTabNames });
       setImportResult(res.data);
     } catch (e) {
       const msg = e.response?.data || e.message || 'インポートに失敗しました';
@@ -400,7 +405,14 @@ export default function ContractManagementView() {
                   variant="contained"
                   color="secondary"
                   startIcon={<CloudDownloadIcon />}
-                  onClick={() => { setImportResult(null); setImportDialogOpen(true); }}
+                  onClick={() => {
+                    setImportResult(null);
+                    // Initialize all loaded tabs as selected
+                    const init = {};
+                    tabs.forEach((t) => { init[t] = true; });
+                    setImportSelectedTabs(init);
+                    setImportDialogOpen(true);
+                  }}
                   size="small"
                   sx={{ whiteSpace: 'nowrap' }}
                 >
@@ -690,9 +702,40 @@ export default function ContractManagementView() {
         <DialogTitle>SheetsデータをAzureにインポート</DialogTitle>
         <DialogContent sx={{ pt: '8px !important' }}>
           {!importResult && !importing && (
-            <Alert severity="info" sx={{ mb: 2 }}>
-              スプレッドシートの全タブを読み込み、CosmosDBに保存します。既存データは行番号をキーとして上書きされます。
-            </Alert>
+            <>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                選択したタブのデータをCosmosDBに保存します。既存データは行番号をキーとして上書きされます。
+              </Alert>
+              <Typography variant="subtitle2" sx={{ mb: 0.5 }}>インポートするタブを選択</Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
+                <Button size="small" variant="text" onClick={() => {
+                  const all = {};
+                  Object.keys(importSelectedTabs).forEach((t) => { all[t] = true; });
+                  setImportSelectedTabs(all);
+                }}>すべて選択</Button>
+                <Button size="small" variant="text" onClick={() => {
+                  const none = {};
+                  Object.keys(importSelectedTabs).forEach((t) => { none[t] = false; });
+                  setImportSelectedTabs(none);
+                }}>すべて解除</Button>
+              </Box>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0 }}>
+                {Object.keys(importSelectedTabs).map((t) => (
+                  <FormControlLabel
+                    key={t}
+                    control={
+                      <Checkbox
+                        size="small"
+                        checked={importSelectedTabs[t] ?? false}
+                        onChange={(e) => setImportSelectedTabs((prev) => ({ ...prev, [t]: e.target.checked }))}
+                      />
+                    }
+                    label={<Typography variant="body2">{t}</Typography>}
+                    sx={{ mr: 1 }}
+                  />
+                ))}
+              </Box>
+            </>
           )}
           {importing && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 2 }}>
@@ -731,8 +774,14 @@ export default function ContractManagementView() {
         <DialogActions>
           <Button onClick={() => setImportDialogOpen(false)} disabled={importing}>閉じる</Button>
           {!importResult && (
-            <Button variant="contained" color="secondary" onClick={handleImport} disabled={importing} startIcon={<CloudDownloadIcon />}>
-              {importing ? 'インポート中...' : '実行'}
+            <Button
+              variant="contained"
+              color="secondary"
+              onClick={handleImport}
+              disabled={importing || Object.values(importSelectedTabs).every((v) => !v)}
+              startIcon={<CloudDownloadIcon />}
+            >
+              {importing ? 'インポート中...' : `実行（${Object.values(importSelectedTabs).filter(Boolean).length}タブ）`}
             </Button>
           )}
           {importResult && !importResult.error && (

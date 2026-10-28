@@ -53,10 +53,24 @@ app.http('ImportContractData', {
         spreadsheetId,
         fields: 'sheets.properties.title',
       });
-      const tabNames = (metaRes.data.sheets || []).map((s) => s.properties.title);
+      const allTabNames = (metaRes.data.sheets || []).map((s) => s.properties.title);
+
+      if (allTabNames.length === 0) {
+        return { status: 400, body: 'スプレッドシートにタブが見つかりませんでした。' };
+      }
+
+      // Optional filter: only import specified tabs
+      let body = {};
+      try { body = await request.json(); } catch { /* no body */ }
+      const selectedTabs = Array.isArray(body.tabNames) && body.tabNames.length > 0
+        ? body.tabNames
+        : null;
+      const tabNames = selectedTabs
+        ? allTabNames.filter((t) => selectedTabs.includes(t))
+        : allTabNames;
 
       if (tabNames.length === 0) {
-        return { status: 400, body: 'スプレッドシートにタブが見つかりませんでした。' };
+        return { status: 400, body: '指定されたタブがスプレッドシートに存在しません。' };
       }
 
       // Ensure Contracts container exists (auto-creates if missing)
