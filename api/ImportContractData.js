@@ -17,7 +17,7 @@ function buildSheetsClient() {
 
 // Cosmos DB document IDs cannot contain /, \, #, or ?
 function safeId(tabName, rowIndex) {
-  return `${tabName.replace(/[/\\#?]/g, '_')}-${rowIndex}`;
+  return `sheets-${tabName.replace(/[/\\#?]/g, '_')}-${rowIndex}`;
 }
 
 const projectsContainer = () => getNamedContainer('Projects', ['COSMOS_PROJECTS_CONTAINER']);
@@ -103,9 +103,9 @@ app.http('ImportContractData', {
         });
       }
 
-      const contractsContainer = await ensureNamedContainer('Contracts', {
-        overrideKeys: ['COSMOS_CONTRACTS_CONTAINER'],
-        partitionKey: '/projectTab',
+      const contractsContainer = await ensureNamedContainer('Properties', {
+        overrideKeys: ['COSMOS_PROPERTIES_CONTAINER'],
+        partitionKey: '/id',
       });
 
       const results = [];
@@ -124,7 +124,9 @@ app.http('ImportContractData', {
 
             const doc = {
               id: safeId(tabName, row._rowIndex),
-              projectTab: tabName,
+              propertyName: tabName,
+              sheetTab: tabName,
+              importSource: 'sheets',
               _rowIndex: row._rowIndex,
               _spreadsheetId: spreadsheetId,
               importedAt: now,
