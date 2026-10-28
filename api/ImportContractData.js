@@ -30,6 +30,9 @@ app.http('ImportContractData', {
   methods: ['POST'],
   authLevel: 'anonymous',
   handler: async (request, context) => {
+    // DEBUG: verify handler is reachable - remove after confirming
+    return { status: 200, jsonBody: { debug: 'handler_reached', ts: new Date().toISOString() } };
+    // eslint-disable-next-line no-unreachable
     try {
       // Load contract config
       const cfgContainer = projectsContainer();
