@@ -1,6 +1,19 @@
 const { app } = require('@azure/functions');
-const { getSheetsClient } = require('./googleSheetsClient');
+const { google } = require('googleapis');
 const { getNamedContainer, ensureNamedContainer } = require('./cosmosClient');
+
+// Prevent background SDK rejections from crashing the worker process
+process.on('unhandledRejection', (reason) => {
+  console.error('[ImportContractData] unhandledRejection suppressed:', reason && reason.message);
+});
+
+function buildSheetsClient() {
+  const credJson = process.env.GOOGLE_SHEETS_CREDENTIALS;
+  if (!credJson) throw new Error('GOOGLE_SHEETS_CREDENTIALS is not set.');
+  const credentials = JSON.parse(credJson);
+  const auth = new google.auth.GoogleAuth({ credentials, scopes: ['https://www.googleapis.com/auth/spreadsheets'] });
+  return google.sheets({ version: 'v4', auth });
+}
 
 const projectsContainer = () => getNamedContainer('Projects', ['COSMOS_PROJECTS_CONTAINER']);
 
@@ -52,7 +65,7 @@ app.http('ImportContractData', {
       const { spreadsheetId, tabHeaderRows = {} } = config;
 
       // Get tab list from the spreadsheet
-      const sheets = getSheetsClient();
+      const sheets = buildSheetsClient();
       _step = 4;
       const metaRes = await sheets.spreadsheets.get({
         spreadsheetId,
