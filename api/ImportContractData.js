@@ -148,8 +148,13 @@ app.http('ImportContractData', {
         jsonBody: { success: true, totalImported, results, importedAt: now },
       };
     } catch (error) {
-      context.log('ImportContractData failed', error);
-      return { status: 500, body: `インポートに失敗しました: ${error.message || error.toString()}` };
+      const msg = error.message || error.toString();
+      context.log('ImportContractData failed', msg, error.stack);
+      // Return 200 so Azure SWA doesn't mask the error body as "Backend call failure"
+      return {
+        status: 200,
+        jsonBody: { success: false, error: `インポートに失敗しました: ${msg}` },
+      };
     }
   },
 });
