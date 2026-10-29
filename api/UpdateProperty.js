@@ -7,7 +7,12 @@ const propertiesContainer = () =>
 const ALLOWED_FIELDS = ['managementType', 'ownerName', 'ownerPhone', 'tenantStatus',
   'leaseStart', 'leaseEnd', 'monthlyRent', 'notes', 'manualFields', 'status',
   'buildingName', 'registrationDate', 'purchasePrice',
-  'tenantName', 'vacancyReportData', 'leaseRenewalData'];
+  'tenantName', 'vacancyReportData', 'leaseRenewalData',
+  // アジア物件フィールド
+  'contractDate', 'projectName', 'roomNumber',
+  'paymentDueDay', 'paymentCount', 'paymentBaseAmount', 'downPayment',
+  'paymentSchedule',
+];
 
 app.http('UpdateProperty', {
   methods: ['PUT'],

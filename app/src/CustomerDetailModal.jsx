@@ -1,5 +1,5 @@
 // app/src/CustomerDetailModal.jsx
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import {
   Dialog,
@@ -36,6 +36,8 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import ApartmentIcon from '@mui/icons-material/Apartment';
 import FolderIcon from '@mui/icons-material/Folder';
 import AddIcon from '@mui/icons-material/Add';
+import SendIcon from '@mui/icons-material/Send';
+import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
 import { BuyerSearchDialog } from './BuyerSearchDialog';
 
 const MGMT_COLORS = {
@@ -97,6 +99,10 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
   const [newTaskPropertyId, setNewTaskPropertyId] = useState('');
   const [savingTask, setSavingTask] = useState(false);
   const [selectedPropertyId, setSelectedPropertyId] = useState(null);
+  const [comments, setComments] = useState([]);
+  const [commentText, setCommentText] = useState('');
+  const [postingComment, setPostingComment] = useState(false);
+  const commentBottomRef = useRef(null);
 
   const linkedPropertyIds = useMemo(
     () => new Set(linkedProperties.map((p) => p.id)),
@@ -170,6 +176,8 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
       setNewTaskStatus('Started');
       setNewTaskDeadline('');
       setError('');
+      setComments(isEdit ? (customer.comments || []) : []);
+      setCommentText('');
       if (isEdit) {
         setLoadingTasks(true);
         axios
@@ -267,6 +275,25 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
       setError(err.response?.data?.message || err.response?.data || err.message || '削除に失敗しました');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handlePostComment = async () => {
+    if (!commentText.trim() || !customer?.id) return;
+    setPostingComment(true);
+    try {
+      const res = await axios.post(`${API_URL}/AddEntityComment`, {
+        entityType: 'customer',
+        entityId: customer.id,
+        text: commentText.trim(),
+      });
+      setComments((prev) => [...prev, res.data]);
+      setCommentText('');
+      setTimeout(() => commentBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    } catch {
+      alert('コメントの送信に失敗しました');
+    } finally {
+      setPostingComment(false);
     }
   };
 
@@ -919,18 +946,70 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
             </Grid>
           )}
 
-          {/* 備考 */}
-          <Grid item xs={12}>
-            <TextField
-              label="備考"
-              value={form.notes}
-              onChange={handleChange('notes')}
-              fullWidth
-              multiline
-              rows={3}
-              size="small"
-            />
-          </Grid>
+          {/* コメント */}
+          {isEdit && (
+            <Grid item xs={12}>
+              <Divider sx={{ my: 0.5 }} />
+              <Box sx={{ mt: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  <ChatBubbleOutlineIcon fontSize="small" color="action" />
+                  <Typography variant="body2" fontWeight={600}>コメント</Typography>
+                  {comments.length > 0 && <Chip label={comments.length} size="small" />}
+                </Box>
+
+                {comments.length === 0 && (
+                  <Typography variant="body2" color="text.disabled" sx={{ mb: 1 }}>
+                    コメントはまだありません。
+                  </Typography>
+                )}
+
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, maxHeight: 220, overflowY: 'auto', mb: 1 }}>
+                  {comments.map((c) => (
+                    <Box key={c.id} sx={{ display: 'flex', gap: 1.5 }}>
+                      <Box sx={{
+                        width: 30, height: 30, borderRadius: '50%', bgcolor: 'primary.light',
+                        color: 'primary.contrastText', display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', fontWeight: 700, fontSize: 11, flexShrink: 0,
+                      }}>
+                        {(c.authorDisplayName || '?')[0]}
+                      </Box>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography variant="caption" color="text.secondary">
+                          <strong style={{ opacity: 0.9 }}>{c.authorDisplayName}</strong>
+                          &nbsp;·&nbsp;{c.createdAt ? c.createdAt.split('T')[0] : ''}
+                        </Typography>
+                        <Box sx={{ bgcolor: 'action.hover', borderRadius: '0 8px 8px 8px', p: '6px 10px', mt: 0.3, fontSize: '0.84rem', lineHeight: 1.5 }}>
+                          {c.text}
+                        </Box>
+                      </Box>
+                    </Box>
+                  ))}
+                  <div ref={commentBottomRef} />
+                </Box>
+
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
+                  <TextField
+                    size="small" multiline rows={2} fullWidth
+                    placeholder="コメントを入力… (Ctrl+Enter で送信)"
+                    value={commentText}
+                    onChange={(e) => setCommentText(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handlePostComment(); }}
+                  />
+                  <Tooltip title="送信 (Ctrl+Enter)">
+                    <span>
+                      <IconButton
+                        color="primary" size="small"
+                        onClick={handlePostComment}
+                        disabled={postingComment || !commentText.trim()}
+                      >
+                        {postingComment ? <CircularProgress size={18} /> : <SendIcon />}
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                </Box>
+              </Box>
+            </Grid>
+          )}
         </Grid>
       </DialogContent>
 
