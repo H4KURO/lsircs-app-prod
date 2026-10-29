@@ -26,11 +26,15 @@ import {
   ListItemText,
   ListItemButton,
   Radio,
+  Checkbox,
+  FormControlLabel,
+  Divider,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import LinkIcon from '@mui/icons-material/Link';
 import MergeIcon from '@mui/icons-material/MergeType';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import { CustomerDetailModal } from './CustomerDetailModal';
 
 const API_URL = '/api';
@@ -51,6 +55,177 @@ function similarity(a, b) {
   const na = normalize(a), nb = normalize(b);
   if (!na || !nb) return 0;
   return 1 - editDistance(na, nb) / Math.max(na.length, nb.length);
+}
+
+function CustomerSheetsImportDialog({ open, onClose, onImported }) {
+  const [spreadsheetId, setSpreadsheetId] = useState('');
+  const [savedSpreadsheetId, setSavedSpreadsheetId] = useState('');
+  const [tabs, setTabs] = useState([]);
+  const [loadingTabs, setLoadingTabs] = useState(false);
+  const [tabsError, setTabsError] = useState('');
+  const [tabHeaderRows, setTabHeaderRows] = useState({});
+  const [selectedTabs, setSelectedTabs] = useState({});
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
+  const [savingConfig, setSavingConfig] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    axios.get(`${API_URL}/GetCustomerImportConfig`).then((res) => {
+      if (res.data?.spreadsheetId) {
+        setSavedSpreadsheetId(res.data.spreadsheetId);
+        setSpreadsheetId(res.data.spreadsheetId);
+        setTabHeaderRows(res.data.tabHeaderRows || {});
+        fetchTabs(res.data.spreadsheetId);
+      }
+    }).catch(() => {});
+  }, [open]);
+
+  const fetchTabs = async (id) => {
+    const sid = id || spreadsheetId;
+    if (!sid.trim()) return;
+    setLoadingTabs(true);
+    setTabsError('');
+    try {
+      const res = await axios.get(`${API_URL}/GetSheetTabs?spreadsheetId=${encodeURIComponent(sid.trim())}`);
+      const tabList = res.data?.tabs || [];
+      setTabs(tabList);
+      setSelectedTabs(Object.fromEntries(tabList.map((t) => [t, true])));
+    } catch (e) {
+      setTabsError(e.response?.data || 'タブの取得に失敗しました');
+    } finally {
+      setLoadingTabs(false);
+    }
+  };
+
+  const handleSaveConfig = async () => {
+    setSavingConfig(true);
+    try {
+      await axios.post(`${API_URL}/SaveCustomerImportConfig`, { spreadsheetId: spreadsheetId.trim() });
+      setSavedSpreadsheetId(spreadsheetId.trim());
+      await fetchTabs(spreadsheetId.trim());
+    } catch {
+      setTabsError('設定の保存に失敗しました');
+    } finally {
+      setSavingConfig(false);
+    }
+  };
+
+  const handleImport = async () => {
+    setImporting(true);
+    setImportResult(null);
+    const tabNames = tabs.filter((t) => selectedTabs[t]);
+    const headerRowsPayload = Object.fromEntries(tabNames.map((t) => [t, tabHeaderRows[t] || 1]));
+    try {
+      const res = await axios.post(`${API_URL}/ImportCustomerData`, { tabNames, tabHeaderRows: headerRowsPayload });
+      setImportResult(res.data);
+      if (res.data.success) onImported();
+    } catch (e) {
+      setImportResult({ success: false, error: e.response?.data || 'インポートに失敗しました' });
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleClose = () => {
+    setImportResult(null);
+    setTabsError('');
+    onClose();
+  };
+
+  return (
+    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+      <DialogTitle>SHEETSから顧客インポート</DialogTitle>
+      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+        <Typography variant="body2" color="text.secondary">
+          Google スプレッドシートから顧客（オーナー）データをインポートします。<br />
+          シートの列名は「名前」「メールアドレス」「電話番号」「国」「地域」「担当者」「メモ」を使用してください。
+        </Typography>
+
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <TextField
+            size="small" label="スプレッドシートID" value={spreadsheetId}
+            onChange={(e) => setSpreadsheetId(e.target.value)}
+            fullWidth placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"
+            helperText={savedSpreadsheetId ? `保存済み: ${savedSpreadsheetId.slice(0, 20)}...` : '未設定'}
+          />
+          <Button
+            variant="outlined" size="small" onClick={handleSaveConfig}
+            disabled={savingConfig || !spreadsheetId.trim()}
+            sx={{ whiteSpace: 'nowrap', flexShrink: 0 }}
+          >{savingConfig ? '保存中...' : '保存・タブ取得'}</Button>
+        </Box>
+
+        {tabsError && <Alert severity="error">{tabsError}</Alert>}
+
+        {loadingTabs && <CircularProgress size={20} />}
+
+        {tabs.length > 0 && (
+          <Box>
+            <Typography variant="body2" fontWeight={600} mb={1}>インポートするタブを選択</Typography>
+            {tabs.map((t) => (
+              <Box key={t} sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 0.5 }}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      size="small" checked={!!selectedTabs[t]}
+                      onChange={(e) => setSelectedTabs((prev) => ({ ...prev, [t]: e.target.checked }))}
+                    />
+                  }
+                  label={t}
+                  sx={{ flex: 1, m: 0 }}
+                />
+                <TextField
+                  size="small" type="number" label="ヘッダー行"
+                  value={tabHeaderRows[t] || 1}
+                  onChange={(e) => setTabHeaderRows((prev) => ({ ...prev, [t]: Number(e.target.value) || 1 }))}
+                  inputProps={{ min: 1 }}
+                  sx={{ width: 90 }}
+                />
+              </Box>
+            ))}
+          </Box>
+        )}
+
+        {importResult && (
+          <Alert severity={importResult.success ? 'success' : 'error'}>
+            {importResult.success
+              ? `${importResult.totalImported} 件の顧客をインポートしました。`
+              : importResult.error}
+            {importResult.results?.map((r) => (
+              <div key={r.tab}>{r.tab}: {r.imported}件インポート / {r.skipped}件スキップ{r.error ? ` (エラー: ${r.error})` : ''}</div>
+            ))}
+          </Alert>
+        )}
+
+        <Divider />
+        <Box>
+          <Typography variant="caption" color="text.secondary" fontWeight={600} display="block" mb={0.5}>
+            シートの列名（対応する顧客フィールド）
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            名前 / お名前 / 氏名 → 顧客名（必須）<br />
+            名前（カナ） / フリガナ → カナ<br />
+            メールアドレス / メール → メール<br />
+            電話番号 / 電話 → 電話<br />
+            国 / 国籍 → 国<br />
+            地域 → 地域<br />
+            担当者 / 担当 → 担当者<br />
+            ステータス → ステータス<br />
+            メモ / 備考 → メモ
+          </Typography>
+        </Box>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={handleClose}>閉じる</Button>
+        <Button
+          variant="contained" startIcon={<CloudUploadIcon />}
+          onClick={handleImport}
+          disabled={importing || tabs.filter((t) => selectedTabs[t]).length === 0}
+        >{importing ? 'インポート中...' : 'インポート実行'}</Button>
+      </DialogActions>
+    </Dialog>
+  );
 }
 
 function MergeDialog({ open, customers, onClose, onMerged }) {
@@ -197,6 +372,7 @@ export function CRMView({ onNavigateToTask, onNavigateToBuyer }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [mergeOpen, setMergeOpen] = useState(false);
+  const [sheetsImportOpen, setSheetsImportOpen] = useState(false);
   // propertyName → { managementType } lookup
   const [propMap, setPropMap] = useState({});
 
@@ -289,6 +465,13 @@ export function CRMView({ onNavigateToTask, onNavigateToBuyer }) {
           顧客管理 (CRM)
         </Typography>
         <Box sx={{ flexGrow: 1 }} />
+        <Button
+          variant="outlined"
+          startIcon={<CloudUploadIcon />}
+          onClick={() => setSheetsImportOpen(true)}
+        >
+          SHEETSからインポート
+        </Button>
         <Button
           variant="outlined"
           startIcon={<MergeIcon />}
@@ -467,6 +650,11 @@ export function CRMView({ onNavigateToTask, onNavigateToBuyer }) {
         customers={customers}
         onClose={() => setMergeOpen(false)}
         onMerged={fetchCustomers}
+      />
+      <CustomerSheetsImportDialog
+        open={sheetsImportOpen}
+        onClose={() => setSheetsImportOpen(false)}
+        onImported={fetchCustomers}
       />
     </Box>
   );
