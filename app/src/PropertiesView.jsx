@@ -510,6 +510,11 @@ const SHEET_SYSTEM_FIELDS = new Set([
   'id', '_rowIndex', '_spreadsheetId', 'importSource', 'sheetTab',
   'propertyName', 'importedAt', 'updatedAt', '_etag', '_rid', '_self',
   '_attachments', '_ts',
+  // モーダル管理フィールド（テーブル列として表示しない）
+  'paymentSchedule', 'comments', 'currency',
+  'contractDate', 'projectName', 'roomNumber', 'ownerName',
+  'purchasePrice', 'downPayment', 'paymentDueDay', 'paymentCount',
+  'paymentBaseAmount', 'paymentStartDate',
 ]);
 
 function SheetsImportDialog({ open, onClose, onImported }) {
@@ -812,8 +817,8 @@ function SheetsPropertiesTab({ properties, onImportOpen, onDelete, onRowClick })
                 >
                   {columns.map((col) => (
                     <TableCell key={col} sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      <Tooltip title={p[col] || ''} placement="top">
-                        <span>{p[col] || '—'}</span>
+                      <Tooltip title={typeof p[col] === 'object' ? '' : (p[col] || '')} placement="top">
+                        <span>{typeof p[col] === 'object' ? '—' : (p[col] || '—')}</span>
                       </Tooltip>
                     </TableCell>
                   ))}
