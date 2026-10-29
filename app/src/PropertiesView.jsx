@@ -9,6 +9,7 @@ import {
   Tabs, Tab, Checkbox, Accordion, AccordionSummary, AccordionDetails,
 } from '@mui/material';
 import { SheetsPropertyDetailModal } from './SheetsPropertyDetailModal';
+import { FileImportDialog } from './FileImportDialog';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import DownloadIcon from '@mui/icons-material/Download';
 import SearchIcon from '@mui/icons-material/Search';
@@ -514,272 +515,46 @@ const SHEET_SYSTEM_FIELDS = new Set([
   'paymentSchedule', 'comments',
 ]);
 
+const PROPERTY_COLUMN_GUIDE = (
+  <>
+    物件コード（ID用・推奨）/ タブ名（グループ）/ プロジェクト名 / 部屋番号 / オーナー名<br />
+    契約日（YYYY-MM-DD）/ 購入金額 / 前払金 / 毎月中間金 / 支払い回数 / 支払日 / 初回支払い日<br />
+    通貨（PHP / THB / USD / JPY）
+  </>
+);
+
+const CUSTOMER_COLUMN_GUIDE = (
+  <>
+    顧客コード（ID用・推奨）/ 名前（必須）/ 名前（カナ）/ メールアドレス / 電話番号<br />
+    国 / 地域 / 担当者 / ステータス / メモ
+  </>
+);
+
 function SheetsImportDialog({ open, onClose, onImported }) {
-  const [spreadsheetId, setSpreadsheetId] = useState('');
-  const [savedSpreadsheetId, setSavedSpreadsheetId] = useState('');
-  const [tabs, setTabs] = useState([]);
-  const [loadingTabs, setLoadingTabs] = useState(false);
-  const [tabsError, setTabsError] = useState('');
-  const [tabHeaderRows, setTabHeaderRows] = useState({});
-  const [importSelectedTabs, setImportSelectedTabs] = useState({});
-  const [importTabHeaderRows, setImportTabHeaderRows] = useState({});
-  const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState(null);
-  const [savingConfig, setSavingConfig] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    axios.get(`${API}/GetContractConfig`).then((res) => {
-      if (res.data?.spreadsheetId) {
-        setSavedSpreadsheetId(res.data.spreadsheetId);
-        setSpreadsheetId(res.data.spreadsheetId);
-        setTabHeaderRows(res.data.tabHeaderRows || {});
-        fetchTabs(res.data.spreadsheetId);
-      }
-    }).catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
-  const fetchTabs = async (sid) => {
-    if (!sid) return;
-    setLoadingTabs(true);
-    setTabsError('');
-    try {
-      const res = await axios.get(`${API}/GetSheetTabs?spreadsheetId=${encodeURIComponent(sid)}`);
-      const fetched = res.data.tabs || [];
-      setTabs(fetched);
-      const init = {};
-      fetched.forEach((t) => { init[t] = true; });
-      setImportSelectedTabs(init);
-    } catch (e) {
-      setTabsError(e.response?.data || e.message || 'タブの取得に失敗しました');
-      setTabs([]);
-    } finally {
-      setLoadingTabs(false);
-    }
-  };
-
-  const handleSaveConfig = async () => {
-    setSavingConfig(true);
-    try {
-      await axios.post(`${API}/SaveContractConfig`, { spreadsheetId });
-      setSavedSpreadsheetId(spreadsheetId);
-      await fetchTabs(spreadsheetId);
-    } catch {
-      alert('設定の保存に失敗しました');
-    } finally {
-      setSavingConfig(false);
-    }
-  };
-
-  const handleImport = async () => {
-    const selectedTabNames = Object.entries(importSelectedTabs)
-      .filter(([, v]) => v).map(([k]) => k);
-    if (selectedTabNames.length === 0) return;
-    setImporting(true);
-    setImportResult(null);
-    try {
-      const res = await axios.post(`${API}/ImportContractData`, {
-        tabNames: selectedTabNames,
-        tabHeaderRows: importTabHeaderRows,
-      });
-      setImportResult(res.data);
-      if (res.data?.success) onImported();
-    } catch (e) {
-      const msg = e.response?.data || e.message || 'インポートに失敗しました';
-      setImportResult({ success: false, error: typeof msg === 'string' ? msg : JSON.stringify(msg) });
-    } finally {
-      setImporting(false);
-    }
-  };
-
-  const handleClose = () => {
-    setImportResult(null);
-    onClose();
-  };
-
-  const allSelected = tabs.length > 0 && tabs.every((t) => importSelectedTabs[t]);
-  const toggleAll = () => {
-    const next = !allSelected;
-    const init = {};
-    tabs.forEach((t) => { init[t] = next; });
-    setImportSelectedTabs(init);
-  };
-
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Sheets インポート（海外物件）</DialogTitle>
-      <DialogContent>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Google Sheets から物件データを物件管理にインポートします。
-        </Typography>
-
-        {/* Spreadsheet ID */}
-        <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-          <TextField
-            size="small" label="スプレッドシート ID" fullWidth
-            value={spreadsheetId}
-            onChange={(e) => setSpreadsheetId(e.target.value)}
-          />
-          <Button
-            variant="outlined" size="small" sx={{ flexShrink: 0 }}
-            onClick={handleSaveConfig}
-            disabled={savingConfig || !spreadsheetId}
-          >
-            {savingConfig ? '保存中...' : '保存'}
-          </Button>
-        </Box>
-
-        {/* Tab selection */}
-        {loadingTabs && <LinearProgress sx={{ mb: 1 }} />}
-        {tabsError && <Alert severity="error" sx={{ mb: 1 }}>{tabsError}</Alert>}
-        {tabs.length > 0 && (
-          <Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-              <FormControlLabel
-                control={<Checkbox size="small" checked={allSelected} onChange={toggleAll} />}
-                label={<Typography variant="body2" fontWeight={600}>タブ選択（全 {tabs.length}件）</Typography>}
-              />
-            </Box>
-            <Box sx={{ maxHeight: 240, overflowY: 'auto', border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1 }}>
-              {tabs.map((tab) => (
-                <Box key={tab} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                  <Checkbox
-                    size="small"
-                    checked={!!importSelectedTabs[tab]}
-                    onChange={(e) => setImportSelectedTabs((prev) => ({ ...prev, [tab]: e.target.checked }))}
-                  />
-                  <Typography variant="body2" sx={{ flex: 1 }}>{tab}</Typography>
-                  <TextField
-                    size="small" type="number" label="ヘッダー行"
-                    value={importTabHeaderRows[tab] ?? tabHeaderRows[tab] ?? 1}
-                    onChange={(e) => setImportTabHeaderRows((prev) => ({ ...prev, [tab]: Number(e.target.value) }))}
-                    sx={{ width: 90 }}
-                    inputProps={{ min: 1 }}
-                  />
-                </Box>
-              ))}
-            </Box>
-          </Box>
-        )}
-
-        {importing && <LinearProgress sx={{ mt: 2 }} />}
-        {importResult && (
-          <Box sx={{ mt: 2 }}>
-            {importResult.success ? (
-              <Alert severity="success">
-                インポート完了: 合計 {importResult.totalImported} 件
-              </Alert>
-            ) : (
-              <Alert severity="error">{importResult.error || 'インポートに失敗しました'}</Alert>
-            )}
-            {importResult.results && (
-              <Box sx={{ mt: 1 }}>
-                {importResult.results.map((r) => (
-                  <Typography key={r.tab} variant="caption" display="block" color={r.error ? 'error.main' : 'text.secondary'}>
-                    {r.tab}: {r.error ? `エラー — ${r.error}` : `${r.imported}件インポート, ${r.skipped}件スキップ`}
-                  </Typography>
-                ))}
-              </Box>
-            )}
-          </Box>
-        )}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={handleClose}>閉じる</Button>
-        <Button
-          variant="contained"
-          startIcon={<CloudDownloadIcon />}
-          onClick={handleImport}
-          disabled={importing || !savedSpreadsheetId || Object.values(importSelectedTabs).every((v) => !v)}
-        >
-          {importing ? 'インポート中...' : 'インポート実行'}
-        </Button>
-      </DialogActions>
-    </Dialog>
+    <FileImportDialog
+      open={open}
+      onClose={onClose}
+      onImported={onImported}
+      title="Excel / CSV インポート（アジア物件）"
+      apiEndpoint={`${API}/ImportPropertiesFromFile`}
+      columnGuide={PROPERTY_COLUMN_GUIDE}
+      extraFields={[{ label: 'タブ名（グループ名）', stateKey: 'sheetTab', placeholder: '例: フィリピン' }]}
+      buildExtraPayload={(s) => ({ sheetTab: s.sheetTab || 'インポート' })}
+    />
   );
 }
 
 function OwnerImportDialog({ open, onClose }) {
-  const [tabs, setTabs] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [selectedTab, setSelectedTab] = useState('');
-  const [headerRow, setHeaderRow] = useState(1);
-  const [importing, setImporting] = useState(false);
-  const [result, setResult] = useState(null);
-
-  useEffect(() => {
-    if (!open) return;
-    setResult(null);
-    setLoading(true);
-    axios.get(`${API}/GetContractConfig`).then((res) => {
-      const sid = res.data?.spreadsheetId;
-      if (!sid) return;
-      return axios.get(`${API}/GetSheetTabs?spreadsheetId=${encodeURIComponent(sid)}`);
-    }).then((res) => {
-      if (res?.data?.tabs) {
-        setTabs(res.data.tabs);
-        setSelectedTab(res.data.tabs[0] || '');
-      }
-    }).catch(() => {}).finally(() => setLoading(false));
-  }, [open]);
-
-  const handleImport = async () => {
-    if (!selectedTab) return;
-    setImporting(true);
-    setResult(null);
-    try {
-      const res = await axios.post(`${API}/ImportOwnersFromSheets`, { tabName: selectedTab, headerRow });
-      setResult({ success: true, ...res.data });
-    } catch (e) {
-      setResult({ success: false, error: e.response?.data || e.message || 'インポートに失敗しました' });
-    } finally {
-      setImporting(false);
-    }
-  };
-
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle>オーナー（顧客）インポート</DialogTitle>
-      <DialogContent>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Google Sheets のタブからオーナー情報を顧客管理にインポートします。<br />
-          対応列: 氏名 / 名前 / オーナー名 / メール / 電話番号 / 会社名 / 国 / 地域
-        </Typography>
-        {loading && <LinearProgress sx={{ mb: 1 }} />}
-        {tabs.length > 0 && (
-          <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-            <FormControl size="small" sx={{ flex: 1 }}>
-              <InputLabel>タブを選択</InputLabel>
-              <Select value={selectedTab} label="タブを選択" onChange={(e) => setSelectedTab(e.target.value)}>
-                {tabs.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
-              </Select>
-            </FormControl>
-            <TextField
-              size="small" label="ヘッダー行" type="number" sx={{ width: 90 }}
-              value={headerRow} onChange={(e) => setHeaderRow(Number(e.target.value))} inputProps={{ min: 1 }}
-            />
-          </Box>
-        )}
-        {importing && <LinearProgress />}
-        {result && (
-          <Alert severity={result.success ? 'success' : 'error'} sx={{ mt: 1 }}>
-            {result.success
-              ? `インポート完了: ${result.imported}件追加・更新, ${result.skipped}件スキップ`
-              : (result.error || 'エラーが発生しました')}
-          </Alert>
-        )}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>閉じる</Button>
-        <Button variant="contained" onClick={handleImport}
-          disabled={importing || !selectedTab}
-          startIcon={<AddIcon />}
-        >
-          {importing ? 'インポート中...' : 'インポート実行'}
-        </Button>
-      </DialogActions>
-    </Dialog>
+    <FileImportDialog
+      open={open}
+      onClose={onClose}
+      onImported={() => {}}
+      title="Excel / CSV インポート（オーナー / 顧客）"
+      apiEndpoint={`${API}/ImportCustomersFromFile`}
+      columnGuide={CUSTOMER_COLUMN_GUIDE}
+    />
   );
 }
 
