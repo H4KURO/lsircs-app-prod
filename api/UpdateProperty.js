@@ -11,7 +11,7 @@ const ALLOWED_FIELDS = ['managementType', 'ownerName', 'ownerPhone', 'tenantStat
   // アジア物件フィールド
   'contractDate', 'projectName', 'roomNumber',
   'paymentDueDay', 'paymentCount', 'paymentBaseAmount', 'downPayment',
-  'paymentSchedule',
+  'paymentSchedule', 'currency', 'paymentStartDate',
 ];
 
 app.http('UpdateProperty', {

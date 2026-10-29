@@ -26,6 +26,18 @@ const STATUS_COLORS = {
   '支払い済み': 'success',
 };
 
+const CURRENCIES = [
+  { code: 'PHP', symbol: '₱', label: 'ペソ (PHP)' },
+  { code: 'THB', symbol: '฿', label: 'バーツ (THB)' },
+  { code: 'USD', symbol: '$', label: 'ドル (USD)' },
+  { code: 'JPY', symbol: '¥', label: '円 (JPY)' },
+];
+const DEFAULT_CURRENCY = 'PHP';
+
+function getCurrencySymbol(code) {
+  return CURRENCIES.find((c) => c.code === code)?.symbol ?? '₱';
+}
+
 // Avatar initials from display name
 function initials(name) {
   if (!name) return '?';
@@ -77,15 +89,16 @@ function calcResidual(purchasePrice, downPayment, schedule) {
   return (Number(purchasePrice) || 0) - (Number(downPayment) || 0) - paid;
 }
 
-function fmtCurrency(n) {
+function fmtCurrency(n, currencyCode) {
   if (!n && n !== 0) return '—';
-  return '¥' + Number(n).toLocaleString('ja-JP');
+  const sym = getCurrencySymbol(currencyCode || DEFAULT_CURRENCY);
+  return sym + Number(n).toLocaleString('ja-JP');
 }
 
 // ── PaymentScheduleTab ──────────────────────────────────────────
 const VISIBLE_LIMIT = 10;
 
-function PaymentScheduleTab({ property, schedule, onScheduleChange, onTaskCreate, saving }) {
+function PaymentScheduleTab({ property, schedule, onScheduleChange, onTaskCreate, saving, currency }) {
   const [showAllOld, setShowAllOld] = useState(false);
   const [showAllNew, setShowAllNew] = useState(false);
   const [bulkCreating, setBulkCreating] = useState(false);
@@ -134,7 +147,7 @@ function PaymentScheduleTab({ property, schedule, onScheduleChange, onTaskCreate
       try {
         const res = await axios.post(`${API}/CreateTask`, {
           title: `[中間金] ${property.propertyName || property.sheetTab} - 第${item.no}回 ${item.dueDate ? `(${item.dueDate})` : ''}`,
-          description: `物件: ${property.propertyName || property.sheetTab}\n部屋: ${property.roomNumber || ''}\n第${item.no}回 中間金\n金額: ${fmtCurrency(item.amount)}\n支払い期日: ${item.dueDate || ''}`,
+          description: `物件: ${property.propertyName || property.sheetTab}\n部屋: ${property.roomNumber || ''}\n第${item.no}回 中間金\n金額: ${fmtCurrency(item.amount, currency)}\n支払い期日: ${item.dueDate || ''}`,
           dueDate: item.dueDate || undefined,
           propertyId: property.id,
         });
@@ -162,7 +175,7 @@ function PaymentScheduleTab({ property, schedule, onScheduleChange, onTaskCreate
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1, mb: 2 }}>
         {[
           { label: '支払い進捗', value: `${paidCount} / ${totalCount}回`, color: 'primary.main' },
-          { label: '支払い済み合計', value: fmtCurrency(paidTotal), color: 'success.main' },
+          { label: '支払い済み合計', value: fmtCurrency(paidTotal, currency), color: 'success.main' },
           { label: '次回期日', value: nextDue?.dueDate || '完了', color: 'warning.main' },
         ].map(({ label, value, color }) => (
           <Paper key={label} variant="outlined" sx={{ p: 1.5 }}>
@@ -213,6 +226,7 @@ function PaymentScheduleTab({ property, schedule, onScheduleChange, onTaskCreate
               onAmountChange={handleAmountChange}
               onTaskCreate={onTaskCreate}
               property={property}
+              currency={currency}
             />
           )}
         </Box>
@@ -226,6 +240,7 @@ function PaymentScheduleTab({ property, schedule, onScheduleChange, onTaskCreate
         onAmountChange={handleAmountChange}
         onTaskCreate={onTaskCreate}
         property={property}
+        currency={currency}
       />
 
       {/* Expand button for overflow */}
@@ -251,7 +266,7 @@ function PaymentScheduleTab({ property, schedule, onScheduleChange, onTaskCreate
   );
 }
 
-function ScheduleRows({ items, allItems, onStatusChange, onAmountChange, onTaskCreate, property }) {
+function ScheduleRows({ items, allItems, onStatusChange, onAmountChange, onTaskCreate, property, currency }) {
   return (
     <Box>
       {items.map((item) => {
@@ -280,7 +295,7 @@ function ScheduleRows({ items, allItems, onStatusChange, onAmountChange, onTaskC
               value={item.amount || ''}
               onChange={(e) => onAmountChange(globalIdx, e.target.value)}
               sx={{ width: 110, '& input': { fontVariantNumeric: 'tabular-nums', fontSize: '0.8rem' } }}
-              InputProps={{ startAdornment: <Typography variant="caption" sx={{ mr: 0.3, color: 'text.secondary' }}>¥</Typography> }}
+              InputProps={{ startAdornment: <Typography variant="caption" sx={{ mr: 0.3, color: 'text.secondary' }}>{getCurrencySymbol(currency)}</Typography> }}
               disabled={isPaid}
             />
             <FormControl size="small" sx={{ minWidth: 100 }}>
@@ -421,6 +436,7 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
       paymentCount: property.paymentCount || '',
       paymentBaseAmount: property.paymentBaseAmount || '',
       paymentStartDate: property.paymentStartDate || '',
+      currency: property.currency || DEFAULT_CURRENCY,
     });
     setSchedule(property.paymentSchedule || []);
   }, [open, property]);
@@ -468,7 +484,7 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
     try {
       const res = await axios.post(`${API}/CreateTask`, {
         title: `[中間金] ${property.propertyName || property.sheetTab} - 第${item.no}回 ${item.dueDate ? `(${item.dueDate})` : ''}`,
-        description: `物件: ${property.propertyName || property.sheetTab}\n部屋: ${form.roomNumber || ''}\n第${item.no}回 中間金\n金額: ${fmtCurrency(item.amount)}\n支払い期日: ${item.dueDate || ''}`,
+        description: `物件: ${property.propertyName || property.sheetTab}\n部屋: ${form.roomNumber || ''}\n第${item.no}回 中間金\n金額: ${fmtCurrency(item.amount, form.currency)}\n支払い期日: ${item.dueDate || ''}`,
         dueDate: item.dueDate || undefined,
         propertyId: property.id,
       });
@@ -498,7 +514,7 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
       {/* Summary strip */}
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', bgcolor: 'divider', mx: 3, mb: 1, borderRadius: 1, overflow: 'hidden' }}>
         {[
-          { label: '残代金', value: fmtCurrency(residual), color: residual > 0 ? 'warning.main' : 'success.main' },
+          { label: '残代金', value: fmtCurrency(residual, form.currency), color: residual > 0 ? 'warning.main' : 'success.main' },
           { label: '支払い残回数', value: schedule.length > 0 ? `${schedule.length - paidCount} / ${schedule.length}` : '—', color: 'primary.main' },
           { label: '次回支払い期日', value: schedule.find((s) => s.status !== '支払い済み')?.dueDate || (schedule.length > 0 ? '完了' : '—'), color: 'text.primary' },
         ].map(({ label, value, color }) => (
@@ -531,9 +547,26 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
             <Divider><Typography variant="caption" color="text.secondary">支払い設定</Typography></Divider>
 
             <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-              <TextField size="small" label="購入金額 (¥)" type="number" value={form.purchasePrice || ''} onChange={(e) => setForm((p) => ({ ...p, purchasePrice: e.target.value }))} />
-              <TextField size="small" label="前払金 (¥)" type="number" value={form.downPayment || ''} onChange={(e) => setForm((p) => ({ ...p, downPayment: e.target.value }))} />
-              <TextField size="small" label="中間金 毎月金額 (¥)" type="number" value={form.paymentBaseAmount || ''} onChange={(e) => setForm((p) => ({ ...p, paymentBaseAmount: e.target.value }))} />
+              <FormControl size="small" sx={{ gridColumn: '1 / -1' }}>
+                <InputLabel>通貨</InputLabel>
+                <Select
+                  label="通貨"
+                  value={form.currency || DEFAULT_CURRENCY}
+                  onChange={(e) => setForm((p) => ({ ...p, currency: e.target.value }))}
+                >
+                  {CURRENCIES.map((c) => (
+                    <MenuItem key={c.code} value={c.code}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography sx={{ minWidth: 24, fontWeight: 700, color: 'primary.main' }}>{c.symbol}</Typography>
+                        <Typography>{c.label}</Typography>
+                      </Box>
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <TextField size="small" label={`購入金額 (${getCurrencySymbol(form.currency)})`} type="number" value={form.purchasePrice || ''} onChange={(e) => setForm((p) => ({ ...p, purchasePrice: e.target.value }))} />
+              <TextField size="small" label={`前払金 (${getCurrencySymbol(form.currency)})`} type="number" value={form.downPayment || ''} onChange={(e) => setForm((p) => ({ ...p, downPayment: e.target.value }))} />
+              <TextField size="small" label={`中間金 毎月金額 (${getCurrencySymbol(form.currency)})`} type="number" value={form.paymentBaseAmount || ''} onChange={(e) => setForm((p) => ({ ...p, paymentBaseAmount: e.target.value }))} />
               <TextField size="small" label="支払い回数" type="number" value={form.paymentCount || ''} onChange={(e) => setForm((p) => ({ ...p, paymentCount: e.target.value }))} inputProps={{ min: 1 }} />
               <TextField size="small" label="支払い期日（毎月何日）" type="number" value={form.paymentDueDay || ''} onChange={(e) => setForm((p) => ({ ...p, paymentDueDay: e.target.value }))} inputProps={{ min: 1, max: 31 }} />
               <TextField size="small" label="初回支払い日" type="date" value={form.paymentStartDate || ''} onChange={(e) => setForm((p) => ({ ...p, paymentStartDate: e.target.value }))} InputLabelProps={{ shrink: true }} />
@@ -564,6 +597,7 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
             onScheduleChange={setSchedule}
             onTaskCreate={handleTaskCreate}
             saving={saving}
+            currency={form.currency}
           />
         )}
 
