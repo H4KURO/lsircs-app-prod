@@ -510,11 +510,8 @@ const SHEET_SYSTEM_FIELDS = new Set([
   'id', '_rowIndex', '_spreadsheetId', 'importSource', 'sheetTab',
   'propertyName', 'importedAt', 'updatedAt', '_etag', '_rid', '_self',
   '_attachments', '_ts',
-  // モーダル管理フィールド（テーブル列として表示しない）
-  'paymentSchedule', 'comments', 'currency',
-  'contractDate', 'projectName', 'roomNumber', 'ownerName',
-  'purchasePrice', 'downPayment', 'paymentDueDay', 'paymentCount',
-  'paymentBaseAmount', 'paymentStartDate',
+  // 配列フィールド — テーブルセルに描画するとReactがクラッシュするため除外
+  'paymentSchedule', 'comments',
 ]);
 
 function SheetsImportDialog({ open, onClose, onImported }) {
