@@ -49,9 +49,33 @@ function getMgmtStyle(type) { return MGMT_COLORS[type] || { bg: '#F1F5F9', text:
 
 const API_URL = '/api';
 
-function toBoxEmbedUrl(url) {
+function getDocType(url) {
+  if (!url) return 'other';
+  if (url.includes('app.box.com')) return 'box';
+  if (url.includes('drive.google.com')) return 'drive';
+  return 'other';
+}
+
+function toEmbedUrl(url) {
   if (!url) return '';
-  return url.replace('app.box.com/s/', 'app.box.com/embed/s/');
+  if (url.includes('app.box.com/s/')) {
+    return url.replace('app.box.com/s/', 'app.box.com/embed/s/');
+  }
+  if (url.includes('drive.google.com/drive/folders/')) {
+    const m = url.match(/\/folders\/([^/?#]+)/);
+    return m ? `https://drive.google.com/embeddedfolderview?id=${m[1]}` : url;
+  }
+  if (url.includes('drive.google.com/file/d/')) {
+    return url.replace('/view', '/preview').replace(/[?&]?usp=[^&]+/, '');
+  }
+  return url;
+}
+
+function getDocLabel(url) {
+  const t = getDocType(url);
+  if (t === 'box') return 'Boxで開く';
+  if (t === 'drive') return 'Driveで開く';
+  return '開く';
 }
 
 const STATUS_OPTIONS = ['Lead', '商談中', '契約済み', 'フォローアップ', '見送り'];
@@ -862,7 +886,7 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
                         component="a" href={boxFolders[selectedFolderIdx]?.url}
                         target="_blank" rel="noopener noreferrer"
                         sx={{ fontSize: '0.75rem' }}
-                      >Boxで開く</Button>
+                      >{getDocLabel(boxFolders[selectedFolderIdx]?.url)}</Button>
                     </Box>
 
                     {/* iframe プレビュー */}
@@ -870,10 +894,10 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
                       <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, overflow: 'hidden', height: 320 }}>
                         <iframe
                           key={boxFolders[selectedFolderIdx]?.url}
-                          src={toBoxEmbedUrl(boxFolders[selectedFolderIdx]?.url)}
+                          src={toEmbedUrl(boxFolders[selectedFolderIdx]?.url)}
                           width="100%" height="100%"
                           style={{ border: 'none', display: 'block' }}
-                          title="Box preview"
+                          title="document preview"
                         />
                       </Box>
                     )}
@@ -913,9 +937,9 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
                       fullWidth placeholder="空欄の場合は自動採番"
                     />
                     <TextField
-                      size="small" label="Box URL" value={newFolderUrl}
+                      size="small" label="URL (Box / Google Drive)" value={newFolderUrl}
                       onChange={e => setNewFolderUrl(e.target.value)}
-                      fullWidth placeholder="https://app.box.com/s/..."
+                      fullWidth placeholder="https://app.box.com/s/... または https://drive.google.com/..."
                     />
                     <Box sx={{ display: 'flex', gap: 1 }}>
                       <Button
@@ -939,7 +963,7 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
                     onClick={() => setAddFolderOpen(true)}
                     sx={{ mt: boxFolders.length > 0 ? 1.5 : 0, fontSize: '0.75rem' }}
                   >
-                    {boxFolders.length === 0 ? 'Box フォルダを紐づける' : 'フォルダを追加'}
+                    {boxFolders.length === 0 ? 'フォルダ / ドライブを紐づける' : 'フォルダを追加'}
                   </Button>
                 )}
               </Box>

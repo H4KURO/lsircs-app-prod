@@ -5,8 +5,9 @@ import {
   Box, Typography, Button, TextField, Tabs, Tab, Chip,
   IconButton, Tooltip, CircularProgress, Alert,
   Select, MenuItem, FormControl, InputLabel, Divider,
-  LinearProgress, Paper,
+  LinearProgress, Paper, Autocomplete,
 } from '@mui/material';
+import PersonIcon from '@mui/icons-material/Person';
 import CloseIcon from '@mui/icons-material/Close';
 import SaveIcon from '@mui/icons-material/Save';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
@@ -441,6 +442,13 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
   const [schedule, setSchedule] = useState([]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [customers, setCustomers] = useState([]);
+  const [linkedCustomer, setLinkedCustomer] = useState(null);
+
+  useEffect(() => {
+    if (!open) return;
+    axios.get(`${API}/GetCustomers`).then((r) => setCustomers(Array.isArray(r.data) ? r.data : [])).catch(() => {});
+  }, [open]);
 
   useEffect(() => {
     if (!open || !property) return;
@@ -458,9 +466,19 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
       paymentBaseAmount: parseAmount(property.paymentBaseAmount),
       paymentStartDate: parseSheetDate(property.paymentStartDate),
       currency: property.currency || DEFAULT_CURRENCY,
+      linkedCustomerId: property.linkedCustomerId || null,
+      linkedCustomerName: property.linkedCustomerName || '',
     });
     setSchedule(property.paymentSchedule || []);
   }, [open, property]);
+
+  useEffect(() => {
+    if (!open || !property?.linkedCustomerId || customers.length === 0) {
+      setLinkedCustomer(null);
+      return;
+    }
+    setLinkedCustomer(customers.find((c) => c.id === property.linkedCustomerId) || null);
+  }, [open, property, customers]);
 
   const residual = useMemo(
     () => calcResidual(form.purchasePrice, form.downPayment, schedule),
@@ -563,6 +581,62 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
               <TextField size="small" label="部屋番号" value={form.roomNumber || ''} onChange={(e) => setForm((p) => ({ ...p, roomNumber: e.target.value }))} />
               <TextField size="small" label="契約日" type="date" value={form.contractDate || ''} onChange={(e) => setForm((p) => ({ ...p, contractDate: e.target.value }))} InputLabelProps={{ shrink: true }} />
               <TextField size="small" label="オーナー名" value={form.ownerName || ''} onChange={(e) => setForm((p) => ({ ...p, ownerName: e.target.value }))} />
+            </Box>
+
+            <Divider><Typography variant="caption" color="text.secondary">オーナー紐づけ</Typography></Divider>
+
+            <Autocomplete
+              size="small"
+              options={customers}
+              getOptionLabel={(c) => `${c.name || ''}${c.nameKana ? `（${c.nameKana}）` : ''}`}
+              value={linkedCustomer}
+              onChange={(_, val) => {
+                setLinkedCustomer(val);
+                setForm((p) => ({
+                  ...p,
+                  linkedCustomerId: val?.id || null,
+                  linkedCustomerName: val?.name || '',
+                  ownerName: p.ownerName || val?.name || '',
+                }));
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="顧客（オーナー）と紐づける"
+                  placeholder="名前で検索..."
+                  InputProps={{ ...params.InputProps, startAdornment: <PersonIcon fontSize="small" sx={{ mr: 0.5, color: 'action.active' }} /> }}
+                />
+              )}
+              renderOption={(props, c) => (
+                <li {...props} key={c.id}>
+                  <Box>
+                    <Typography variant="body2">{c.name}</Typography>
+                    {c.nameKana && <Typography variant="caption" color="text.secondary">{c.nameKana}</Typography>}
+                  </Box>
+                </li>
+              )}
+              noOptionsText="顧客が見つかりません"
+              clearOnEscape
+              sx={{ gridColumn: '1 / -1' }}
+            />
+            {form.linkedCustomerId && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Chip
+                  icon={<PersonIcon />}
+                  label={form.linkedCustomerName || form.linkedCustomerId}
+                  size="small"
+                  color="primary"
+                  variant="outlined"
+                  onDelete={() => {
+                    setLinkedCustomer(null);
+                    setForm((p) => ({ ...p, linkedCustomerId: null, linkedCustomerName: '' }));
+                  }}
+                />
+                <Typography variant="caption" color="text.secondary">顧客レコードと紐づき済み</Typography>
+              </Box>
+            )}
+
+            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
             </Box>
 
             <Divider><Typography variant="caption" color="text.secondary">支払い設定</Typography></Divider>
