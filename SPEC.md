@@ -1,7 +1,7 @@
 # lsir-cs アプリケーション仕様書
 
 > **メンテナンス注意**: このファイルはアプリ変更のたびに更新すること（CLAUDE.md 参照）。  
-> 最終更新: 2026-10-28（契約管理インポート安定化: タブ名サニタイズ・Sheetsクライアント毎回新規生成）
+> 最終更新: 2026-10-29（顧客管理コメント機能追加・アジア物件詳細モーダル実装）
 
 ---
 
@@ -162,37 +162,74 @@ lsircs-app-prod/
 | プロフィール | `profile` | `ProfileView` | 表示名変更 |
 | ホワイトリスト | `whitelist` | `WhitelistView` | アクセス管理（管理者のみ） |
 | 文書生成 | `documents` | `DocumentGenerationView` | PDF・Excel 文書生成 |
-| 物件管理 | `properties` | `PropertiesView` | 物件台帳管理 |
+| 物件管理 | `properties` | `PropertiesView` | 物件台帳管理（ハワイ/アジア タブ） |
 | レポート管理 | `reports` | `ReportsView` | 空室・Lease Renewal Google Sheets 同期 |
-| 契約管理 | `contracts` | `ContractManagementView` | Google Sheets 連携 Phase 1・タスク登録連携 |
+| ~~契約管理~~ | ~~`contracts`~~ | ~~`ContractManagementView`~~ | ~~削除済み（機能は物件管理アジアタブに統合）~~ |
 
 ---
 
-### 5.10 契約管理 (`ContractManagementView`)
+### 5.10 物件管理 (`PropertiesView`)
 
-**概要**: Asia TM 向けの契約管理機能。Phase 1 では Google Sheets をデータソースとして使用。
+**タブ構成**:
 
-**主な機能**:
-- 1つの Google Spreadsheet を設定（各プロジェクトがタブに対応）
-- タブ一覧をプロジェクトタブとして表示（TSR, TGMO, OBS, UAEの物件等）
-- 購入者リストをテーブル形式で表示・検索
-- 行クリックで詳細パネルを表示（全フィールド + Sheetsリンク）
-- 「Taskとして登録」ボタンで中間金支払いをタスク化 → 既存のダッシュボード・カレンダーで管理可能
-- Phase 2 では Cosmos DB に移行予定
+| タブ | データソース | 説明 |
+|---|---|---|
+| ハワイ | `importSource !== 'sheets'`（Appfolio） | Appfolio インポートデータ |
+| アジア | `importSource === 'sheets'`（Google Sheets） | Google Sheets インポートデータ |
 
-**設定保存**: `contract-config` ドキュメントを Cosmos DB Projects コンテナに保存
+**ハワイタブ**:
+- Appfolio からのインポート（物件名・管理形態・オーナー・テナント状況・月額賃料）
+- テキスト検索・管理形態フィルター・テナント状況フィルター
+- Excel エクスポート
+- CRM同期（オーナー情報と顧客情報の照合・紐づけ）
+- 行クリックで EditDialog（基本情報編集 + タスク表示）
+
+**アジアタブ（Google Sheets インポート）**:
+- `ImportContractData` API 経由で Properties コンテナへインポート
+- ドキュメント id: `sheets-{タブ名（/ \ # ? を _ に置換）}-{行番号}`
+- 各ドキュメントに `importSource: 'sheets'`, `sheetTab: タブ名` を付与
+- 行クリックで **SheetsPropertyDetailModal** を表示
+
+**SheetsPropertyDetailModal（3タブ）**:
+
+| タブ | 内容 |
+|---|---|
+| 基本情報 | プロジェクト名・部屋番号・契約日・オーナー名・購入金額・前払金・中間金設定・スケジュール生成ボタン |
+| 支払いスケジュール | 進捗バー・インストールメントテーブル（個別タスク作成 + 一括タスク作成）|
+| コメント | スレッド形式コメント（`AddEntityComment` API） |
+
+**サマリーストリップ（モーダル上部）**:
+- 残代金 = 購入金額 - 前払金 - 支払い済み中間金合計
+- 支払い残回数 = X / 全回数
+- 次回支払い期日
+
+**支払いスケジュール仕様**:
+
+| フィールド | 説明 |
+|---|---|
+| paymentDueDay | 毎月の支払い日（日付）|
+| paymentCount | 支払い回数 |
+| paymentBaseAmount | 基本金額（各回の固定額） |
+| paymentStartDate | 初回支払い日（日付）|
+| paymentSchedule | 生成済みスケジュール配列（各要素: no, dueDate, amount, status, taskId, paidDate）|
+| downPayment | 前払金 |
+| contractDate | 契約日 |
+| projectName | プロジェクト名 |
+| roomNumber | 部屋番号 |
+
+**スケジュールステータス**: 未対応 / 案内済み / 支払い済み
+
+**表示折りたたみロジック**:
+- 支払い済み（2ヶ月以上前）はデフォルト折りたたみ → 展開ボタンで表示
+- 最新 10 件以降はデフォルト折りたたみ → ⇓ボタンで展開
+
+**タスク連携**:
+- 各行「タスク作成」ボタン → `CreateTask` API 呼び出し・taskId を保存
+- 「未対応タスクを一括作成」ボタン → 未リンク行を一括タスク化
+
+**インポート設定保存**: `contract-config` ドキュメントを Cosmos DB Projects コンテナに保存
 - `spreadsheetId`: Google Spreadsheet ID
-- `tabHeaderRows`: タブごとのヘッダー行設定オブジェクト（例: `{ "TSR": 6, "TGMO": 3, "FL LEDGER": 1 }`）
-
-**ヘッダー行設定**: タブごとに個別保存。テーブルツールバー内の「ヘッダー行: [数値入力] [適用]」で変更・保存。タブ切替時は保存済みの値を自動反映。
-
-**統計バー**: 総契約数・今月の支払期日・期限超過・残代金完了（Sheets から動的計算）
-
-**カラム自動検出**: ID, 担当, Tower, Unit, 購入金額, 月次支払日, 残代金期日, ステータス を列名で自動マッピング
-
-**データソース（Phase 2）**: CosmosDB `Contracts` コンテナから読み込み。`GetContracts` API (`GET /api/GetContracts?projectTab=`) で取得。システムフィールドを除いた列を自動的に表示。
-
-**インポート機能**: 設定セクション内「インポート実行」ボタンで対象タブを選択しSheetsからCosmosDBに一括upsert。ドキュメント id は `{タブ名（/ \ # ? を _ に置換）}-{行番号}`、パーティションキーは `/projectTab`。再実行は差分上書き（upsert）。一度に多数のタブを選択するとタイムアウトするため、必要なタブのみ選択して実行すること。タブ名に `/` が含まれる場合（例: `One89/187`）は `_` に置換されてIDが生成される。
+- `tabHeaderRows`: タブごとのヘッダー行設定（例: `{ "TSR": 6, "TGMO": 3 }`）
 
 ---
 
@@ -332,7 +369,20 @@ ZOHO・Appfolio・WP等の分散した顧客情報を一元管理するCRM機能
 | budget | 予算 |
 | lastContactedAt | 最終接触日（YYYY-MM-DD） |
 | nextFollowUpAt | 次回フォロー日（YYYY-MM-DD） |
-| notes | 備考 |
+| notes | 備考（データは保持、UI非表示） |
+| comments | コメント配列（後述） |
+| buyerLinks | バイヤーリスト紐づけ配列 |
+| boxFolders | Box フォルダ URL 配列 |
+
+**コメントフィールド（`comments` 配列要素）**:
+
+| フィールド | 説明 |
+|---|---|
+| id | UUID |
+| text | コメント本文 |
+| authorDisplayName | 投稿者表示名 |
+| authorUserId | 投稿者 userId |
+| createdAt | ISO8601 |
 
 **機能**:
 - 顧客一覧（テキスト検索・ステータスフィルター）
@@ -342,6 +392,7 @@ ZOHO・Appfolio・WP等の分散した顧客情報を一元管理するCRM機能
   - 物件フィルターチップで特定物件のみ絞り込み可能
   - 複数物件がある場合はタスク追加時に対象物件を選択
 - 顧客詳細モーダルの「タスクを開く」ボタンはSPA遷移（`onNavigateToTask` コールバック経由）でタスク詳細モーダルを直接開く
+- **コメント機能**: `AddEntityComment` API (`entityType: 'customer'`) でスレッド形式のコメントを投稿・表示（備考欄の代替）
 - 顧客情報更新時にDXチームへSlack通知（`SLACK_DX_CHANNEL_ID`）
 
 **Slack DX通知**: 顧客情報変更時（変更がある場合のみ）に `SLACK_DX_CHANNEL_ID` チャンネルへ送信。ZOHOへの手動反映依頼として活用。
@@ -712,6 +763,7 @@ tags: string[],      // サブタスク固有のタグ
 | POST | `/api/CreateCustomer` | 顧客作成 |
 | POST | `/api/UpdateCustomer` | 顧客更新（DX Slack通知付き） |
 | POST | `/api/DeleteCustomer` | 顧客削除 |
+| POST | `/api/AddEntityComment` | エンティティへのコメント追加（`entityType: 'customer'` or `'property'`, `entityId`, `text`） |
 
 ### プロジェクト管理
 

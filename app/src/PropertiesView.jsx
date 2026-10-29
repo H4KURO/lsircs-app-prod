@@ -8,6 +8,7 @@ import {
   Divider, List, ListItem, ListItemText, RadioGroup, FormControlLabel, Radio,
   Tabs, Tab, Checkbox, Accordion, AccordionSummary, AccordionDetails,
 } from '@mui/material';
+import { SheetsPropertyDetailModal } from './SheetsPropertyDetailModal';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import DownloadIcon from '@mui/icons-material/Download';
 import SearchIcon from '@mui/icons-material/Search';
@@ -697,7 +698,7 @@ function SheetsImportDialog({ open, onClose, onImported }) {
   );
 }
 
-function SheetsPropertiesTab({ properties, onImportOpen, onDelete }) {
+function SheetsPropertiesTab({ properties, onImportOpen, onDelete, onRowClick }) {
   const [selectedTab, setSelectedTab] = useState('');
   const [search, setSearch] = useState('');
 
@@ -804,7 +805,11 @@ function SheetsPropertiesTab({ properties, onImportOpen, onDelete }) {
               </TableRow>
             ) : (
               filtered.map((p) => (
-                <TableRow key={p.id} hover>
+                <TableRow
+                  key={p.id} hover
+                  sx={{ cursor: 'pointer' }}
+                  onClick={() => onRowClick && onRowClick(p)}
+                >
                   {columns.map((col) => (
                     <TableCell key={col} sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       <Tooltip title={p[col] || ''} placement="top">
@@ -812,7 +817,7 @@ function SheetsPropertiesTab({ properties, onImportOpen, onDelete }) {
                       </Tooltip>
                     </TableCell>
                   ))}
-                  <TableCell align="center">
+                  <TableCell align="center" onClick={(e) => e.stopPropagation()}>
                     <Tooltip title="削除">
                       <IconButton size="small" color="error" onClick={() => onDelete(p)}>
                         <DeleteIcon fontSize="small" />
@@ -841,6 +846,7 @@ export function PropertiesView() {
   const [exporting, setExporting] = useState(false);
   const [activeView, setActiveView] = useState('appfolio');
   const [sheetsImportOpen, setSheetsImportOpen] = useState(false);
+  const [sheetsEditTarget, setSheetsEditTarget] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1033,6 +1039,7 @@ export function PropertiesView() {
           properties={sheetsProperties}
           onImportOpen={() => setSheetsImportOpen(true)}
           onDelete={handleDelete}
+          onRowClick={(p) => setSheetsEditTarget(p)}
         />
       )}
 
@@ -1055,6 +1062,15 @@ export function PropertiesView() {
         open={sheetsImportOpen}
         onClose={() => setSheetsImportOpen(false)}
         onImported={() => { load(); setSheetsImportOpen(false); }}
+      />
+      <SheetsPropertyDetailModal
+        property={sheetsEditTarget}
+        open={!!sheetsEditTarget}
+        onClose={() => setSheetsEditTarget(null)}
+        onSaved={(updated) => {
+          setProperties((prev) => prev.map((p) => p.id === updated.id ? updated : p));
+          setSheetsEditTarget(updated);
+        }}
       />
     </Box>
   );
