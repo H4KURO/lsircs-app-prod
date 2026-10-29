@@ -81,6 +81,27 @@ function buildSchedule(existingSchedule, paymentStartDate, paymentDueDay, paymen
   return result;
 }
 
+// ── Sheet data parsers ───────────────────────────────────────────
+// Strip currency symbols/commas and return numeric string: "₱1,234.56" → "1234.56"
+function parseAmount(val) {
+  if (val === null || val === undefined || val === '') return '';
+  const n = Number(String(val).replace(/[^\d.-]/g, ''));
+  return isNaN(n) ? '' : n;
+}
+
+// Extract integer from ordinal or plain string: "17th" / "17" → 17
+function parseDayOrdinal(val) {
+  if (!val) return '';
+  const n = parseInt(String(val).replace(/\D/g, ''), 10);
+  return isNaN(n) ? '' : n;
+}
+
+// Normalize date: "2023/05/17" or "2023-05-17" → "2023-05-17"
+function parseSheetDate(val) {
+  if (!val) return '';
+  return String(val).replace(/\//g, '-').split('T')[0];
+}
+
 // ── Summary helpers ──────────────────────────────────────────────
 function calcResidual(purchasePrice, downPayment, schedule) {
   const paid = (schedule || [])
@@ -429,13 +450,13 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
       projectName: property.projectName || property.sheetTab || '',
       roomNumber: property.roomNumber || '',
       ownerName: property.ownerName || '',
-      contractDate: property.contractDate || '',
-      purchasePrice: property.purchasePrice || '',
-      downPayment: property.downPayment || '',
-      paymentDueDay: property.paymentDueDay || '',
-      paymentCount: property.paymentCount || '',
-      paymentBaseAmount: property.paymentBaseAmount || '',
-      paymentStartDate: property.paymentStartDate || '',
+      contractDate: parseSheetDate(property.contractDate),
+      purchasePrice: parseAmount(property.purchasePrice),
+      downPayment: parseAmount(property.downPayment),
+      paymentDueDay: parseDayOrdinal(property.paymentDueDay),
+      paymentCount: parseDayOrdinal(property.paymentCount),
+      paymentBaseAmount: parseAmount(property.paymentBaseAmount),
+      paymentStartDate: parseSheetDate(property.paymentStartDate),
       currency: property.currency || DEFAULT_CURRENCY,
     });
     setSchedule(property.paymentSchedule || []);
