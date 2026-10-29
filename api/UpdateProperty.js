@@ -13,6 +13,7 @@ const ALLOWED_FIELDS = ['managementType', 'ownerName', 'ownerPhone', 'tenantStat
   'paymentDueDay', 'paymentCount', 'paymentBaseAmount', 'downPayment',
   'paymentSchedule', 'currency', 'paymentStartDate',
   'linkedCustomerId', 'linkedCustomerName',
+  'ownerId', 'ownerCustomerName',
 ];
 
 app.http('UpdateProperty', {

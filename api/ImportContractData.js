@@ -122,14 +122,31 @@ app.http('ImportContractData', {
             const hasData = headers.some((h) => row[h] !== '');
             if (!hasData) { skipped++; continue; }
 
+            const docId = safeId(tabName, row._rowIndex);
+
+            // Preserve modal-managed fields that are not in the sheet
+            const PRESERVE_FIELDS = ['paymentSchedule', 'comments', 'currency', 'ownerId', 'ownerCustomerName'];
+            let preservedData = {};
+            let originalImportedAt = now;
+            try {
+              const { resource: existing } = await contractsContainer.item(docId, docId).read();
+              if (existing) {
+                for (const f of PRESERVE_FIELDS) {
+                  if (existing[f] !== undefined) preservedData[f] = existing[f];
+                }
+                if (existing.importedAt) originalImportedAt = existing.importedAt;
+              }
+            } catch (_) { /* new record */ }
+
             const doc = {
-              id: safeId(tabName, row._rowIndex),
+              ...preservedData,
+              id: docId,
               propertyName: tabName,
               sheetTab: tabName,
               importSource: 'sheets',
               _rowIndex: row._rowIndex,
               _spreadsheetId: spreadsheetId,
-              importedAt: now,
+              importedAt: originalImportedAt,
               updatedAt: now,
             };
             headers.forEach((h) => { doc[h] = row[h] ?? ''; });

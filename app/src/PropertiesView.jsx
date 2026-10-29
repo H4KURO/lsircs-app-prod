@@ -700,6 +700,89 @@ function SheetsImportDialog({ open, onClose, onImported }) {
   );
 }
 
+function OwnerImportDialog({ open, onClose }) {
+  const [tabs, setTabs] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedTab, setSelectedTab] = useState('');
+  const [headerRow, setHeaderRow] = useState(1);
+  const [importing, setImporting] = useState(false);
+  const [result, setResult] = useState(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setResult(null);
+    setLoading(true);
+    axios.get(`${API}/GetContractConfig`).then((res) => {
+      const sid = res.data?.spreadsheetId;
+      if (!sid) return;
+      return axios.get(`${API}/GetSheetTabs?spreadsheetId=${encodeURIComponent(sid)}`);
+    }).then((res) => {
+      if (res?.data?.tabs) {
+        setTabs(res.data.tabs);
+        setSelectedTab(res.data.tabs[0] || '');
+      }
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, [open]);
+
+  const handleImport = async () => {
+    if (!selectedTab) return;
+    setImporting(true);
+    setResult(null);
+    try {
+      const res = await axios.post(`${API}/ImportOwnersFromSheets`, { tabName: selectedTab, headerRow });
+      setResult({ success: true, ...res.data });
+    } catch (e) {
+      setResult({ success: false, error: e.response?.data || e.message || 'インポートに失敗しました' });
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle>オーナー（顧客）インポート</DialogTitle>
+      <DialogContent>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Google Sheets のタブからオーナー情報を顧客管理にインポートします。<br />
+          対応列: 氏名 / 名前 / オーナー名 / メール / 電話番号 / 会社名 / 国 / 地域
+        </Typography>
+        {loading && <LinearProgress sx={{ mb: 1 }} />}
+        {tabs.length > 0 && (
+          <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+            <FormControl size="small" sx={{ flex: 1 }}>
+              <InputLabel>タブを選択</InputLabel>
+              <Select value={selectedTab} label="タブを選択" onChange={(e) => setSelectedTab(e.target.value)}>
+                {tabs.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
+              </Select>
+            </FormControl>
+            <TextField
+              size="small" label="ヘッダー行" type="number" sx={{ width: 90 }}
+              value={headerRow} onChange={(e) => setHeaderRow(Number(e.target.value))} inputProps={{ min: 1 }}
+            />
+          </Box>
+        )}
+        {importing && <LinearProgress />}
+        {result && (
+          <Alert severity={result.success ? 'success' : 'error'} sx={{ mt: 1 }}>
+            {result.success
+              ? `インポート完了: ${result.imported}件追加・更新, ${result.skipped}件スキップ`
+              : (result.error || 'エラーが発生しました')}
+          </Alert>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>閉じる</Button>
+        <Button variant="contained" onClick={handleImport}
+          disabled={importing || !selectedTab}
+          startIcon={<AddIcon />}
+        >
+          {importing ? 'インポート中...' : 'インポート実行'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 function SheetsPropertiesTab({ properties, onImportOpen, onDelete, onRowClick }) {
   const [selectedTab, setSelectedTab] = useState('');
   const [search, setSearch] = useState('');
@@ -849,6 +932,7 @@ export function PropertiesView() {
   const [activeView, setActiveView] = useState('appfolio');
   const [sheetsImportOpen, setSheetsImportOpen] = useState(false);
   const [sheetsEditTarget, setSheetsEditTarget] = useState(null);
+  const [ownerImportOpen, setOwnerImportOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -917,9 +1001,14 @@ export function PropertiesView() {
             </>
           )}
           {activeView === 'sheets' && (
-            <Button variant="contained" startIcon={<CloudDownloadIcon />} onClick={() => setSheetsImportOpen(true)}>
-              Sheets からインポート
-            </Button>
+            <>
+              <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setOwnerImportOpen(true)}>
+                オーナーをインポート
+              </Button>
+              <Button variant="contained" startIcon={<CloudDownloadIcon />} onClick={() => setSheetsImportOpen(true)}>
+                Sheets からインポート
+              </Button>
+            </>
           )}
         </Box>
       </Box>
@@ -1064,6 +1153,10 @@ export function PropertiesView() {
         open={sheetsImportOpen}
         onClose={() => setSheetsImportOpen(false)}
         onImported={() => { load(); setSheetsImportOpen(false); }}
+      />
+      <OwnerImportDialog
+        open={ownerImportOpen}
+        onClose={() => setOwnerImportOpen(false)}
       />
       <SheetsPropertyDetailModal
         property={sheetsEditTarget}
