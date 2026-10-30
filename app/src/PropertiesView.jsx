@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import * as XLSX from 'xlsx';
 import axios from 'axios';
 import {
   Box, Typography, Button, TextField, Select, MenuItem, FormControl, InputLabel,
@@ -746,8 +747,34 @@ export function PropertiesView() {
     }
   };
 
-  const appfolioProperties = properties.filter((p) => p.importSource !== 'sheets');
-  const sheetsProperties = properties.filter((p) => p.importSource === 'sheets');
+  const appfolioProperties = properties.filter((p) => p.importSource !== 'sheets' && p.importSource !== 'file');
+  const sheetsProperties = properties.filter((p) => p.importSource === 'sheets' || p.importSource === 'file');
+
+  const handleAsiaExport = () => {
+    const FIELD_MAP = [
+      ['タブ名', 'sheetTab'],
+      ['プロジェクト名', 'projectName'],
+      ['部屋番号', 'roomNumber'],
+      ['オーナー名', 'ownerName'],
+      ['契約日', 'contractDate'],
+      ['購入金額', 'purchasePrice'],
+      ['前払金', 'downPayment'],
+      ['毎月中間金', 'paymentBaseAmount'],
+      ['支払い回数', 'paymentCount'],
+      ['支払日', 'paymentDueDay'],
+      ['初回支払い日', 'paymentStartDate'],
+      ['通貨', 'currency'],
+    ];
+    const rows = sheetsProperties.map((p) => {
+      const row = {};
+      for (const [ja, en] of FIELD_MAP) row[ja] = p[en] ?? '';
+      return row;
+    });
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'アジア物件');
+    XLSX.writeFile(wb, `asia_properties_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
 
   const filtered = appfolioProperties.filter(p => {
     const q = search.toLowerCase();
@@ -777,11 +804,14 @@ export function PropertiesView() {
           )}
           {activeView === 'sheets' && (
             <>
+              <Button variant="outlined" startIcon={<DownloadIcon />} onClick={handleAsiaExport} disabled={sheetsProperties.length === 0}>
+                Excel エクスポート
+              </Button>
               <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setOwnerImportOpen(true)}>
                 オーナーをインポート
               </Button>
               <Button variant="contained" startIcon={<CloudDownloadIcon />} onClick={() => setSheetsImportOpen(true)}>
-                Sheets からインポート
+                ファイルからインポート
               </Button>
             </>
           )}
