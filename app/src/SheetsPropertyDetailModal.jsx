@@ -77,6 +77,8 @@ function buildSchedule(existingSchedule, paymentStartDate, paymentDueDay, paymen
       status: existing?.status ?? '未対応',
       taskId: existing?.taskId ?? null,
       paidDate: existing?.paidDate ?? null,
+      remittanceAmount: existing?.remittanceAmount ?? null,
+      remittanceDate: existing?.remittanceDate ?? null,
     });
   }
   return result;
@@ -161,6 +163,16 @@ function PaymentScheduleTab({ property, schedule, onScheduleChange, onTaskCreate
     onScheduleChange(updated);
   };
 
+  const handleRemittanceAmountChange = (idx, val) => {
+    const updated = schedule.map((s, i) => i === idx ? { ...s, remittanceAmount: val === '' ? null : Number(val) } : s);
+    onScheduleChange(updated);
+  };
+
+  const handleRemittanceDateChange = (idx, val) => {
+    const updated = schedule.map((s, i) => i === idx ? { ...s, remittanceDate: val || null } : s);
+    onScheduleChange(updated);
+  };
+
   const handleBulkCreate = async () => {
     setBulkCreating(true);
     const pending = schedule.filter((s) => !s.taskId && s.status !== '支払い済み');
@@ -170,7 +182,7 @@ function PaymentScheduleTab({ property, schedule, onScheduleChange, onTaskCreate
         const res = await axios.post(`${API}/CreateTask`, {
           title: `[中間金] ${property.propertyName || property.sheetTab} - 第${item.no}回 ${item.dueDate ? `(${item.dueDate})` : ''}`,
           description: `物件: ${property.propertyName || property.sheetTab}\n部屋: ${property.roomNumber || ''}\n第${item.no}回 中間金\n金額: ${fmtCurrency(item.amount, currency)}\n支払い期日: ${item.dueDate || ''}`,
-          dueDate: item.dueDate || undefined,
+          deadline: item.dueDate || null,
           propertyId: property.id,
         });
         const schedIdx = updatedSchedule.findIndex((s) => s.no === item.no);
@@ -246,6 +258,8 @@ function PaymentScheduleTab({ property, schedule, onScheduleChange, onTaskCreate
               allItems={schedule}
               onStatusChange={handleStatusChange}
               onAmountChange={handleAmountChange}
+              onRemittanceAmountChange={handleRemittanceAmountChange}
+              onRemittanceDateChange={handleRemittanceDateChange}
               onTaskCreate={onTaskCreate}
               property={property}
               currency={currency}
@@ -260,6 +274,8 @@ function PaymentScheduleTab({ property, schedule, onScheduleChange, onTaskCreate
         allItems={schedule}
         onStatusChange={handleStatusChange}
         onAmountChange={handleAmountChange}
+        onRemittanceAmountChange={handleRemittanceAmountChange}
+        onRemittanceDateChange={handleRemittanceDateChange}
         onTaskCreate={onTaskCreate}
         property={property}
         currency={currency}
@@ -288,7 +304,7 @@ function PaymentScheduleTab({ property, schedule, onScheduleChange, onTaskCreate
   );
 }
 
-function ScheduleRows({ items, allItems, onStatusChange, onAmountChange, onTaskCreate, property, currency }) {
+function ScheduleRows({ items, allItems, onStatusChange, onAmountChange, onRemittanceAmountChange, onRemittanceDateChange, onTaskCreate, property, currency }) {
   return (
     <Box>
       {items.map((item) => {
@@ -299,56 +315,79 @@ function ScheduleRows({ items, allItems, onStatusChange, onAmountChange, onTaskC
           <Box
             key={item.no}
             sx={{
-              display: 'flex', alignItems: 'center', gap: 1, py: 1,
+              py: 1.5,
               borderBottom: '1px solid', borderColor: 'divider',
               bgcolor: isNext ? 'warning.lighter' : 'transparent',
-              flexWrap: 'wrap',
-              opacity: isPaid ? 0.7 : 1,
+              opacity: isPaid ? 0.75 : 1,
             }}
           >
-            <Typography variant="body2" sx={{ width: 28, flexShrink: 0, color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>
-              {item.no}
-            </Typography>
-            <Typography variant="body2" sx={{ width: 90, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
-              {item.dueDate || '—'}
-            </Typography>
-            <TextField
-              size="small" type="number"
-              value={item.amount || ''}
-              onChange={(e) => onAmountChange(globalIdx, e.target.value)}
-              sx={{ width: 110, '& input': { fontVariantNumeric: 'tabular-nums', fontSize: '0.8rem' } }}
-              InputProps={{ startAdornment: <Typography variant="caption" sx={{ mr: 0.3, color: 'text.secondary' }}>{getCurrencySymbol(currency)}</Typography> }}
-              disabled={isPaid}
-            />
-            <FormControl size="small" sx={{ minWidth: 100 }}>
-              <Select
-                value={item.status}
-                onChange={(e) => onStatusChange(globalIdx, e.target.value)}
-              >
-                {PAYMENT_STATUSES.map((s) => (
-                  <MenuItem key={s} value={s}>{s}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <Box sx={{ ml: 'auto', flexShrink: 0 }}>
-              {item.taskId ? (
-                <Chip
-                  icon={<LinkIcon />}
-                  label="タスクあり"
-                  size="small"
-                  color="success"
-                  variant="outlined"
-                  sx={{ fontSize: '0.7rem' }}
-                />
-              ) : (
-                <Button
-                  size="small" variant="outlined" startIcon={<AddIcon />}
-                  onClick={() => onTaskCreate(globalIdx, item)}
-                  sx={{ fontSize: '0.72rem', py: 0.3 }}
+            {/* Row 1: No / 期日 / 金額 / ステータス / タスク */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+              <Typography variant="body2" sx={{ width: 28, flexShrink: 0, color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>
+                {item.no}
+              </Typography>
+              <Typography variant="body2" sx={{ width: 90, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
+                {item.dueDate || '—'}
+              </Typography>
+              <TextField
+                size="small" type="number"
+                label="支払い金額"
+                value={item.amount || ''}
+                onChange={(e) => onAmountChange(globalIdx, e.target.value)}
+                sx={{ width: 130, '& input': { fontVariantNumeric: 'tabular-nums', fontSize: '0.8rem' } }}
+                InputProps={{ startAdornment: <Typography variant="caption" sx={{ mr: 0.3, color: 'text.secondary' }}>{getCurrencySymbol(currency)}</Typography> }}
+                disabled={isPaid}
+              />
+              <FormControl size="small" sx={{ minWidth: 100 }}>
+                <Select
+                  value={item.status}
+                  onChange={(e) => onStatusChange(globalIdx, e.target.value)}
                 >
-                  タスク作成
-                </Button>
-              )}
+                  {PAYMENT_STATUSES.map((s) => (
+                    <MenuItem key={s} value={s}>{s}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <Box sx={{ ml: 'auto', flexShrink: 0 }}>
+                {item.taskId ? (
+                  <Chip
+                    icon={<LinkIcon />}
+                    label="タスクあり"
+                    size="small"
+                    color="success"
+                    variant="outlined"
+                    sx={{ fontSize: '0.7rem' }}
+                  />
+                ) : (
+                  <Button
+                    size="small" variant="outlined" startIcon={<AddIcon />}
+                    onClick={() => onTaskCreate(globalIdx, item)}
+                    sx={{ fontSize: '0.72rem', py: 0.3 }}
+                  >
+                    タスク作成
+                  </Button>
+                )}
+              </Box>
+            </Box>
+
+            {/* Row 2: 送金額 / 送金日 */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1, pl: 4.5, flexWrap: 'wrap' }}>
+              <TextField
+                size="small" type="number"
+                label="送金額"
+                value={item.remittanceAmount ?? ''}
+                onChange={(e) => onRemittanceAmountChange(globalIdx, e.target.value)}
+                sx={{ width: 130, '& input': { fontVariantNumeric: 'tabular-nums', fontSize: '0.8rem' } }}
+                InputProps={{ startAdornment: <Typography variant="caption" sx={{ mr: 0.3, color: 'text.secondary' }}>{getCurrencySymbol(currency)}</Typography> }}
+              />
+              <TextField
+                size="small" type="date"
+                label="送金日"
+                value={item.remittanceDate || ''}
+                onChange={(e) => onRemittanceDateChange(globalIdx, e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                sx={{ width: 160 }}
+              />
             </Box>
           </Box>
         );
@@ -524,7 +563,7 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
       const res = await axios.post(`${API}/CreateTask`, {
         title: `[中間金] ${property.propertyName || property.sheetTab} - 第${item.no}回 ${item.dueDate ? `(${item.dueDate})` : ''}`,
         description: `物件: ${property.propertyName || property.sheetTab}\n部屋: ${form.roomNumber || ''}\n第${item.no}回 中間金\n金額: ${fmtCurrency(item.amount, form.currency)}\n支払い期日: ${item.dueDate || ''}`,
-        dueDate: item.dueDate || undefined,
+        deadline: item.dueDate || null,
         propertyId: property.id,
       });
       setSchedule((prev) => prev.map((s, i) => i === idx ? { ...s, taskId: res.data.id } : s));
