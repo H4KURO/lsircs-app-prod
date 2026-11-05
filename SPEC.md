@@ -1,7 +1,7 @@
 # lsir-cs アプリケーション仕様書
 
 > **メンテナンス注意**: このファイルはアプリ変更のたびに更新すること（CLAUDE.md 参照）。  
-> 最終更新: 2026-10-29（顧客管理コメント機能追加・アジア物件詳細モーダル実装）
+> 最終更新: 2026-11-05（同時編集競合検知（ETag楽観的排他制御）実装）
 
 ---
 
@@ -683,7 +683,7 @@ tags: string[],      // サブタスク固有のタグ
 |---|---|---|
 | GET | `/api/GetTasks` | 全タスク取得 |
 | POST | `/api/CreateTask` | タスク作成 |
-| PUT | `/api/UpdateTask/{id}` | タスク更新 |
+| PUT | `/api/UpdateTask/{id}` | タスク更新（`_clientEtag` フィールドで楽観的排他制御、競合時 409 返却） |
 | DELETE | `/api/DeleteTask/{id}` | タスク削除 |
 | POST | `/api/AddTaskComment` | タスクにコメント追加 |
 | DELETE | `/api/DeleteTaskComment` | タスクのコメント削除 |

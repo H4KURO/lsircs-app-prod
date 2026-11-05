@@ -644,6 +644,7 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
   const [customers, setCustomers] = useState([]);
   const [linkedCustomer, setLinkedCustomer] = useState(null);
   const [emailCompose, setEmailCompose] = useState(null); // { subject, body }
+  const [conflictData, setConflictData] = useState(null); // { latest } when 409
 
   useEffect(() => {
     if (!open) return;
@@ -654,7 +655,9 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
     if (!open || !property) return;
     setTab(0);
     setSaveError('');
+    setConflictData(null);
     setForm({
+      _clientEtag: property._etag || null,
       projectName: property.projectName || property.sheetTab || '',
       roomNumber: property.roomNumber || '',
       ownerName: property.ownerName || '',
@@ -699,12 +702,13 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
     setSchedule(generated);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (forceOverwrite = false) => {
     setSaving(true);
     setSaveError('');
     try {
       const res = await axios.put(`${API}/UpdateProperty/${property.id}`, {
         ...form,
+        _clientEtag: forceOverwrite ? undefined : form._clientEtag,
         purchasePrice: form.purchasePrice ? Number(form.purchasePrice) : null,
         downPayment: form.downPayment ? Number(form.downPayment) : null,
         paymentDueDay: form.paymentDueDay ? Number(form.paymentDueDay) : null,
@@ -713,9 +717,14 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
         paymentSchedule: schedule,
         emailTemplate: form.emailTemplate,
       });
+      setConflictData(null);
       onSaved(res.data);
     } catch (e) {
-      setSaveError(e.response?.data || e.message || '保存に失敗しました');
+      if (e.response?.status === 409 && e.response?.data?.conflict) {
+        setConflictData({ latest: e.response.data.latest });
+      } else {
+        setSaveError(e.response?.data?.message || e.response?.data || e.message || '保存に失敗しました');
+      }
     } finally {
       setSaving(false);
     }
@@ -996,6 +1005,26 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
           toEmail={emailCompose.toEmail}
         />
       )}
+
+      <Dialog open={Boolean(conflictData)} onClose={() => setConflictData(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>編集の競合</DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 1 }}>
+            他のユーザーがこの物件情報を変更しました。
+          </Alert>
+          <Typography variant="body2">
+            最新版を読み込んで編集し直すか、現在の変更内容で上書きするかを選択してください。
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setConflictData(null); onSaved(conflictData.latest); }}>
+            最新版を読み込む
+          </Button>
+          <Button variant="contained" color="warning" onClick={() => { setConflictData(null); handleSave(true); }}>
+            上書き保存
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Dialog>
   );
 }

@@ -28,6 +28,19 @@ app.http('UpdateProperty', {
       const container = propertiesContainer();
       const { resource: existing } = await container.item(id, id).read();
       if (!existing) return { status: 404, body: 'Property not found.' };
+
+      const clientEtag = body._clientEtag;
+      if (clientEtag && existing._etag !== clientEtag) {
+        return {
+          status: 409,
+          jsonBody: {
+            conflict: true,
+            message: '他のユーザーがこのドキュメントを変更しました。最新版を確認してください。',
+            latest: existing,
+          },
+        };
+      }
+
       const updates = {};
       for (const f of ALLOWED_FIELDS) {
         if (body[f] !== undefined) updates[f] = body[f];
