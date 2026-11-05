@@ -212,9 +212,9 @@ function PaymentScheduleTab({ property, schedule, onScheduleChange, onTaskCreate
           { label: '支払い済み合計', value: fmtCurrency(paidTotal, currency), color: 'success.main' },
           { label: '次回期日', value: nextDue?.dueDate || '完了', color: 'warning.main' },
         ].map(({ label, value, color }) => (
-          <Paper key={label} variant="outlined" sx={{ p: 1.5 }}>
-            <Typography variant="caption" color="text.secondary" display="block">{label}</Typography>
-            <Typography variant="body2" fontWeight={700} color={color}>{value}</Typography>
+          <Paper key={label} variant="outlined" sx={{ p: 1.5, minWidth: 0, overflow: 'hidden' }}>
+            <Typography variant="caption" color="text.secondary" display="block" noWrap>{label}</Typography>
+            <Typography variant="body2" fontWeight={700} color={color} noWrap sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</Typography>
           </Paper>
         ))}
       </Box>
@@ -596,9 +596,9 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
           { label: '支払い残回数', value: schedule.length > 0 ? `${schedule.length - paidCount} / ${schedule.length}` : '—', color: 'primary.main' },
           { label: '次回支払い期日', value: schedule.find((s) => s.status !== '支払い済み')?.dueDate || (schedule.length > 0 ? '完了' : '—'), color: 'text.primary' },
         ].map(({ label, value, color }) => (
-          <Box key={label} sx={{ bgcolor: 'background.paper', p: 1.5 }}>
-            <Typography variant="caption" color="text.secondary" display="block">{label}</Typography>
-            <Typography variant="body2" fontWeight={700} color={color}>{value}</Typography>
+          <Box key={label} sx={{ bgcolor: 'background.paper', p: 1.5, minWidth: 0 }}>
+            <Typography variant="caption" color="text.secondary" display="block" noWrap>{label}</Typography>
+            <Typography variant="body2" fontWeight={700} color={color} noWrap sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</Typography>
           </Box>
         ))}
       </Box>
