@@ -17,6 +17,8 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import AutorenewIcon from '@mui/icons-material/Autorenew';
 import SendIcon from '@mui/icons-material/Send';
 import LinkIcon from '@mui/icons-material/Link';
+import EmailIcon from '@mui/icons-material/Email';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 
 const API = '/api';
 
@@ -37,6 +39,56 @@ const DEFAULT_CURRENCY = 'PHP';
 
 function getCurrencySymbol(code) {
   return CURRENCIES.find((c) => c.code === code)?.symbol ?? '₱';
+}
+
+// ── Email template ──────────────────────────────────────────────
+const DEFAULT_EMAIL_TEMPLATE = {
+  subject: '【中間金送金のご案内】{{projectName}} {{roomNumber}} 第{{no}}回（{{dueDate}}）',
+  body: `{{ownerName}} 様
+
+いつもお世話になっております。
+
+下記の通り、中間金のお支払い期日をご案内いたします。
+
+■ 物件情報
+プロジェクト名：{{projectName}}
+部屋番号：{{roomNumber}}
+
+■ お支払い情報
+回数：第{{no}}回
+支払い期日：{{dueDate}}
+金額：{{currencySymbol}}{{amount}}
+送金額：{{currencySymbol}}{{remittanceAmount}}
+
+ご不明な点がございましたらお気軽にお申し付けください。
+
+よろしくお願いいたします。`,
+};
+
+function renderTemplate(tpl, vars) {
+  return tpl.replace(/\{\{(\w+)\}\}/g, (_, key) => (vars[key] ?? `{{${key}}}`));
+}
+
+function buildTemplateVars(property, form, item) {
+  const sym = getCurrencySymbol(form.currency || DEFAULT_CURRENCY);
+  const diff = item.remittanceAmount != null && item.amount != null
+    ? item.remittanceAmount - item.amount : null;
+  return {
+    ownerName: form.ownerName || '',
+    projectName: form.projectName || property.sheetTab || '',
+    roomNumber: form.roomNumber || '',
+    no: String(item.no),
+    dueDate: item.dueDate || '',
+    amount: item.amount != null ? Number(item.amount).toLocaleString('ja-JP') : '',
+    amountRaw: String(item.amount ?? ''),
+    remittanceAmount: item.remittanceAmount != null ? Number(item.remittanceAmount).toLocaleString('ja-JP') : '（未入力）',
+    diff: diff != null ? (diff >= 0 ? `+${Number(diff).toLocaleString('ja-JP')}` : Number(diff).toLocaleString('ja-JP')) : '',
+    currency: form.currency || DEFAULT_CURRENCY,
+    currencySymbol: sym,
+    purchasePrice: form.purchasePrice != null ? Number(form.purchasePrice).toLocaleString('ja-JP') : '',
+    downPayment: form.downPayment != null ? Number(form.downPayment).toLocaleString('ja-JP') : '',
+    paymentCount: String(form.paymentCount || ''),
+  };
 }
 
 // Avatar initials from display name
@@ -122,7 +174,7 @@ function fmtCurrency(n, currencyCode) {
 // ── PaymentScheduleTab ──────────────────────────────────────────
 const VISIBLE_LIMIT = 10;
 
-function PaymentScheduleTab({ property, schedule, onScheduleChange, onTaskCreate, saving, currency }) {
+function PaymentScheduleTab({ property, schedule, onScheduleChange, onTaskCreate, onMailCreate, saving, currency }) {
   const [showAllOld, setShowAllOld] = useState(false);
   const [showAllNew, setShowAllNew] = useState(false);
   const [bulkCreating, setBulkCreating] = useState(false);
@@ -261,6 +313,7 @@ function PaymentScheduleTab({ property, schedule, onScheduleChange, onTaskCreate
               onRemittanceAmountChange={handleRemittanceAmountChange}
               onRemittanceDateChange={handleRemittanceDateChange}
               onTaskCreate={onTaskCreate}
+              onMailCreate={onMailCreate}
               property={property}
               currency={currency}
             />
@@ -277,6 +330,7 @@ function PaymentScheduleTab({ property, schedule, onScheduleChange, onTaskCreate
         onRemittanceAmountChange={handleRemittanceAmountChange}
         onRemittanceDateChange={handleRemittanceDateChange}
         onTaskCreate={onTaskCreate}
+        onMailCreate={onMailCreate}
         property={property}
         currency={currency}
       />
@@ -304,13 +358,16 @@ function PaymentScheduleTab({ property, schedule, onScheduleChange, onTaskCreate
   );
 }
 
-function ScheduleRows({ items, allItems, onStatusChange, onAmountChange, onRemittanceAmountChange, onRemittanceDateChange, onTaskCreate, property, currency }) {
+function ScheduleRows({ items, allItems, onStatusChange, onAmountChange, onRemittanceAmountChange, onRemittanceDateChange, onTaskCreate, onMailCreate, property, currency }) {
   return (
     <Box>
       {items.map((item) => {
         const globalIdx = allItems.findIndex((s) => s.no === item.no);
         const isPaid = item.status === '支払い済み';
         const isNext = !isPaid && allItems.filter((s) => s.status !== '支払い済み')[0]?.no === item.no;
+        const diff = item.remittanceAmount != null && item.amount != null
+          ? item.remittanceAmount - item.amount : null;
+        const sym = getCurrencySymbol(currency);
         return (
           <Box
             key={item.no}
@@ -321,7 +378,7 @@ function ScheduleRows({ items, allItems, onStatusChange, onAmountChange, onRemit
               opacity: isPaid ? 0.75 : 1,
             }}
           >
-            {/* Row 1: No / 期日 / 金額 / ステータス / タスク */}
+            {/* Row 1: No / 期日 / 金額 / ステータス / タスク / メール */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
               <Typography variant="body2" sx={{ width: 28, flexShrink: 0, color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>
                 {item.no}
@@ -335,42 +392,33 @@ function ScheduleRows({ items, allItems, onStatusChange, onAmountChange, onRemit
                 value={item.amount || ''}
                 onChange={(e) => onAmountChange(globalIdx, e.target.value)}
                 sx={{ width: 130, '& input': { fontVariantNumeric: 'tabular-nums', fontSize: '0.8rem' } }}
-                InputProps={{ startAdornment: <Typography variant="caption" sx={{ mr: 0.3, color: 'text.secondary' }}>{getCurrencySymbol(currency)}</Typography> }}
+                InputProps={{ startAdornment: <Typography variant="caption" sx={{ mr: 0.3, color: 'text.secondary' }}>{sym}</Typography> }}
                 disabled={isPaid}
               />
               <FormControl size="small" sx={{ minWidth: 100 }}>
-                <Select
-                  value={item.status}
-                  onChange={(e) => onStatusChange(globalIdx, e.target.value)}
-                >
+                <Select value={item.status} onChange={(e) => onStatusChange(globalIdx, e.target.value)}>
                   {PAYMENT_STATUSES.map((s) => (
                     <MenuItem key={s} value={s}>{s}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
-              <Box sx={{ ml: 'auto', flexShrink: 0 }}>
+              <Box sx={{ ml: 'auto', flexShrink: 0, display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                <Tooltip title="送金案内メールを作成">
+                  <IconButton size="small" color="primary" onClick={() => onMailCreate(item)}>
+                    <EmailIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
                 {item.taskId ? (
-                  <Chip
-                    icon={<LinkIcon />}
-                    label="タスクあり"
-                    size="small"
-                    color="success"
-                    variant="outlined"
-                    sx={{ fontSize: '0.7rem' }}
-                  />
+                  <Chip icon={<LinkIcon />} label="タスクあり" size="small" color="success" variant="outlined" sx={{ fontSize: '0.7rem' }} />
                 ) : (
-                  <Button
-                    size="small" variant="outlined" startIcon={<AddIcon />}
-                    onClick={() => onTaskCreate(globalIdx, item)}
-                    sx={{ fontSize: '0.72rem', py: 0.3 }}
-                  >
+                  <Button size="small" variant="outlined" startIcon={<AddIcon />} onClick={() => onTaskCreate(globalIdx, item)} sx={{ fontSize: '0.72rem', py: 0.3 }}>
                     タスク作成
                   </Button>
                 )}
               </Box>
             </Box>
 
-            {/* Row 2: 送金額 / 送金日 */}
+            {/* Row 2: 送金額 / 送金日 / 差異 */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1, pl: 4.5, flexWrap: 'wrap' }}>
               <TextField
                 size="small" type="number"
@@ -378,7 +426,7 @@ function ScheduleRows({ items, allItems, onStatusChange, onAmountChange, onRemit
                 value={item.remittanceAmount ?? ''}
                 onChange={(e) => onRemittanceAmountChange(globalIdx, e.target.value)}
                 sx={{ width: 130, '& input': { fontVariantNumeric: 'tabular-nums', fontSize: '0.8rem' } }}
-                InputProps={{ startAdornment: <Typography variant="caption" sx={{ mr: 0.3, color: 'text.secondary' }}>{getCurrencySymbol(currency)}</Typography> }}
+                InputProps={{ startAdornment: <Typography variant="caption" sx={{ mr: 0.3, color: 'text.secondary' }}>{sym}</Typography> }}
               />
               <TextField
                 size="small" type="date"
@@ -388,11 +436,97 @@ function ScheduleRows({ items, allItems, onStatusChange, onAmountChange, onRemit
                 InputLabelProps={{ shrink: true }}
                 sx={{ width: 160 }}
               />
+              {diff != null && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Typography variant="caption" color="text.secondary">差異:</Typography>
+                  <Typography
+                    variant="caption"
+                    fontWeight={700}
+                    color={diff === 0 ? 'success.main' : diff > 0 ? 'primary.main' : 'error.main'}
+                    sx={{ fontVariantNumeric: 'tabular-nums' }}
+                  >
+                    {diff >= 0 ? '+' : ''}{sym}{Number(diff).toLocaleString('ja-JP')}
+                  </Typography>
+                </Box>
+              )}
             </Box>
           </Box>
         );
       })}
     </Box>
+  );
+}
+
+// ── EmailComposeDialog ───────────────────────────────────────────
+function EmailComposeDialog({ open, onClose, subject, body }) {
+  const [copiedSubject, setCopiedSubject] = useState(false);
+  const [copiedBody, setCopiedBody] = useState(false);
+
+  const copy = async (text, setCopied) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // fallback: select text
+    }
+  };
+
+  const mailtoHref = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <EmailIcon fontSize="small" />
+        送金案内メール作成
+        <IconButton size="small" onClick={onClose} sx={{ ml: 'auto' }}><CloseIcon /></IconButton>
+      </DialogTitle>
+      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+        {/* Subject */}
+        <Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+            <Typography variant="caption" color="text.secondary" fontWeight={600}>件名</Typography>
+            <Tooltip title={copiedSubject ? 'コピーしました' : '件名をコピー'}>
+              <IconButton size="small" onClick={() => copy(subject, setCopiedSubject)}>
+                <ContentCopyIcon fontSize="inherit" />
+              </IconButton>
+            </Tooltip>
+          </Box>
+          <Box sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1, fontSize: '0.875rem' }}>
+            {subject}
+          </Box>
+        </Box>
+
+        {/* Body */}
+        <Box sx={{ flex: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+            <Typography variant="caption" color="text.secondary" fontWeight={600}>本文</Typography>
+            <Tooltip title={copiedBody ? 'コピーしました' : '本文をコピー'}>
+              <IconButton size="small" onClick={() => copy(body, setCopiedBody)}>
+                <ContentCopyIcon fontSize="inherit" />
+              </IconButton>
+            </Tooltip>
+          </Box>
+          <Box sx={{
+            p: 1.5, bgcolor: 'action.hover', borderRadius: 1,
+            fontSize: '0.875rem', whiteSpace: 'pre-wrap', lineHeight: 1.7,
+            maxHeight: 320, overflowY: 'auto',
+          }}>
+            {body}
+          </Box>
+        </Box>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>閉じる</Button>
+        <Button
+          variant="contained" startIcon={<EmailIcon />}
+          component="a" href={mailtoHref}
+          onClick={onClose}
+        >
+          メールアプリで開く
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 }
 
@@ -483,6 +617,7 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
   const [saveError, setSaveError] = useState('');
   const [customers, setCustomers] = useState([]);
   const [linkedCustomer, setLinkedCustomer] = useState(null);
+  const [emailCompose, setEmailCompose] = useState(null); // { subject, body }
 
   useEffect(() => {
     if (!open) return;
@@ -507,6 +642,7 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
       currency: property.currency || DEFAULT_CURRENCY,
       linkedCustomerId: property.linkedCustomerId || null,
       linkedCustomerName: property.linkedCustomerName || '',
+      emailTemplate: property.emailTemplate || DEFAULT_EMAIL_TEMPLATE,
     });
     setSchedule(property.paymentSchedule || []);
   }, [open, property]);
@@ -549,6 +685,7 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
         paymentCount: form.paymentCount ? Number(form.paymentCount) : null,
         paymentBaseAmount: form.paymentBaseAmount ? Number(form.paymentBaseAmount) : null,
         paymentSchedule: schedule,
+        emailTemplate: form.emailTemplate,
       });
       onSaved(res.data);
     } catch (e) {
@@ -570,6 +707,15 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
     } catch {
       alert('タスクの作成に失敗しました');
     }
+  };
+
+  const handleMailCreate = (item) => {
+    const tpl = form.emailTemplate || DEFAULT_EMAIL_TEMPLATE;
+    const vars = buildTemplateVars(property, form, item);
+    setEmailCompose({
+      subject: renderTemplate(tpl.subject || '', vars),
+      body: renderTemplate(tpl.body || '', vars),
+    });
   };
 
   if (!property) return null;
@@ -615,6 +761,7 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
         <Tab label="基本情報" />
         <Tab label={`支払いスケジュール${schedule.length > 0 ? ` (${schedule.length})` : ''}`} />
         <Tab label={`コメント${(property.comments?.length || 0) > 0 ? ` (${property.comments.length})` : ''}`} />
+        <Tab label="メール設定" />
       </Tabs>
 
       <DialogContent sx={{ pt: 2 }}>
@@ -738,6 +885,7 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
             schedule={schedule}
             onScheduleChange={setSchedule}
             onTaskCreate={handleTaskCreate}
+            onMailCreate={handleMailCreate}
             saving={saving}
             currency={form.currency}
           />
@@ -751,6 +899,56 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
             initialComments={property.comments}
           />
         )}
+
+        {/* ── Tab 3: メール設定 ── */}
+        {tab === 3 && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Alert severity="info" sx={{ fontSize: '0.8rem' }}>
+              テンプレートで使える変数：
+              {' '}
+              {[
+                '{{ownerName}}', '{{projectName}}', '{{roomNumber}}',
+                '{{no}}', '{{dueDate}}', '{{amount}}', '{{remittanceAmount}}',
+                '{{diff}}', '{{currencySymbol}}', '{{currency}}',
+                '{{purchasePrice}}', '{{downPayment}}', '{{paymentCount}}',
+              ].map((v) => (
+                <Chip key={v} label={v} size="small" variant="outlined" sx={{ mr: 0.5, mb: 0.5, fontSize: '0.72rem', fontFamily: 'monospace' }} />
+              ))}
+            </Alert>
+            <TextField
+              size="small"
+              label="件名テンプレート"
+              fullWidth
+              value={form.emailTemplate?.subject || ''}
+              onChange={(e) => setForm((p) => ({ ...p, emailTemplate: { ...p.emailTemplate, subject: e.target.value } }))}
+            />
+            <TextField
+              label="本文テンプレート"
+              fullWidth
+              multiline
+              rows={12}
+              value={form.emailTemplate?.body || ''}
+              onChange={(e) => setForm((p) => ({ ...p, emailTemplate: { ...p.emailTemplate, body: e.target.value } }))}
+              sx={{ '& textarea': { fontFamily: 'monospace', fontSize: '0.82rem', lineHeight: 1.6 } }}
+            />
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button
+                size="small" variant="outlined"
+                onClick={() => setForm((p) => ({ ...p, emailTemplate: DEFAULT_EMAIL_TEMPLATE }))}
+              >
+                デフォルトに戻す
+              </Button>
+              {schedule.length > 0 && (
+                <Button
+                  size="small" variant="contained" startIcon={<EmailIcon />}
+                  onClick={() => handleMailCreate(schedule[0])}
+                >
+                  第1回でプレビュー
+                </Button>
+              )}
+            </Box>
+          </Box>
+        )}
       </DialogContent>
 
       {tab !== 2 && (
@@ -760,6 +958,15 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
             {saving ? '保存中...' : '保存'}
           </Button>
         </DialogActions>
+      )}
+
+      {emailCompose && (
+        <EmailComposeDialog
+          open={Boolean(emailCompose)}
+          onClose={() => setEmailCompose(null)}
+          subject={emailCompose.subject}
+          body={emailCompose.body}
+        />
       )}
     </Dialog>
   );
