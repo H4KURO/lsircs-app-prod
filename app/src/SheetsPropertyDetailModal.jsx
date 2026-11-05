@@ -458,7 +458,7 @@ function ScheduleRows({ items, allItems, onStatusChange, onAmountChange, onRemit
 }
 
 // ── EmailComposeDialog ───────────────────────────────────────────
-function EmailComposeDialog({ open, onClose, subject, body }) {
+function EmailComposeDialog({ open, onClose, subject, body, toEmail }) {
   const [copiedSubject, setCopiedSubject] = useState(false);
   const [copiedBody, setCopiedBody] = useState(false);
 
@@ -472,7 +472,7 @@ function EmailComposeDialog({ open, onClose, subject, body }) {
     }
   };
 
-  const mailtoHref = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  const mailtoHref = `mailto:${encodeURIComponent(toEmail || '')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -482,6 +482,24 @@ function EmailComposeDialog({ open, onClose, subject, body }) {
         <IconButton size="small" onClick={onClose} sx={{ ml: 'auto' }}><CloseIcon /></IconButton>
       </DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+
+        {/* To */}
+        <Box>
+          <Typography variant="caption" color="text.secondary" fontWeight={600} display="block" mb={0.5}>宛先</Typography>
+          {toEmail ? (
+            <Box sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1, fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: 1 }}>
+              <PersonIcon fontSize="small" sx={{ color: 'primary.main' }} />
+              <Typography variant="body2" fontWeight={600}>{toEmail}</Typography>
+            </Box>
+          ) : (
+            <Box sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}>
+              <Typography variant="body2" color="text.secondary" fontSize="0.8rem">
+                顧客レコードにメールアドレスが未登録です。メールアプリで手動入力してください。
+              </Typography>
+            </Box>
+          )}
+        </Box>
+
         {/* Subject */}
         <Box>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
@@ -510,7 +528,7 @@ function EmailComposeDialog({ open, onClose, subject, body }) {
           <Box sx={{
             p: 1.5, bgcolor: 'action.hover', borderRadius: 1,
             fontSize: '0.875rem', whiteSpace: 'pre-wrap', lineHeight: 1.7,
-            maxHeight: 320, overflowY: 'auto',
+            maxHeight: 300, overflowY: 'auto',
           }}>
             {body}
           </Box>
@@ -715,6 +733,7 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
     setEmailCompose({
       subject: renderTemplate(tpl.subject || '', vars),
       body: renderTemplate(tpl.body || '', vars),
+      toEmail: linkedCustomer?.email || '',
     });
   };
 
@@ -966,6 +985,7 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
           onClose={() => setEmailCompose(null)}
           subject={emailCompose.subject}
           body={emailCompose.body}
+          toEmail={emailCompose.toEmail}
         />
       )}
     </Dialog>
