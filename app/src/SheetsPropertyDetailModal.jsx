@@ -473,6 +473,7 @@ function EmailComposeDialog({ open, onClose, subject, body, toEmail }) {
   };
 
   const mailtoHref = `mailto:${encodeURIComponent(toEmail || '')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  const gmailHref = `https://mail.google.com/mail/?view=cm${toEmail ? `&to=${encodeURIComponent(toEmail)}` : ''}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -537,11 +538,18 @@ function EmailComposeDialog({ open, onClose, subject, body, toEmail }) {
       <DialogActions>
         <Button onClick={onClose}>閉じる</Button>
         <Button
-          variant="contained" startIcon={<EmailIcon />}
+          variant="outlined" startIcon={<EmailIcon />}
           component="a" href={mailtoHref}
           onClick={onClose}
         >
           メールアプリで開く
+        </Button>
+        <Button
+          variant="contained" startIcon={<EmailIcon />}
+          component="a" href={gmailHref} target="_blank" rel="noopener noreferrer"
+          onClick={onClose}
+        >
+          Gmailで作成
         </Button>
       </DialogActions>
     </Dialog>
