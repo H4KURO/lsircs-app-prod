@@ -590,13 +590,21 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
       </DialogTitle>
 
       {/* Summary strip */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', bgcolor: 'divider', mx: 3, mb: 1, borderRadius: 1, overflow: 'hidden' }}>
+      <Box sx={{
+        display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
+        border: '1px solid', borderColor: 'divider',
+        borderRadius: 1, mx: 3, mb: 1,
+      }}>
         {[
           { label: '残代金', value: fmtCurrency(residual, form.currency), color: residual > 0 ? 'warning.main' : 'success.main' },
           { label: '支払い残回数', value: schedule.length > 0 ? `${schedule.length - paidCount} / ${schedule.length}` : '—', color: 'primary.main' },
           { label: '次回支払い期日', value: schedule.find((s) => s.status !== '支払い済み')?.dueDate || (schedule.length > 0 ? '完了' : '—'), color: 'text.primary' },
-        ].map(({ label, value, color }) => (
-          <Box key={label} sx={{ bgcolor: 'background.paper', p: 1.5, minWidth: 0 }}>
+        ].map(({ label, value, color }, i, arr) => (
+          <Box key={label} sx={{
+            p: 1.5, minWidth: 0,
+            borderRight: i < arr.length - 1 ? '1px solid' : 'none',
+            borderColor: 'divider',
+          }}>
             <Typography variant="caption" color="text.secondary" display="block" noWrap>{label}</Typography>
             <Typography variant="body2" fontWeight={700} color={color} noWrap sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</Typography>
           </Box>
