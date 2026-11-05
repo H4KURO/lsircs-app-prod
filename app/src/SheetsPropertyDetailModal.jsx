@@ -76,6 +76,7 @@ function buildTemplateVars(property, form, item) {
   return {
     ownerName: form.ownerName || '',
     projectName: form.projectName || property.sheetTab || '',
+    towerName: form.towerName || '',
     roomNumber: form.roomNumber || '',
     no: String(item.no),
     dueDate: item.dueDate || '',
@@ -659,6 +660,7 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
     setForm({
       _clientEtag: property._etag || null,
       projectName: property.projectName || property.sheetTab || '',
+      towerName: property.towerName || '',
       roomNumber: property.roomNumber || '',
       ownerName: property.ownerName || '',
       contractDate: parseSheetDate(property.contractDate),
@@ -765,6 +767,7 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
           <Typography variant="subtitle2" color="text.secondary" fontSize={11}>アジア物件</Typography>
           <Typography variant="h6" fontWeight={700} noWrap>
             {form.projectName || property.sheetTab}
+            {form.towerName && <span style={{ fontWeight: 400, marginLeft: 6 }}>{form.towerName}</span>}
             {form.roomNumber && <span style={{ fontWeight: 400, color: 'text.secondary', marginLeft: 6 }}>#{form.roomNumber}</span>}
           </Typography>
         </Box>
@@ -808,6 +811,7 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
               <TextField size="small" label="プロジェクト名" value={form.projectName || ''} onChange={(e) => setForm((p) => ({ ...p, projectName: e.target.value }))} />
+              <TextField size="small" label="タワー名" value={form.towerName || ''} onChange={(e) => setForm((p) => ({ ...p, towerName: e.target.value }))} placeholder="例: Tower 1" />
               <TextField size="small" label="部屋番号" value={form.roomNumber || ''} onChange={(e) => setForm((p) => ({ ...p, roomNumber: e.target.value }))} />
               <TextField size="small" label="契約日" type="date" value={form.contractDate || ''} onChange={(e) => setForm((p) => ({ ...p, contractDate: e.target.value }))} InputLabelProps={{ shrink: true }} />
               <TextField size="small" label="オーナー名" value={form.ownerName || ''} onChange={(e) => setForm((p) => ({ ...p, ownerName: e.target.value }))} />

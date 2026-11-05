@@ -15,6 +15,7 @@ const COLUMN_MAP = {
   '物件コード': '_propertyCode',
   'タブ名': 'sheetTab',
   'プロジェクト名': 'projectName',
+  'タワー名': 'towerName',
   '部屋番号': 'roomNumber',
   'オーナー名': 'ownerName',
   '契約日': 'contractDate',

@@ -9,7 +9,7 @@ const ALLOWED_FIELDS = ['managementType', 'ownerName', 'ownerPhone', 'tenantStat
   'buildingName', 'registrationDate', 'purchasePrice',
   'tenantName', 'vacancyReportData', 'leaseRenewalData',
   // アジア物件フィールド
-  'contractDate', 'projectName', 'roomNumber',
+  'contractDate', 'projectName', 'towerName', 'roomNumber',
   'paymentDueDay', 'paymentCount', 'paymentBaseAmount', 'downPayment',
   'paymentSchedule', 'currency', 'paymentStartDate',
   'linkedCustomerId', 'linkedCustomerName',

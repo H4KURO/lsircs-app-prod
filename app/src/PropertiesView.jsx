@@ -559,48 +559,55 @@ function OwnerImportDialog({ open, onClose }) {
   );
 }
 
+const ASIA_COLUMNS = [
+  { key: 'projectName', label: 'プロジェクト名', minWidth: 160 },
+  { key: 'towerName', label: 'タワー名', minWidth: 100 },
+  { key: 'roomNumber', label: '部屋番号', minWidth: 80 },
+  { key: 'ownerName', label: 'オーナー名', minWidth: 140 },
+  { key: 'contractDate', label: '契約日', minWidth: 100 },
+  { key: 'currency', label: '通貨', minWidth: 60 },
+  { key: 'purchasePrice', label: '購入金額', minWidth: 100 },
+  { key: 'paymentCount', label: '支払い回数', minWidth: 90 },
+];
+
 function SheetsPropertiesTab({ properties, onImportOpen, onDelete, onRowClick }) {
-  const [selectedTab, setSelectedTab] = useState('');
+  const [selectedProject, setSelectedProject] = useState('');
+  const [selectedTower, setSelectedTower] = useState('');
   const [search, setSearch] = useState('');
 
-  const sheetTabs = useMemo(
-    () => [...new Set(properties.map((p) => p.sheetTab).filter(Boolean))].sort(),
+  const projects = useMemo(
+    () => [...new Set(properties.map((p) => p.projectName).filter(Boolean))].sort(),
     [properties],
   );
 
-  useEffect(() => {
-    if (sheetTabs.length > 0 && !sheetTabs.includes(selectedTab)) {
-      setSelectedTab(sheetTabs[0]);
-    }
-  }, [sheetTabs, selectedTab]);
+  const towers = useMemo(() => {
+    const src = selectedProject
+      ? properties.filter((p) => p.projectName === selectedProject)
+      : properties;
+    return [...new Set(src.map((p) => p.towerName).filter(Boolean))].sort();
+  }, [properties, selectedProject]);
 
-  const tabProperties = useMemo(
-    () => properties.filter((p) => p.sheetTab === selectedTab),
-    [properties, selectedTab],
-  );
-
-  const columns = useMemo(() => {
-    const keys = new Set();
-    tabProperties.slice(0, 20).forEach((p) => {
-      Object.keys(p).forEach((k) => { if (!SHEET_SYSTEM_FIELDS.has(k)) keys.add(k); });
-    });
-    return [...keys];
-  }, [tabProperties]);
+  // reset tower when project changes
+  useEffect(() => { setSelectedTower(''); }, [selectedProject]);
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return tabProperties;
     const q = search.toLowerCase();
-    return tabProperties.filter((p) =>
-      columns.some((c) => String(p[c] ?? '').toLowerCase().includes(q)),
-    );
-  }, [tabProperties, columns, search]);
+    return properties.filter((p) => {
+      if (selectedProject && p.projectName !== selectedProject) return false;
+      if (selectedTower && p.towerName !== selectedTower) return false;
+      if (q) {
+        return ASIA_COLUMNS.some((col) => String(p[col.key] ?? '').toLowerCase().includes(q));
+      }
+      return true;
+    });
+  }, [properties, selectedProject, selectedTower, search]);
 
   if (properties.length === 0) {
     return (
       <Box sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
         <Typography variant="body1">データがありません。</Typography>
         <Button variant="outlined" startIcon={<CloudDownloadIcon />} sx={{ mt: 2 }} onClick={onImportOpen}>
-          Sheets からインポート
+          ファイルからインポート
         </Button>
       </Box>
     );
@@ -608,22 +615,37 @@ function SheetsPropertiesTab({ properties, onImportOpen, onDelete, onRowClick })
 
   return (
     <Box>
-      {/* Tab selector */}
       <Box sx={{ display: 'flex', gap: 1.5, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
         <FormControl size="small" sx={{ minWidth: 180 }}>
-          <InputLabel>プロジェクト（シートタブ）</InputLabel>
+          <InputLabel>プロジェクト</InputLabel>
           <Select
-            value={selectedTab}
-            label="プロジェクト（シートタブ）"
-            onChange={(e) => setSelectedTab(e.target.value)}
+            value={selectedProject}
+            label="プロジェクト"
+            onChange={(e) => setSelectedProject(e.target.value)}
           >
-            {sheetTabs.map((t) => (
-              <MenuItem key={t} value={t}>
-                {t} ({properties.filter((p) => p.sheetTab === t).length}件)
+            <MenuItem value="">すべて ({properties.length}件)</MenuItem>
+            {projects.map((proj) => (
+              <MenuItem key={proj} value={proj}>
+                {proj} ({properties.filter((p) => p.projectName === proj).length}件)
               </MenuItem>
             ))}
           </Select>
         </FormControl>
+        {towers.length > 0 && (
+          <FormControl size="small" sx={{ minWidth: 140 }}>
+            <InputLabel>タワー</InputLabel>
+            <Select
+              value={selectedTower}
+              label="タワー"
+              onChange={(e) => setSelectedTower(e.target.value)}
+            >
+              <MenuItem value="">すべて</MenuItem>
+              {towers.map((tw) => (
+                <MenuItem key={tw} value={tw}>{tw}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        )}
         <TextField
           size="small"
           placeholder="検索"
@@ -640,18 +662,17 @@ function SheetsPropertiesTab({ properties, onImportOpen, onDelete, onRowClick })
           }}
         />
         <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto' }}>
-          {filtered.length} / {tabProperties.length} 件
+          {filtered.length} / {properties.length} 件
         </Typography>
       </Box>
 
-      {/* Dynamic table */}
       <TableContainer component={Paper} sx={{ maxHeight: 'calc(100vh - 320px)' }}>
         <Table stickyHeader size="small">
           <TableHead>
             <TableRow>
-              {columns.map((col) => (
-                <TableCell key={col} sx={{ fontWeight: 700, whiteSpace: 'nowrap', minWidth: 100 }}>
-                  {col}
+              {ASIA_COLUMNS.map((col) => (
+                <TableCell key={col.key} sx={{ fontWeight: 700, whiteSpace: 'nowrap', minWidth: col.minWidth }}>
+                  {col.label}
                 </TableCell>
               ))}
               <TableCell sx={{ fontWeight: 700, width: 60 }} align="center">操作</TableCell>
@@ -660,7 +681,7 @@ function SheetsPropertiesTab({ properties, onImportOpen, onDelete, onRowClick })
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={columns.length + 1} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                <TableCell colSpan={ASIA_COLUMNS.length + 1} align="center" sx={{ py: 4, color: 'text.secondary' }}>
                   条件に一致するデータがありません。
                 </TableCell>
               </TableRow>
@@ -671,10 +692,10 @@ function SheetsPropertiesTab({ properties, onImportOpen, onDelete, onRowClick })
                   sx={{ cursor: 'pointer' }}
                   onClick={() => onRowClick && onRowClick(p)}
                 >
-                  {columns.map((col) => (
-                    <TableCell key={col} sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      <Tooltip title={typeof p[col] === 'object' ? '' : (p[col] || '')} placement="top">
-                        <span>{typeof p[col] === 'object' ? '—' : (p[col] || '—')}</span>
+                  {ASIA_COLUMNS.map((col) => (
+                    <TableCell key={col.key} sx={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <Tooltip title={String(p[col.key] ?? '')} placement="top">
+                        <span>{p[col.key] || '—'}</span>
                       </Tooltip>
                     </TableCell>
                   ))}
@@ -754,6 +775,7 @@ export function PropertiesView() {
     const FIELD_MAP = [
       ['タブ名', 'sheetTab'],
       ['プロジェクト名', 'projectName'],
+      ['タワー名', 'towerName'],
       ['部屋番号', 'roomNumber'],
       ['オーナー名', 'ownerName'],
       ['契約日', 'contractDate'],
