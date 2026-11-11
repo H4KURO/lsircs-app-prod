@@ -76,6 +76,20 @@ app.http('UpdateTask', {
       if (!existingTask) {
         return { status: 404, body: 'Task not found.' };
       }
+
+      const clientEtag = sanitizedUpdates._clientEtag;
+      delete sanitizedUpdates._clientEtag;
+      if (clientEtag && existingTask._etag !== clientEtag) {
+        return {
+          status: 409,
+          jsonBody: {
+            conflict: true,
+            message: '他のユーザーがこのタスクを変更しました。最新版を確認してください。',
+            latest: existingTask,
+          },
+        };
+      }
+
       const previousStatus = existingTask.status;
       let statusChanged = false;
       let attachmentsToPersist = existingTask.attachments || [];

@@ -76,6 +76,7 @@ function buildTemplateVars(property, form, item) {
   return {
     ownerName: form.ownerName || '',
     projectName: form.projectName || property.sheetTab || '',
+    towerName: form.towerName || '',
     roomNumber: form.roomNumber || '',
     no: String(item.no),
     dueDate: item.dueDate || '',
@@ -644,6 +645,7 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
   const [customers, setCustomers] = useState([]);
   const [linkedCustomer, setLinkedCustomer] = useState(null);
   const [emailCompose, setEmailCompose] = useState(null); // { subject, body }
+  const [conflictData, setConflictData] = useState(null); // { latest } when 409
 
   useEffect(() => {
     if (!open) return;
@@ -654,8 +656,11 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
     if (!open || !property) return;
     setTab(0);
     setSaveError('');
+    setConflictData(null);
     setForm({
+      _clientEtag: property._etag || null,
       projectName: property.projectName || property.sheetTab || '',
+      towerName: property.towerName || '',
       roomNumber: property.roomNumber || '',
       ownerName: property.ownerName || '',
       contractDate: parseSheetDate(property.contractDate),
@@ -699,12 +704,13 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
     setSchedule(generated);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (forceOverwrite = false) => {
     setSaving(true);
     setSaveError('');
     try {
       const res = await axios.put(`${API}/UpdateProperty/${property.id}`, {
         ...form,
+        _clientEtag: forceOverwrite ? undefined : form._clientEtag,
         purchasePrice: form.purchasePrice ? Number(form.purchasePrice) : null,
         downPayment: form.downPayment ? Number(form.downPayment) : null,
         paymentDueDay: form.paymentDueDay ? Number(form.paymentDueDay) : null,
@@ -713,9 +719,14 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
         paymentSchedule: schedule,
         emailTemplate: form.emailTemplate,
       });
+      setConflictData(null);
       onSaved(res.data);
     } catch (e) {
-      setSaveError(e.response?.data || e.message || '保存に失敗しました');
+      if (e.response?.status === 409 && e.response?.data?.conflict) {
+        setConflictData({ latest: e.response.data.latest });
+      } else {
+        setSaveError(e.response?.data?.message || e.response?.data || e.message || '保存に失敗しました');
+      }
     } finally {
       setSaving(false);
     }
@@ -756,6 +767,7 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
           <Typography variant="subtitle2" color="text.secondary" fontSize={11}>アジア物件</Typography>
           <Typography variant="h6" fontWeight={700} noWrap>
             {form.projectName || property.sheetTab}
+            {form.towerName && <span style={{ fontWeight: 400, marginLeft: 6 }}>{form.towerName}</span>}
             {form.roomNumber && <span style={{ fontWeight: 400, color: 'text.secondary', marginLeft: 6 }}>#{form.roomNumber}</span>}
           </Typography>
         </Box>
@@ -799,6 +811,7 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
               <TextField size="small" label="プロジェクト名" value={form.projectName || ''} onChange={(e) => setForm((p) => ({ ...p, projectName: e.target.value }))} />
+              <TextField size="small" label="タワー名" value={form.towerName || ''} onChange={(e) => setForm((p) => ({ ...p, towerName: e.target.value }))} placeholder="例: Tower 1" />
               <TextField size="small" label="部屋番号" value={form.roomNumber || ''} onChange={(e) => setForm((p) => ({ ...p, roomNumber: e.target.value }))} />
               <TextField size="small" label="契約日" type="date" value={form.contractDate || ''} onChange={(e) => setForm((p) => ({ ...p, contractDate: e.target.value }))} InputLabelProps={{ shrink: true }} />
               <TextField size="small" label="オーナー名" value={form.ownerName || ''} onChange={(e) => setForm((p) => ({ ...p, ownerName: e.target.value }))} />
@@ -996,6 +1009,26 @@ export function SheetsPropertyDetailModal({ property, open, onClose, onSaved }) 
           toEmail={emailCompose.toEmail}
         />
       )}
+
+      <Dialog open={Boolean(conflictData)} onClose={() => setConflictData(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>編集の競合</DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 1 }}>
+            他のユーザーがこの物件情報を変更しました。
+          </Alert>
+          <Typography variant="body2">
+            最新版を読み込んで編集し直すか、現在の変更内容で上書きするかを選択してください。
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setConflictData(null); onSaved(conflictData.latest); }}>
+            最新版を読み込む
+          </Button>
+          <Button variant="contained" color="warning" onClick={() => { setConflictData(null); handleSave(true); }}>
+            上書き保存
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Dialog>
   );
 }

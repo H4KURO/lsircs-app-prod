@@ -28,6 +28,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Alert,
   ToggleButton,
   ToggleButtonGroup,
   Drawer,
@@ -690,6 +691,7 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
   const [kanbanPanelTask, setKanbanPanelTask] = useState(null);
   const [selectedTaskIds, setSelectedTaskIds] = useState(new Set());
   const [bulkStatusOpen, setBulkStatusOpen] = useState(false);
+  const [taskConflict, setTaskConflict] = useState(null); // { taskToSave, latest }
 
   const handleToggleSubtaskExpand = useCallback((taskId) => {
     if (!taskId) return;
@@ -1234,9 +1236,14 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
     });
   };
 
-  const handleSaveTask = (taskToSave) => {
+  const handleSaveTask = (taskToSave, forceOverwrite = false) => {
+    const existing = tasks.find((t) => t.id === taskToSave.id);
+    const payload = {
+      ...taskToSave,
+      _clientEtag: forceOverwrite ? undefined : (taskToSave._etag || existing?._etag || undefined),
+    };
     const apiCall = taskToSave.id
-      ? axios.put(`${API_URL}/UpdateTask/${taskToSave.id}`, taskToSave)
+      ? axios.put(`${API_URL}/UpdateTask/${taskToSave.id}`, payload)
       : axios.post(`${API_URL}/CreateTask`, taskToSave);
 
     apiCall
@@ -1249,10 +1256,15 @@ export function TaskView({ initialTaskId = null, onSelectedTaskChange } = {}) {
           }
           return [...prev, savedTask];
         });
+        setTaskConflict(null);
       })
       .catch((error) => {
-        console.error('Task save error:', error);
-        alert('タスクの保存に失敗しました。');
+        if (error.response?.status === 409 && error.response?.data?.conflict) {
+          setTaskConflict({ taskToSave, latest: error.response.data.latest });
+        } else {
+          console.error('Task save error:', error);
+          alert('タスクの保存に失敗しました。');
+        }
       })
       .finally(() => {
         setSelectedTask(null);
@@ -3086,6 +3098,36 @@ const renderListLayout = () => {
           allTasks={tasks}
         />
       )}
+
+      <Dialog open={Boolean(taskConflict)} onClose={() => setTaskConflict(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>編集の競合</DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 1 }}>
+            他のユーザーがこのタスクを変更しました。
+          </Alert>
+          <Typography variant="body2">
+            最新版を読み込んで編集し直すか、現在の変更内容で上書きするかを選択してください。
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            if (taskConflict?.latest) {
+              const latest = normalizeTask(taskConflict.latest);
+              setTasks((prev) => prev.map((t) => t.id === latest.id ? latest : t));
+            }
+            setTaskConflict(null);
+          }}>
+            最新版を読み込む
+          </Button>
+          <Button variant="contained" color="warning" onClick={() => {
+            const saved = taskConflict?.taskToSave;
+            setTaskConflict(null);
+            if (saved) handleSaveTask(saved, true);
+          }}>
+            上書き保存
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={saveViewDialogOpen} onClose={() => setSaveViewDialogOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle>ビューを保存</DialogTitle>
