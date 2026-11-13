@@ -220,6 +220,8 @@ export function CRMView({ onNavigateToTask, onNavigateToBuyer }) {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [sheetsImportOpen, setSheetsImportOpen] = useState(false);
+  const [tagFilter, setTagFilter] = useState('');
+  const [bulkTagging, setBulkTagging] = useState(false);
   // propertyName → { managementType } lookup
   const [propMap, setPropMap] = useState({});
 
@@ -260,11 +262,22 @@ export function CRMView({ onNavigateToTask, onNavigateToBuyer }) {
     return { count, types };
   }, [propMap]);
 
+  // All distinct tags across all customers
+  const allTags = useMemo(() => {
+    const s = new Set();
+    customers.forEach((c) => (c.tags || []).forEach((t) => s.add(t)));
+    return [...s].sort();
+  }, [customers]);
+
   const filteredCustomers = useMemo(() => {
     let result = customers;
 
     if (statusFilter !== 'すべて') {
       result = result.filter((c) => c.status === statusFilter);
+    }
+
+    if (tagFilter) {
+      result = result.filter((c) => (c.tags || []).includes(tagFilter));
     }
 
     if (searchText.trim()) {
@@ -279,7 +292,30 @@ export function CRMView({ onNavigateToTask, onNavigateToBuyer }) {
     }
 
     return result;
-  }, [customers, statusFilter, searchText]);
+  }, [customers, statusFilter, tagFilter, searchText]);
+
+  // Bulk-add "HI" tag to all customers that don't have it
+  const handleBulkHiTag = async () => {
+    const targets = customers.filter((c) => !(c.tags || []).includes('HI'));
+    if (targets.length === 0) { alert('全員すでにHIタグが付いています。'); return; }
+    if (!window.confirm(`${targets.length}名にHIタグを付与しますか？`)) return;
+    setBulkTagging(true);
+    try {
+      await Promise.all(
+        targets.map((c) =>
+          axios.post(`${API_URL}/UpdateCustomer`, {
+            id: c.id,
+            tags: [...new Set([...(c.tags || []), 'HI'])],
+          })
+        )
+      );
+      await fetchCustomers();
+    } catch (e) {
+      alert('一括付与に失敗しました: ' + (e.response?.data || e.message));
+    } finally {
+      setBulkTagging(false);
+    }
+  };
 
   const handleRowClick = (customer) => {
     setSelectedCustomer(customer);
@@ -312,6 +348,13 @@ export function CRMView({ onNavigateToTask, onNavigateToBuyer }) {
           顧客管理 (CRM)
         </Typography>
         <Box sx={{ flexGrow: 1 }} />
+        <Button
+          variant="outlined"
+          onClick={handleBulkHiTag}
+          disabled={bulkTagging}
+        >
+          {bulkTagging ? '付与中...' : 'HIタグを全員に付与'}
+        </Button>
         <Button
           variant="outlined"
           startIcon={<CloudUploadIcon />}
@@ -358,7 +401,7 @@ export function CRMView({ onNavigateToTask, onNavigateToBuyer }) {
         </Box>
 
         {/* ステータスフィルター */}
-        <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+        <Box sx={{ display: 'flex', gap: 1, mb: 1, flexWrap: 'wrap' }}>
           {STATUS_OPTIONS.map((s) => (
             <Chip
               key={s}
@@ -371,6 +414,31 @@ export function CRMView({ onNavigateToTask, onNavigateToBuyer }) {
             />
           ))}
         </Box>
+
+        {/* タグフィルター */}
+        {allTags.length > 0 && (
+          <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+            <Typography variant="caption" color="text.secondary">タグ:</Typography>
+            <Chip
+              label="すべて"
+              size="small"
+              variant={tagFilter === '' ? 'filled' : 'outlined'}
+              onClick={() => setTagFilter('')}
+              sx={{ cursor: 'pointer' }}
+            />
+            {allTags.map((tag) => (
+              <Chip
+                key={tag}
+                label={tag}
+                size="small"
+                color={tag === 'HI' ? 'info' : tag === 'ASIA' ? 'success' : 'default'}
+                variant={tagFilter === tag ? 'filled' : 'outlined'}
+                onClick={() => setTagFilter(tag === tagFilter ? '' : tag)}
+                sx={{ cursor: 'pointer' }}
+              />
+            ))}
+          </Box>
+        )}
 
         {/* エラー表示 */}
         {error && (
@@ -398,6 +466,7 @@ export function CRMView({ onNavigateToTask, onNavigateToBuyer }) {
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>氏名</TableCell>
+                  <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>タグ</TableCell>
                   <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>ステータス</TableCell>
                   <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>担当者</TableCell>
                   <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>所有物件数</TableCell>
@@ -408,7 +477,7 @@ export function CRMView({ onNavigateToTask, onNavigateToBuyer }) {
               <TableBody>
                 {filteredCustomers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} align="center" sx={{ color: 'text.secondary', py: 4 }}>
+                    <TableCell colSpan={7} align="center" sx={{ color: 'text.secondary', py: 4 }}>
                       {searchText || statusFilter !== 'すべて'
                         ? '該当する顧客が見つかりません'
                         : '顧客データがありません'}
@@ -426,6 +495,22 @@ export function CRMView({ onNavigateToTask, onNavigateToBuyer }) {
                         onClick={() => handleRowClick(customer)}
                       >
                         <TableCell sx={{ fontWeight: 500 }}>{customer.name}</TableCell>
+                        <TableCell>
+                          {customer.tags && customer.tags.length > 0 ? (
+                            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                              {customer.tags.map((tag) => (
+                                <Chip
+                                  key={tag}
+                                  label={tag}
+                                  size="small"
+                                  color={tag === 'HI' ? 'info' : tag === 'ASIA' ? 'success' : 'default'}
+                                />
+                              ))}
+                            </Box>
+                          ) : (
+                            <Typography sx={{ color: 'text.disabled', fontSize: '0.8rem' }}>—</Typography>
+                          )}
+                        </TableCell>
                         <TableCell>
                           <Chip
                             label={customer.status}

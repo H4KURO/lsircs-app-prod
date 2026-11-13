@@ -52,6 +52,7 @@ app.http('CreateCustomer', {
         nextFollowUpAt: payload.nextFollowUpAt ?? null,
         notes: payload.notes ?? null,
         buyerLink: payload.buyerLink ?? null,
+        tags: Array.isArray(payload.tags) ? payload.tags : [],
         createdAt: now,
         updatedAt: now,
         createdBy: clientPrincipal.userDetails,

@@ -19,7 +19,7 @@ const ALLOWED_UPDATE_FIELDS = [
   'name', 'email', 'phone', 'company', 'country', 'region', 'status',
   'source', 'assignedTo', 'propertyInterest', 'preferredBedrooms',
   'budget', 'lastContactedAt', 'nextFollowUpAt', 'notes', 'buyerLink', 'buyerLinks',
-  'boxFolders', 'comments',
+  'boxFolders', 'comments', 'tags',
 ];
 
 const FIELD_LABELS = {
