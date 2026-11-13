@@ -914,8 +914,9 @@ export function PropertiesView({ initialPropertyId, onDeepLinkConsumed }) {
     if (!initialPropertyId || loading || properties.length === 0) return;
     const target = properties.find((p) => p.id === initialPropertyId);
     if (!target) return;
-    // Determine if Asia (has projectName) or Appfolio
-    if (target.projectName) {
+    // Determine if Asia or Appfolio (Hawaii):
+    // primary: region field; fallback: projectName for existing data without region
+    if (target.region === 'ASIA' || (!target.region && target.projectName)) {
       setActiveView('sheets');
       setSheetsEditTarget(target);
     } else {
