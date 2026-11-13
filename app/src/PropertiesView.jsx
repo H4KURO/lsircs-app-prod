@@ -568,6 +568,21 @@ function RegisterOwnersDialog({ open, onClose, properties, onDone }) {
   const [step, setStep] = useState('preview'); // 'preview' | 'done'
   const [working, setWorking] = useState(false);
   const [result, setResult] = useState(null);
+  const [existingCustomerIds, setExistingCustomerIds] = useState(null); // null = loading
+
+  // Fetch existing customer IDs on open to detect orphaned links
+  useEffect(() => {
+    if (!open) return;
+    setStep('preview');
+    setResult(null);
+    setExistingCustomerIds(null);
+    axios.get(`${API}/GetCustomers`).then((res) => {
+      const ids = new Set((res.data || []).map((c) => c.id));
+      setExistingCustomerIds(ids);
+    }).catch(() => {
+      setExistingCustomerIds(new Set()); // fallback: treat all as unknown
+    });
+  }, [open]);
 
   // Build unique owners from Asia properties that have ownerName
   const owners = useMemo(() => {
@@ -581,28 +596,31 @@ function RegisterOwnersDialog({ open, onClose, properties, onDone }) {
     return [...map.values()].sort((a, b) => a.ownerName.localeCompare(b.ownerName, 'ja'));
   }, [properties]);
 
-  const unlinked = useMemo(
-    () => owners.filter((o) => o.props.some((p) => !p.linkedCustomerId)),
-    [owners],
-  );
+  // Unlinked = no linkedCustomerId OR linkedCustomerId points to a deleted customer
+  const unlinked = useMemo(() => {
+    if (existingCustomerIds === null) return [];
+    return owners.filter((o) =>
+      o.props.some((p) => !p.linkedCustomerId || !existingCustomerIds.has(p.linkedCustomerId))
+    );
+  }, [owners, existingCustomerIds]);
 
-  useEffect(() => {
-    if (open) { setStep('preview'); setResult(null); }
-  }, [open]);
+  // Determine which properties within each owner need re-linking
+  const needsLink = (p) =>
+    !p.linkedCustomerId || (existingCustomerIds && !existingCustomerIds.has(p.linkedCustomerId));
 
   const handleRegister = async () => {
     setWorking(true);
     try {
-      // 1. Register all unique owners as customers with ASIA tag
+      // 1. Register all unique owners as customers with ASIA tag (upsert is safe)
       const rows = unlinked.map((o) => ({ 名前: o.ownerName, タグ: 'ASIA' }));
       await axios.post(`${API}/ImportCustomersFromFile`, { rows });
 
-      // 2. Link each unlinked property to its customer
+      // 2. Link each unlinked/orphaned property to its customer
       const linkPromises = [];
       for (const o of unlinked) {
         const customerId = `customer-file-${safeSlug(o.ownerName)}`;
         for (const p of o.props) {
-          if (!p.linkedCustomerId) {
+          if (needsLink(p)) {
             linkPromises.push(
               axios.put(`${API}/UpdateProperty/${p.id}`, {
                 linkedCustomerId: customerId,
@@ -629,40 +647,60 @@ function RegisterOwnersDialog({ open, onClose, properties, onDone }) {
       <DialogContent>
         {step === 'preview' && (
           <>
-            <Alert severity="info" sx={{ mb: 2 }}>
-              アジア物件のオーナー名から顧客レコードを作成し、物件と自動的に紐づけます。<br />
-              対象: 未リンクのオーナー <strong>{unlinked.length}名</strong>（物件 {unlinked.reduce((n, o) => n + o.props.filter((p) => !p.linkedCustomerId).length, 0)}件）
-            </Alert>
-            {unlinked.length === 0 ? (
-              <Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
-                すべての物件のオーナーがリンク済みです。
-              </Typography>
+            {existingCustomerIds === null ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                <CircularProgress size={28} />
+              </Box>
             ) : (
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 700 }}>オーナー名</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>未リンク物件</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {unlinked.map((o) => (
-                    <TableRow key={o.ownerName}>
-                      <TableCell>{o.ownerName}</TableCell>
-                      <TableCell>
-                        {o.props.filter((p) => !p.linkedCustomerId).map((p) => (
-                          <Chip
-                            key={p.id}
-                            size="small"
-                            label={[p.projectName, p.towerName, p.roomNumber].filter(Boolean).join(' ')}
-                            sx={{ mr: 0.5, mb: 0.3 }}
-                          />
-                        ))}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <>
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  アジア物件のオーナー名から顧客レコードを作成し、物件と自動的に紐づけます。<br />
+                  対象: 未リンク／リンク切れのオーナー <strong>{unlinked.length}名</strong>（物件 {unlinked.reduce((n, o) => n + o.props.filter(needsLink).length, 0)}件）
+                </Alert>
+                {unlinked.length === 0 ? (
+                  <Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+                    すべての物件のオーナーがリンク済みです。
+                  </Typography>
+                ) : (
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 700 }}>オーナー名</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>対象物件</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>理由</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {unlinked.map((o) => {
+                        const targetProps = o.props.filter(needsLink);
+                        const hasOrphaned = targetProps.some((p) => p.linkedCustomerId && !existingCustomerIds.has(p.linkedCustomerId));
+                        return (
+                          <TableRow key={o.ownerName}>
+                            <TableCell>{o.ownerName}</TableCell>
+                            <TableCell>
+                              {targetProps.map((p) => (
+                                <Chip
+                                  key={p.id}
+                                  size="small"
+                                  label={[p.projectName, p.towerName, p.roomNumber].filter(Boolean).join(' ')}
+                                  sx={{ mr: 0.5, mb: 0.3 }}
+                                />
+                              ))}
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                size="small"
+                                label={hasOrphaned ? 'リンク切れ（名寄せで削除）' : '未登録'}
+                                color={hasOrphaned ? 'warning' : 'default'}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </>
             )}
           </>
         )}
@@ -675,7 +713,7 @@ function RegisterOwnersDialog({ open, onClose, properties, onDone }) {
       <DialogActions>
         <Button onClick={onClose}>{step === 'done' ? '閉じる' : 'キャンセル'}</Button>
         {step === 'preview' && unlinked.length > 0 && (
-          <Button variant="contained" onClick={handleRegister} disabled={working}>
+          <Button variant="contained" onClick={handleRegister} disabled={working || existingCustomerIds === null}>
             {working ? '登録中...' : '登録してリンクする'}
           </Button>
         )}
