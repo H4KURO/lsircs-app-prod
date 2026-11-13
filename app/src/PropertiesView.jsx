@@ -914,8 +914,8 @@ export function PropertiesView({ initialPropertyId, onDeepLinkConsumed }) {
     if (!initialPropertyId || loading || properties.length === 0) return;
     const target = properties.find((p) => p.id === initialPropertyId);
     if (!target) return;
-    // Determine if Asia (has projectName but no propertyName) or Appfolio
-    if (target.projectName && !target.propertyName) {
+    // Determine if Asia (has projectName) or Appfolio
+    if (target.projectName) {
       setActiveView('sheets');
       setSheetsEditTarget(target);
     } else {
