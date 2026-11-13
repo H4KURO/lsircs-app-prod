@@ -216,20 +216,20 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
           .catch(() => {})
           .finally(() => setLoadingTasks(false));
 
-        const names = customer.linkedPropertyNames;
-        if (Array.isArray(names) && names.length > 0) {
-          setLoadingProperties(true);
-          axios
-            .get(`${API_URL}/GetProperties`)
-            .then((res) => {
-              const all = Array.isArray(res.data) ? res.data : [];
-              setLinkedProperties(all.filter((p) => names.includes(p.propertyName)));
-            })
-            .catch(() => {})
-            .finally(() => setLoadingProperties(false));
-        } else {
-          setLinkedProperties([]);
-        }
+        // Fetch all properties and match by linkedCustomerId (Asia) or linkedPropertyNames (Hawaii)
+        setLoadingProperties(true);
+        axios
+          .get(`${API_URL}/GetProperties`)
+          .then((res) => {
+            const all = Array.isArray(res.data) ? res.data : [];
+            const names = customer.linkedPropertyNames || [];
+            setLinkedProperties(all.filter((p) =>
+              p.linkedCustomerId === customer.id ||
+              (names.length > 0 && names.includes(p.propertyName))
+            ));
+          })
+          .catch(() => {})
+          .finally(() => setLoadingProperties(false));
       } else {
         setAllTasks([]);
         setLinkedProperties([]);

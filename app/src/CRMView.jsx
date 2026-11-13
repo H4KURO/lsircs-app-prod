@@ -222,8 +222,8 @@ export function CRMView({ onNavigateToTask, onNavigateToBuyer }) {
   const [sheetsImportOpen, setSheetsImportOpen] = useState(false);
   const [tagFilter, setTagFilter] = useState('');
   const [bulkTagging, setBulkTagging] = useState(false);
-  // propertyName → { managementType } lookup
-  const [propMap, setPropMap] = useState({});
+  // All properties (for customer → property lookup)
+  const [allProperties, setAllProperties] = useState([]);
 
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
@@ -235,11 +235,7 @@ export function CRMView({ onNavigateToTask, onNavigateToBuyer }) {
       ]);
       setCustomers(custRes.status === 'fulfilled' ? (custRes.value.data || []) : []);
       if (propRes.status === 'fulfilled') {
-        const map = {};
-        for (const p of propRes.value.data || []) {
-          if (p.propertyName) map[p.propertyName] = { managementType: p.managementType };
-        }
-        setPropMap(map);
+        setAllProperties(propRes.value.data || []);
       }
       if (custRes.status === 'rejected') {
         const err = custRes.reason;
@@ -254,13 +250,19 @@ export function CRMView({ onNavigateToTask, onNavigateToBuyer }) {
     fetchCustomers();
   }, [fetchCustomers]);
 
-  // Derive property info per customer from propMap
+  // Derive property info per customer:
+  // - Asia properties: match by linkedCustomerId === customer.id
+  // - Hawaii properties: match by propertyName in customer.linkedPropertyNames
   const getPropertyInfo = useCallback((customer) => {
-    const names = customer.linkedPropertyNames || [];
-    const count = names.length;
-    const types = [...new Set(names.map(n => propMap[n]?.managementType).filter(Boolean))];
+    const names = new Set(customer.linkedPropertyNames || []);
+    const matched = allProperties.filter((p) =>
+      p.linkedCustomerId === customer.id ||
+      (p.propertyName && names.has(p.propertyName))
+    );
+    const count = matched.length;
+    const types = [...new Set(matched.map((p) => p.managementType).filter(Boolean))];
     return { count, types };
-  }, [propMap]);
+  }, [allProperties]);
 
   // All distinct tags across all customers
   const allTags = useMemo(() => {
