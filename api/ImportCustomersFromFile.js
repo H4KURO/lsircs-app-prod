@@ -30,6 +30,7 @@ const COLUMN_MAP = {
   'メモ': 'notes',
   '備考': 'notes',
   '物件関心': 'propertyInterest',
+  'タグ': 'tags',
 };
 
 app.http('ImportCustomersFromFile', {
@@ -84,11 +85,19 @@ app.http('ImportCustomersFromFile', {
           }
         } catch (_) { /* new record */ }
 
+        // Normalize tags: comma-separated string or array → array
+        if (mapped.tags !== undefined) {
+          if (!Array.isArray(mapped.tags)) {
+            mapped.tags = String(mapped.tags).split(',').map((t) => t.trim().toUpperCase()).filter(Boolean);
+          }
+        }
+
         const doc = {
           ...preserved,
           ...mapped,
           id: docId,
           status: preserved.status || mapped.status || 'Lead',
+          tags: mapped.tags || preserved.tags || [],
           importSource: 'file',
           importedAt,
           updatedAt: now,

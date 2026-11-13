@@ -593,8 +593,8 @@ function RegisterOwnersDialog({ open, onClose, properties, onDone }) {
   const handleRegister = async () => {
     setWorking(true);
     try {
-      // 1. Register all unique owners as customers
-      const rows = unlinked.map((o) => ({ 名前: o.ownerName }));
+      // 1. Register all unique owners as customers with ASIA tag
+      const rows = unlinked.map((o) => ({ 名前: o.ownerName, タグ: 'ASIA' }));
       await axios.post(`${API}/ImportCustomersFromFile`, { rows });
 
       // 2. Link each unlinked property to its customer

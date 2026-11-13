@@ -123,6 +123,8 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
   const [newTaskPropertyId, setNewTaskPropertyId] = useState('');
   const [savingTask, setSavingTask] = useState(false);
   const [selectedPropertyId, setSelectedPropertyId] = useState(null);
+  const [tags, setTags] = useState([]);
+  const [tagInput, setTagInput] = useState('');
   const [comments, setComments] = useState([]);
   const [commentText, setCommentText] = useState('');
   const [postingComment, setPostingComment] = useState(false);
@@ -182,6 +184,8 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
           ? customer.buyerLinks
           : (customer.buyerLink ? [customer.buyerLink] : []);
         setBuyerLinks(links);
+        setTags(Array.isArray(customer.tags) ? customer.tags : []);
+        setTagInput('');
         setBoxFolders(Array.isArray(customer.boxFolders) ? customer.boxFolders : []);
         setSelectedFolderIdx(0);
         setBoxView('preview');
@@ -191,6 +195,8 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
       } else {
         setForm(BLANK_FORM);
         setBuyerLinks([]);
+        setTags([]);
+        setTagInput('');
         setBoxFolders([]);
       }
       setSelectedPropertyId(null);
@@ -245,8 +251,8 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
     try {
       const endpoint = isEdit ? 'UpdateCustomer' : 'CreateCustomer';
       const body = isEdit
-        ? { id: customer.id, ...form, buyerLinks, buyerLink: buyerLinks[0] ?? null, boxFolders }
-        : { ...form, buyerLinks, buyerLink: buyerLinks[0] ?? null };
+        ? { id: customer.id, ...form, buyerLinks, buyerLink: buyerLinks[0] ?? null, boxFolders, tags }
+        : { ...form, buyerLinks, buyerLink: buyerLinks[0] ?? null, tags };
       const res = await axios.post(`${API_URL}/${endpoint}`, body);
       onSaved(res.data);
       onClose();
@@ -512,6 +518,44 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
               size="small"
               InputLabelProps={{ shrink: true }}
             />
+          </Grid>
+
+          {/* タグ */}
+          <Grid item xs={12}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>タグ</Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.5 }}>
+              {tags.map((tag) => (
+                <Chip
+                  key={tag}
+                  label={tag}
+                  size="small"
+                  color={tag === 'HI' ? 'info' : tag === 'ASIA' ? 'success' : 'default'}
+                  onDelete={() => setTags((prev) => prev.filter((t) => t !== tag))}
+                />
+              ))}
+            </Box>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <TextField
+                size="small"
+                placeholder="タグを入力（例: HI / ASIA）"
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if ((e.key === 'Enter' || e.key === ',') && tagInput.trim()) {
+                    e.preventDefault();
+                    const t = tagInput.trim().toUpperCase();
+                    if (!tags.includes(t)) setTags((prev) => [...prev, t]);
+                    setTagInput('');
+                  }
+                }}
+                sx={{ flex: 1 }}
+              />
+              <Button size="small" variant="outlined" onClick={() => {
+                const t = tagInput.trim().toUpperCase();
+                if (t && !tags.includes(t)) setTags((prev) => [...prev, t]);
+                setTagInput('');
+              }}>追加</Button>
+            </Box>
           </Grid>
 
           {/* 関連タスク（物件別） */}
