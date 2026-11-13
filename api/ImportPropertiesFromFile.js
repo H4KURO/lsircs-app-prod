@@ -29,6 +29,7 @@ const COLUMN_MAP = {
   '支払い期日': 'paymentDueDay',
   '初回支払い日': 'paymentStartDate',
   '通貨': 'currency',
+  '地域': 'region',
 };
 
 const NUMBER_FIELDS = new Set(['purchasePrice', 'downPayment', 'paymentBaseAmount', 'paymentCount', 'paymentDueDay']);
@@ -106,6 +107,7 @@ app.http('ImportPropertiesFromFile', {
           id: docId,
           sheetTab,
           propertyName: mapped.projectName || sheetTab,
+          region: mapped.region || 'ASIA', // default to ASIA for file imports
           importSource: 'file',
           importedAt,
           updatedAt: now,
