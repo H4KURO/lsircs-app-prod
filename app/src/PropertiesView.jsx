@@ -879,7 +879,7 @@ function SheetsPropertiesTab({ properties, onImportOpen, onDelete, onRowClick })
   );
 }
 
-export function PropertiesView() {
+export function PropertiesView({ initialPropertyId, onDeepLinkConsumed }) {
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -908,6 +908,22 @@ export function PropertiesView() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Deep-link: open the property modal when initialPropertyId is provided and properties are loaded
+  useEffect(() => {
+    if (!initialPropertyId || loading || properties.length === 0) return;
+    const target = properties.find((p) => p.id === initialPropertyId);
+    if (!target) return;
+    // Determine if Asia (has projectName but no propertyName) or Appfolio
+    if (target.projectName && !target.propertyName) {
+      setActiveView('sheets');
+      setSheetsEditTarget(target);
+    } else {
+      setActiveView('appfolio');
+      setEditTarget(target);
+    }
+    if (onDeepLinkConsumed) onDeepLinkConsumed();
+  }, [initialPropertyId, loading, properties, onDeepLinkConsumed]);
 
   const handleDelete = async (p) => {
     if (!window.confirm(`「${p.propertyName}」を削除しますか？`)) return;

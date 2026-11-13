@@ -99,7 +99,7 @@ const BLANK_FORM = {
   notes: '',
 };
 
-export function CustomerDetailModal({ open, onClose, customer, onSaved, onDeleted, onNavigateToTask, onNavigateToBuyer }) {
+export function CustomerDetailModal({ open, onClose, customer, onSaved, onDeleted, onNavigateToTask, onNavigateToBuyer, onNavigateToProperty }) {
   const isEdit = customer != null;
   const [form, setForm] = useState(BLANK_FORM);
   const [buyerLinks, setBuyerLinks] = useState([]);
@@ -839,15 +839,24 @@ export function CustomerDetailModal({ open, onClose, customer, onSaved, onDelete
                           const s = getMgmtStyle(p.managementType);
                           const isCurrent = p.tenantStatus === 'Current';
                           const isNotice = p.tenantStatus === 'Notice';
+                          const displayName = p.propertyName ||
+                            [p.projectName, p.towerName, p.roomNumber].filter(Boolean).join(' ');
+                          const canNavigate = !!onNavigateToProperty;
                           return (
-                            <Box key={p.id} sx={{
-                              display: 'flex', alignItems: 'center', gap: 1.5,
-                              px: 1.5, py: 1, borderRadius: 1,
-                              '&:hover': { bgcolor: 'action.hover' },
-                            }}>
+                            <Box key={p.id}
+                              onClick={canNavigate ? () => { onClose(); onNavigateToProperty(p.id); } : undefined}
+                              sx={{
+                                display: 'flex', alignItems: 'center', gap: 1.5,
+                                px: 1.5, py: 1, borderRadius: 1,
+                                cursor: canNavigate ? 'pointer' : 'default',
+                                '&:hover': { bgcolor: 'action.hover' },
+                              }}>
                               <Box sx={{ width: 3, height: 36, borderRadius: 1, bgcolor: s.bar, flexShrink: 0 }} />
                               <Box sx={{ flex: 1, minWidth: 0 }}>
-                                <Typography variant="body2" fontWeight={500} noWrap>{p.propertyName}</Typography>
+                                <Typography variant="body2" fontWeight={500} noWrap
+                                  sx={canNavigate ? { color: 'primary.main', textDecoration: 'underline' } : {}}>
+                                  {displayName}
+                                </Typography>
                                 <Typography variant="caption" color="text.secondary">
                                   {p.managementType || '—'}
                                   {p.leaseStart && p.leaseEnd ? ` · ${p.leaseStart} 〜 ${p.leaseEnd}` : ''}

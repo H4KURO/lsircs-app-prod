@@ -210,7 +210,7 @@ function getStatusColor(status) {
   }
 }
 
-export function CRMView({ onNavigateToTask, onNavigateToBuyer }) {
+export function CRMView({ onNavigateToTask, onNavigateToBuyer, onNavigateToProperty }) {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -578,6 +578,7 @@ export function CRMView({ onNavigateToTask, onNavigateToBuyer }) {
         onDeleted={handleDeleted}
         onNavigateToTask={onNavigateToTask}
         onNavigateToBuyer={onNavigateToBuyer}
+        onNavigateToProperty={onNavigateToProperty}
       />
       <MergeDialog
         open={mergeOpen}
