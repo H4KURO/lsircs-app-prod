@@ -559,6 +559,131 @@ function OwnerImportDialog({ open, onClose }) {
   );
 }
 
+// slugify matching the server-side safeSlug in ImportCustomersFromFile.js
+function safeSlug(s) {
+  return String(s || '').trim().replace(/[/\\#?&\s@.]/g, '_').slice(0, 100);
+}
+
+function RegisterOwnersDialog({ open, onClose, properties, onDone }) {
+  const [step, setStep] = useState('preview'); // 'preview' | 'done'
+  const [working, setWorking] = useState(false);
+  const [result, setResult] = useState(null);
+
+  // Build unique owners from Asia properties that have ownerName
+  const owners = useMemo(() => {
+    const map = new Map(); // ownerName → { ownerName, props: Property[] }
+    for (const p of properties) {
+      if (!p.ownerName) continue;
+      const key = p.ownerName.trim();
+      if (!map.has(key)) map.set(key, { ownerName: key, props: [] });
+      map.get(key).props.push(p);
+    }
+    return [...map.values()].sort((a, b) => a.ownerName.localeCompare(b.ownerName, 'ja'));
+  }, [properties]);
+
+  const unlinked = useMemo(
+    () => owners.filter((o) => o.props.some((p) => !p.linkedCustomerId)),
+    [owners],
+  );
+
+  useEffect(() => {
+    if (open) { setStep('preview'); setResult(null); }
+  }, [open]);
+
+  const handleRegister = async () => {
+    setWorking(true);
+    try {
+      // 1. Register all unique owners as customers
+      const rows = unlinked.map((o) => ({ 名前: o.ownerName }));
+      await axios.post(`${API}/ImportCustomersFromFile`, { rows });
+
+      // 2. Link each unlinked property to its customer
+      const linkPromises = [];
+      for (const o of unlinked) {
+        const customerId = `customer-file-${safeSlug(o.ownerName)}`;
+        for (const p of o.props) {
+          if (!p.linkedCustomerId) {
+            linkPromises.push(
+              axios.put(`${API}/UpdateProperty/${p.id}`, {
+                linkedCustomerId: customerId,
+                linkedCustomerName: o.ownerName,
+              }).then((res) => res.data)
+            );
+          }
+        }
+      }
+      const updated = await Promise.all(linkPromises);
+      setResult({ linked: updated.length, owners: unlinked.length });
+      setStep('done');
+      onDone(updated);
+    } catch (e) {
+      alert('登録に失敗しました: ' + (e.response?.data || e.message));
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>オーナーをCRMに一括登録</DialogTitle>
+      <DialogContent>
+        {step === 'preview' && (
+          <>
+            <Alert severity="info" sx={{ mb: 2 }}>
+              アジア物件のオーナー名から顧客レコードを作成し、物件と自動的に紐づけます。<br />
+              対象: 未リンクのオーナー <strong>{unlinked.length}名</strong>（物件 {unlinked.reduce((n, o) => n + o.props.filter((p) => !p.linkedCustomerId).length, 0)}件）
+            </Alert>
+            {unlinked.length === 0 ? (
+              <Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+                すべての物件のオーナーがリンク済みです。
+              </Typography>
+            ) : (
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 700 }}>オーナー名</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>未リンク物件</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {unlinked.map((o) => (
+                    <TableRow key={o.ownerName}>
+                      <TableCell>{o.ownerName}</TableCell>
+                      <TableCell>
+                        {o.props.filter((p) => !p.linkedCustomerId).map((p) => (
+                          <Chip
+                            key={p.id}
+                            size="small"
+                            label={[p.projectName, p.towerName, p.roomNumber].filter(Boolean).join(' ')}
+                            sx={{ mr: 0.5, mb: 0.3 }}
+                          />
+                        ))}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </>
+        )}
+        {step === 'done' && result && (
+          <Alert severity="success">
+            {result.owners}名の顧客レコードを作成し、{result.linked}件の物件を紐づけました。
+          </Alert>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>{step === 'done' ? '閉じる' : 'キャンセル'}</Button>
+        {step === 'preview' && unlinked.length > 0 && (
+          <Button variant="contained" onClick={handleRegister} disabled={working}>
+            {working ? '登録中...' : '登録してリンクする'}
+          </Button>
+        )}
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 const ASIA_COLUMNS = [
   { key: 'projectName', label: 'プロジェクト名', minWidth: 160 },
   { key: 'towerName', label: 'タワー名', minWidth: 100 },
@@ -730,6 +855,7 @@ export function PropertiesView() {
   const [sheetsImportOpen, setSheetsImportOpen] = useState(false);
   const [sheetsEditTarget, setSheetsEditTarget] = useState(null);
   const [ownerImportOpen, setOwnerImportOpen] = useState(false);
+  const [registerOwnersOpen, setRegisterOwnersOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -830,7 +956,10 @@ export function PropertiesView() {
                 Excel エクスポート
               </Button>
               <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setOwnerImportOpen(true)}>
-                オーナーをインポート
+                顧客をインポート
+              </Button>
+              <Button variant="outlined" startIcon={<TaskAltIcon />} onClick={() => setRegisterOwnersOpen(true)} disabled={sheetsProperties.length === 0}>
+                オーナーをCRMに登録
               </Button>
               <Button variant="contained" startIcon={<CloudDownloadIcon />} onClick={() => setSheetsImportOpen(true)}>
                 ファイルからインポート
@@ -984,6 +1113,18 @@ export function PropertiesView() {
       <OwnerImportDialog
         open={ownerImportOpen}
         onClose={() => setOwnerImportOpen(false)}
+      />
+      <RegisterOwnersDialog
+        open={registerOwnersOpen}
+        onClose={() => setRegisterOwnersOpen(false)}
+        properties={sheetsProperties}
+        onDone={(updated) => {
+          setProperties((prev) => {
+            const map = new Map(updated.map((p) => [p.id, p]));
+            return prev.map((p) => map.has(p.id) ? map.get(p.id) : p);
+          });
+          setRegisterOwnersOpen(false);
+        }}
       />
       <SheetsPropertyDetailModal
         property={sheetsEditTarget}
